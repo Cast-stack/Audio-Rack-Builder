@@ -17,12 +17,12 @@
  * serves the planner in the browser and the PDF patch sheet on the server.
  */
 
-import type { DeviceSpec, PortSpec } from "./types";
+import type { DeviceSpec, PanelElement, PortSpec } from "./types";
 
 /** The slice of a device this renderer needs. */
 export type PanelDevice = Pick<
   DeviceSpec,
-  "brand" | "model" | "category" | "ports"
+  "brand" | "model" | "category" | "ports" | "panel"
 >;
 
 export const W = 1900;            // 19 in × 100
@@ -298,6 +298,21 @@ function faceBounds(PW: number, half: Half) {
   };
 }
 
+// ------------------------------------------------- furniture primitives
+function display(x: number, y: number, w: number, dh: number): string {
+  return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + dh +
+    '" rx="6" fill="var(--pf-lcd)" stroke="var(--pf-edge)" stroke-width="3"/>' +
+    '<rect x="' + (x + 8) + '" y="' + (y + 8) + '" width="' + (w - 16) + '" height="' + (dh * 0.3) +
+    '" fill="var(--pf-lcd-ink)" opacity=".35"/>';
+}
+function knob(cx: number, cy: number, r: number): string {
+  return '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="var(--pf-knob)" stroke="var(--pf-edge)" stroke-width="3"/>' +
+    '<path d="M' + cx + " " + cy + "L" + cx + " " + (cy - r * 0.72) + '" stroke="var(--pf-silk)" stroke-width="' + r * 0.16 + '"/>';
+}
+function led(cx: number, cy: number, r: number, colour: string): string {
+  return '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="' + colour + '"/>';
+}
+
 function frontFurniture(device: PanelDevice, units: number, PW: number, half: Half): string {
   PW = PW || W;
   var h = units * U;
@@ -312,20 +327,6 @@ function frontFurniture(device: PanelDevice, units: number, PW: number, half: Ha
   }
   var cat = device.category;
   var g = "";
-
-  function display(x: number, y: number, w: number, dh: number): string {
-    return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + dh +
-      '" rx="6" fill="var(--pf-lcd)" stroke="var(--pf-edge)" stroke-width="3"/>' +
-      '<rect x="' + (x + 8) + '" y="' + (y + 8) + '" width="' + (w - 16) + '" height="' + (dh * 0.3) +
-      '" fill="var(--pf-lcd-ink)" opacity=".35"/>';
-  }
-  function knob(cx: number, cy: number, r: number): string {
-    return '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="var(--pf-knob)" stroke="var(--pf-edge)" stroke-width="3"/>' +
-      '<path d="M' + cx + " " + cy + "L" + cx + " " + (cy - r * 0.72) + '" stroke="var(--pf-silk)" stroke-width="' + r * 0.16 + '"/>';
-  }
-  function led(cx: number, cy: number, r: number, colour: string): string {
-    return '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="' + colour + '"/>';
-  }
 
   if (/IEM Transmitter|Receiver|Wireless|Spectrum Manager|System Processor/.test(cat)) {
     var dw = (x1 - x0) * 0.34;
@@ -386,6 +387,257 @@ function frontFurniture(device: PanelDevice, units: number, PW: number, half: Ha
   return g;
 }
 
+
+// ------------------------------------------------- researched panel layout
+/**
+ * Relative widths by element kind, in panel units at full rack width.
+ *
+ * These set proportion, not position. Position comes from the order of the
+ * manufacturer's own callout list, which runs left to right across the panel;
+ * the renderer shares the face out between the elements in that order. So the
+ * arrangement is sourced and only the sizing is this tool's judgement — the
+ * same split the depth figures use, where the chassis number is published and
+ * the connector allowance is ours.
+ */
+var ELEMENT_W: Record<string, number> = {
+  display: 360, led: 46, ledBar: 150, knob: 112, button: 96, switch: 86,
+  powerSwitch: 104, window: 70, bay: 230, vent: 300, fan: 210, handle: 130,
+  shelfLip: 400, labelStrip: 360, jack: 96, logo: 190,
+};
+
+var SIZE_SCALE: Record<string, number> = { sm: 0.62, md: 1, lg: 1.5 };
+
+function elementWidth(el: PanelElement, ports: Map<string, PortSpec>): number {
+  var base = ELEMENT_W[el.kind] ?? 100;
+  var n = Math.max(1, el.count || 1);
+  if (el.kind === "jack" && el.port) {
+    // One callout can stand for eight sockets. Width follows the connector
+    // count and the connector's own drawn size, or the row overlaps itself.
+    var port = ports.get(el.port);
+    if (port) {
+      var conn = connFor(shapeFor(port.connector));
+      return conn.w * Math.min(port.count || 1, 16);
+    }
+  }
+  var spread = el.stack === "v" ? 1 : n;
+  return base * spread * (SIZE_SCALE[el.size || "md"] ?? 1);
+}
+
+/**
+ * The silkscreen under a control.
+ *
+ * Panel elements are scaled down to fit the face, but the silkscreen font is
+ * not, so the label has to be trimmed against the SCALED width or adjacent
+ * labels overlap. At the silk-sm size a character is about 16 units wide.
+ * Below about three characters worth, the label stops being readable and is
+ * dropped rather than printed as an ellipsis over its neighbour.
+ */
+var SILK_CHAR_W = 16;
+var SILK_MIN_W = 3 * SILK_CHAR_W;
+
+function silk(el: PanelElement, w: number): string {
+  if (!el.label || w < SILK_MIN_W) return "";
+  return esc(trim(el.label, Math.floor(w / SILK_CHAR_W)));
+}
+
+function drawElement(
+  el: PanelElement,
+  x: number,
+  w: number,
+  mid: number,
+  h: number,
+  ports: Map<string, PortSpec>,
+): string {
+  var cx = x + w / 2;
+  var n = Math.max(1, el.count || 1);
+  var g = "";
+  var labelY = mid + h * 0.32;
+
+  function spread(draw: (ccx: number, ccy: number, step: number) => string): string {
+    var out = "";
+    if (el.stack === "v") {
+      var stepY = Math.min(h * 0.22, (h - 30) / n);
+      var top = mid - (stepY * (n - 1)) / 2;
+      for (var i = 0; i < n; i++) out += draw(cx, top + stepY * i, Math.min(stepY, w));
+      return out;
+    }
+    var stepX = w / n;
+    for (var j = 0; j < n; j++) out += draw(x + stepX * (j + 0.5), mid, stepX);
+    return out;
+  }
+
+  switch (el.kind) {
+    case "display": {
+      var dh = Math.min(h * 0.62, h - 34);
+      g += display(x, mid - dh / 2, w, dh);
+      // Readouts are fields of this screen, not parts of the panel: they are
+      // drawn as inert segments so the screen reads as populated without
+      // pretending to show live values.
+      var rows = (el.readouts || []).slice(0, 3);
+      for (var k = 0; k < rows.length; k++) {
+        g += '<rect x="' + (x + 14) + '" y="' + (mid - dh / 2 + 16 + k * (dh * 0.26)) +
+          '" width="' + Math.max(12, (w - 28) * (k === 0 ? 0.62 : 0.34)) +
+          '" height="' + Math.max(4, dh * 0.14) + '" fill="var(--pf-lcd-ink)" opacity=".5"/>';
+      }
+      return g;
+    }
+    case "led":
+      g += spread(function (ccx, ccy) {
+        return led(ccx, ccy, Math.min(13, h * 0.09), "var(--pf-led-on)");
+      });
+      break;
+    case "ledBar": {
+      var segs = 6;
+      var segW = (w / segs) * 0.72;
+      for (var m = 0; m < segs; m++) {
+        g += '<rect x="' + (x + (w / segs) * m + segW * 0.18) + '" y="' + (mid - h * 0.09) +
+          '" width="' + segW + '" height="' + h * 0.18 + '" rx="2" fill="' +
+          (m < 3 ? "var(--pf-led-on)" : m < 5 ? "var(--pf-led-dim)" : "var(--pf-led-off)") + '"/>';
+      }
+      break;
+    }
+    case "knob":
+      g += spread(function (ccx, ccy, step) {
+        return knob(ccx, ccy, Math.min(step * 0.34, h * 0.21));
+      });
+      break;
+    case "button":
+    case "powerSwitch":
+    case "switch": {
+      var full = el.kind === "switch" ? h * 0.2 : h * 0.3;
+      g += spread(function (ccx, ccy, step) {
+        // In a vertical stack the step is the height budget: four function
+        // buttons at full height would run off the top and bottom of the U.
+        var bh = el.stack === "v" ? Math.min(full, step * 0.78) : full;
+        var bw = Math.min(step * 0.74, 92);
+        return '<rect x="' + (ccx - bw / 2) + '" y="' + (ccy - bh / 2) + '" width="' + bw +
+          '" height="' + bh + '" rx="' + (el.kind === "switch" ? 3 : 7) +
+          '" fill="var(--pf-btn)" stroke="var(--pf-edge)" stroke-width="3"/>' +
+          (el.kind === "powerSwitch"
+            ? '<circle cx="' + ccx + '" cy="' + ccy + '" r="' + bh * 0.22 +
+              '" fill="none" stroke="var(--pf-silk)" stroke-width="3"/>'
+            : "");
+      });
+      break;
+    }
+    case "window":
+      g += spread(function (ccx, ccy, step) {
+        var ww = Math.min(step * 0.7, 64);
+        return '<rect x="' + (ccx - ww / 2) + '" y="' + (ccy - h * 0.13) + '" width="' + ww +
+          '" height="' + h * 0.26 + '" rx="5" fill="var(--pf-hole)" stroke="var(--pf-edge)" stroke-width="3"/>';
+      });
+      break;
+    case "bay":
+      g += '<rect x="' + x + '" y="' + (mid - h * 0.3) + '" width="' + w + '" height="' + h * 0.6 +
+        '" rx="5" fill="var(--pf-hole)" stroke="var(--pf-edge)" stroke-width="4"/>' +
+        '<rect x="' + (x + w * 0.16) + '" y="' + (mid - h * 0.16) + '" width="' + w * 0.68 +
+        '" height="' + h * 0.32 + '" rx="3" fill="var(--pf-btn)" opacity=".7"/>';
+      break;
+    case "vent": {
+      var cols = Math.max(4, Math.round(w / 46));
+      var vrows = 3;
+      for (var vx = 0; vx < cols; vx++) {
+        for (var vy = 0; vy < vrows; vy++) {
+          g += '<circle cx="' + (x + (w / cols) * (vx + 0.5)) + '" cy="' +
+            (mid - h * 0.18 + (h * 0.36 / (vrows - 1)) * vy) + '" r="7" fill="var(--pf-hole)"/>';
+        }
+      }
+      break;
+    }
+    case "fan":
+      g += spread(function (ccx, ccy, step) {
+        var fr = Math.min(step * 0.38, h * 0.36);
+        var out = '<circle cx="' + ccx + '" cy="' + ccy + '" r="' + fr +
+          '" fill="var(--pf-hole)" stroke="var(--pf-edge)" stroke-width="4"/>';
+        for (var bl = 0; bl < 5; bl++) {
+          var a = (Math.PI * 2 * bl) / 5;
+          out += '<path d="M' + ccx + " " + ccy + "L" + (ccx + Math.cos(a) * fr * 0.8) + " " +
+            (ccy + Math.sin(a) * fr * 0.8) + '" stroke="var(--pf-knob)" stroke-width="7"/>';
+        }
+        return out;
+      });
+      break;
+    case "handle":
+      g += '<rect x="' + x + '" y="' + (mid - h * 0.26) + '" width="' + w + '" height="' + h * 0.52 +
+        '" rx="10" fill="none" stroke="var(--pf-knob)" stroke-width="9"/>';
+      break;
+    case "shelfLip":
+      g += '<rect x="' + x + '" y="' + (mid - h * 0.08) + '" width="' + w + '" height="' + h * 0.16 +
+        '" rx="4" fill="var(--pf-hole)" opacity=".55"/>';
+      break;
+    case "labelStrip":
+      g += '<rect x="' + x + '" y="' + (mid - h * 0.15) + '" width="' + w + '" height="' + h * 0.3 +
+        '" fill="var(--pf-face)" stroke="var(--pf-edge)" stroke-width="3"/>';
+      break;
+    case "logo":
+      g += '<text x="' + cx + '" y="' + (mid + h * 0.08) +
+        '" class="silk-model" text-anchor="middle">' + silk(el, w) + "</text>";
+      return g;
+    case "jack": {
+      var port = el.port ? ports.get(el.port) : undefined;
+      var shape = port ? shapeFor(port.connector) : "block";
+      var colour = port ? DIR_VAR[port.direction] ?? "var(--dir-bi)" : "var(--dir-bi)";
+      var count = port ? Math.min(port.count || 1, 16) : n;
+      var size = Math.min(78, h * 0.42);
+      for (var q = 0; q < count; q++) {
+        g += connFor(shape).draw(x + (w / count) * (q + 0.5), mid, size, colour);
+      }
+      break;
+    }
+  }
+
+  // "display" and "logo" return early — they carry their own text or none.
+  if (el.label) {
+    g += '<text x="' + cx + '" y="' + labelY + '" class="silk-sm" text-anchor="middle">' +
+      silk(el, w) + "</text>";
+  }
+  return g;
+}
+
+/**
+ * Draw a face from its researched layout.
+ *
+ * Returns null when the device has no layout for this face, so the caller can
+ * fall back to the category template rather than drawing an empty panel.
+ */
+function drawLayoutFace(
+  device: PanelDevice,
+  face: "front" | "rear",
+  units: number,
+  PW: number,
+  half: Half,
+): string | null {
+  var layout = device.panel && device.panel[face];
+  var elements = layout && layout.elements;
+  if (!elements || !elements.length) return null;
+
+  var h = units * U;
+  var b = faceBounds(PW, half);
+  var labelW = isBlankFace(device.category) ? 0 : half ? LABEL_W * 0.62 : LABEL_W;
+  var x0 = b.left + (face === "front" ? labelW : 0);
+  var x1 = b.right - (face === "rear" ? labelW : 0);
+  var avail = Math.max(120, x1 - x0);
+
+  var ports = new Map<string, PortSpec>();
+  for (var pp of device.ports) ports.set(pp.label, pp);
+
+  var GAP = 22;
+  var widths = elements.map(function (el: PanelElement) { return elementWidth(el, ports); });
+  var total = widths.reduce(function (a: number, c: number) { return a + c; }, 0) +
+    GAP * (elements.length - 1);
+  var scale = Math.min(1, avail / total);
+
+  var out = "";
+  var x = x0 + (avail - total * scale) / 2;
+  for (var i = 0; i < elements.length; i++) {
+    var el = elements[i]!;
+    var w = (widths[i] ?? 100) * scale;
+    out += drawElement(el, x, w, h / 2, h, ports);
+    x += w + GAP * scale;
+  }
+  return out;
+}
+
 // -------------------------------------------------------------- the face
 export function draw(
   device: PanelDevice,
@@ -421,9 +673,16 @@ export function draw(
       '" stroke="var(--pf-edge)" stroke-width="3"/>');
   });
 
+  var laid = drawLayoutFace(device, face, units, PW, half);
+
   if (face === "front") {
-    parts.push(frontFurniture(device, units, PW, half));
-    parts.push(drawFace(device, "front", units, PW, half));
+    // A researched layout replaces both the category furniture and the generic
+    // front-connector strip: it already says where the connectors sit.
+    if (laid !== null) parts.push(laid);
+    else {
+      parts.push(frontFurniture(device, units, PW, half));
+      parts.push(drawFace(device, "front", units, PW, half));
+    }
     if (!isBlankFace(device.category)) {
       parts.push('<text x="' + textLeft(PW, half) + '" y="' + (units > 1 ? U * 0.44 : h * 0.44) +
         '" class="silk-brand">' + esc(trim(device.brand.toUpperCase(), half ? 9 : 13)) + "</text>");
@@ -431,8 +690,8 @@ export function draw(
         '" class="silk-model">' + esc(trim(device.model, half ? 12 : 18)) + "</text>");
     }
   } else {
-    parts.push(drawFace(device, "rear", units, PW, half));
-    parts.push('<text x="' + (PW - (half === "right" ? EAR : 0) - PAD) + '" y="' + (h - 12) +
+    parts.push(laid !== null ? laid : drawFace(device, "rear", units, PW, half));
+    parts.push('<text x="' + faceBounds(PW, half).right + '" y="' + (h - 12) +
       '" class="silk-model" text-anchor="end" opacity=".55">' +
       esc(trim(device.brand + " " + device.model, half ? 18 : 40)) + "</text>");
   }

@@ -40,6 +40,14 @@ const RADIAL_MANUAL =
   "https://www.radialeng.com/wp-content/uploads/2018/03/SW8-mkII-Manual-WEB-05-2023.pdf";
 const RME_MANUAL = "https://rme-audio.de/downloads/dface_dante_e.pdf";
 const RME_PRODUCT = "https://rme-audio.de/digiface-dante.html";
+/**
+ * The ULX guide is no longer hosted by Shure \u2014 the only Shure-hosted ULX PDF
+ * is a band supplement with no panel section. This is a scan of the genuine
+ * guide, recorded as the source because pointing at a manufacturer URL that
+ * does not resolve would be worse than naming where the text actually is.
+ */
+const ULX_GUIDE =
+  "https://fccid.io/m/58c1a25dd8a54f719e8d34cc8cee1d57bb25a981c730424dbd2417e9c978d279.pdf";
 
 export const SEED_DEVICES: SeedDevice[] = [
   {
@@ -64,6 +72,22 @@ export const SEED_DEVICES: SeedDevice[] = [
     statusNote: "Regional variants AD600US and AD600-DC.",
     productUrl: "https://www.shure.com/en-US/products/accessories/ad600",
     datasheetUrl: SHURE_AD600,
+    // Front and back panel callouts 1-7 (front) and 8-16 (back) of the AD600
+    // guide. The manual runs one continuous list across both figures.
+    panel: {
+      front: {
+        elements: [
+          { kind: "knob", label: "PHONES", callouts: [1] },
+          { kind: "jack", label: null, port: "Monitor / headphone", callouts: [2] },
+          { kind: "display", label: null, size: "lg", callouts: [3], readouts: ["spectrum", "markers"] },
+          { kind: "button", label: "F1-F4", count: 4, stack: "v", callouts: [4] },
+          { kind: "button", label: "ENTER", callouts: [5] },
+          { kind: "button", label: "EXIT", callouts: [6] },
+          { kind: "knob", label: null, callouts: [7] },
+          { kind: "vent", label: null, size: "sm", callouts: [16] },
+        ],
+      },
+    },
     ports: [
       ...["A", "B", "C", "D", "E", "F"].map((l) => ({
         label: l, connector: "BNC", direction: "input" as const, signal: "antenna",
@@ -84,6 +108,7 @@ export const SEED_DEVICES: SeedDevice[] = [
       "depth behind rails (manufacturer prints overall depth only)",
     ],
     provenance: [
+      { field: "panel.front", sourceUrl: SHURE_AD600, quote: "Headphone volume knob - Controls headphone volume. | Monitor jack, headphone jack - 1/4 in (6.35 mm) audio output jack. | Display - Color display to view and analyze RF spectrum. | Function buttons - The buttons are named F1, F2, F3, F4 (from top to bottom) | ENTER button | EXIT button | Control wheel | Cooling vents - Vents on the front and rear for cooling.", confidence: 0.85, derivation: "Front and Back Panel list, callouts 1-7 plus 16. Left-to-right order taken from callout order; the manual prints no positions." },
       { field: "rackUnits", sourceUrl: SHURE_AD600, quote: "Dimensions 43.2 x 482.6 x 285.7 mm (1.7 x 19.0 x 11.25 inches), H x W x D", confidence: 0.9, derivation: "Printed height 43.2 mm; one rack unit is 44.45 mm, so the chassis is 1RU. The manual does not print an RU figure." },
       { field: "depthMm", sourceUrl: SHURE_AD600, quote: "Dimensions 43.2 x 482.6 x 285.7 mm (1.7 x 19.0 x 11.25 inches), H x W x D", confidence: 0.8, derivation: "11.25 in x 25.4 = 285.75 mm, rounded to 286. Printed OVERALL depth, not verified as depth behind the rails." },
       { field: "weightLb", sourceUrl: SHURE_AD600, quote: "Weight 3.7 kg (8.15 lbs)", confidence: 0.95, derivation: "3.7 kg x 2.20462 = 8.157 lb, matching the printed figure." },
@@ -114,8 +139,28 @@ export const SEED_DEVICES: SeedDevice[] = [
     statusNote: "Current MK2 revision.",
     productUrl: "https://www.radialeng.com/product/sw8",
     datasheetUrl: RADIAL_MANUAL,
+    // Front panel callouts 1-10 of the SW8 MK2 manual. The eight XLR direct
+    // box outputs are on the FRONT of this unit, which is unusual and is the
+    // reason its real depth is far less than a rear-connectorised 1U.
+    panel: {
+      front: {
+        elements: [
+          { kind: "button", label: "PAD", callouts: [1] },
+          { kind: "button", label: "AUTO", callouts: [2] },
+          { kind: "knob", label: "THRESH", callouts: [3] },
+          { kind: "led", label: null, count: 2, callouts: [3] },
+          { kind: "button", label: "MUTE", callouts: [4] },
+          { kind: "button", label: "STBY", callouts: [5] },
+          { kind: "button", label: "A-B", callouts: [6] },
+          { kind: "led", label: "ALARM", callouts: [7] },
+          { kind: "jack", label: null, port: "XLR OUT", callouts: [8] },
+          { kind: "switch", label: "LIFT", callouts: [9] },
+          { kind: "labelStrip", label: null, size: "sm", callouts: [10] },
+        ],
+      },
+    },
     ports: [
-      { label: "XLR OUT", connector: "XLR3", direction: "output", signal: "analog audio", channels: 8, count: 8, face: "rear", projectionMm: null },
+      { label: "XLR OUT", connector: "XLR3", direction: "output", signal: "analog audio", channels: 8, count: 8, face: "front", projectionMm: null },
       { label: "TRS 1/4\" INPUTS-A", connector: "TRS", direction: "input", signal: "analog audio", channels: 8, count: 8, face: "rear", projectionMm: null },
       { label: "TRS 1/4\" INPUTS-B", connector: "TRS", direction: "input", signal: "analog audio", channels: 8, count: 8, face: "rear", projectionMm: null },
       { label: "D-Sub INPUTS A", connector: "DB25", direction: "input", signal: "analog audio", channels: 8, count: 1, face: "rear", projectionMm: null },
@@ -130,6 +175,7 @@ export const SEED_DEVICES: SeedDevice[] = [
       "mains input voltage range of the supplied external PSUs",
     ],
     provenance: [
+      { field: "panel.front", sourceUrl: RADIAL_MANUAL, quote: "1. GLOBAL PAD | 2. AUTO ON | 3. THRESHOLD: Two level sensing LEDs illuminate when signal is detected. | 4. MUTE | 5. STANDBY | 6. A-B SELECT: Front panel selector | 7. ALARM LED | 8. XLR OUT: Balanced, low-Z mic-level direct box outputs | 9. LIFT | 10. LABEL STRIP", confidence: 0.92, derivation: "Front Panel callouts 1-10. CORRECTION: the eight XLR outputs were previously recorded on the rear face; the manual lists them under Front Panel, which materially reduces this unit's required case depth." },
       { field: "rackUnits", sourceUrl: RADIAL_SPECS, quote: "Size: 17.5\" x 6\" x 1.75\" (44.5cm x 15.25cm x 4.5cm)", confidence: 0.88, derivation: "Height 1.75 in = exactly 1 rack unit. The manufacturer does not print '1U'." },
       { field: "depthMm", sourceUrl: RADIAL_SPECS, quote: "Size: 17.5\" x 6\" x 1.75\" (44.5cm x 15.25cm x 4.5cm)", confidence: 0.82, derivation: "6 in x 25.4 = 152.4 mm; the manufacturer's own 15.25 cm agrees. OVERALL chassis depth." },
       { field: "weightLb", sourceUrl: RADIAL_SPECS, quote: "Weight: 9.2 lb (4.2kg)", confidence: 0.96, derivation: "Shipping weight is printed separately as 9.7 lb and was not used." },
@@ -160,6 +206,21 @@ export const SEED_DEVICES: SeedDevice[] = [
     statusNote: null,
     productUrl: RME_PRODUCT,
     datasheetUrl: RME_MANUAL,
+    // Section 5.1 "Connectors - LEDs" of the Digiface Dante manual, which is
+    // prose rather than numbered callouts: "The front of the Digiface Dante
+    // features four Gigabit Ethernet ports, 2 BNC sockets for word or MADI
+    // I/O, a state LED, and the headphone output."
+    panel: {
+      front: {
+        elements: [
+          { kind: "jack", label: null, port: "Gigabit Ethernet (Dante)" },
+          { kind: "jack", label: null, port: "MADI In / Word Clock In" },
+          { kind: "led", label: "STATE" },
+          { kind: "jack", label: null, port: "MADI Out / Word Clock Out" },
+          { kind: "jack", label: "PHONES", port: "Phones" },
+        ],
+      },
+    },
     ports: [
       { label: "Gigabit Ethernet (Dante)", connector: "Dante RJ45", direction: "bidirectional", signal: "network", channels: 64, count: 4, face: "front", projectionMm: null },
       { label: "MADI In / Word Clock In", connector: "BNC", direction: "input", signal: "digital audio", channels: 64, count: 1, face: "front", projectionMm: null },
@@ -173,6 +234,7 @@ export const SEED_DEVICES: SeedDevice[] = [
       "rackUnits as a manufacturer rating — RME publishes none; derived from the 26 mm height, assumes a shelf",
     ],
     provenance: [
+      { field: "panel.front", sourceUrl: RME_MANUAL, quote: "The front of the Digiface Dante features four Gigabit Ethernet ports, 2 BNC sockets for word or MADI I/O, a state LED, and the headphone output. | The State LED beside the BNC input shows Lock and Sync state for the word or MADI input signal.", confidence: 0.86, derivation: "Section 5.1 Connectors - LEDs, which is prose rather than numbered callouts. The State LED position is stated by the manual as beside the BNC input." },
       { field: "rackUnits", sourceUrl: RME_PRODUCT, quote: "Dimensions (WxHxD): 170 x 26 x 84 mm", confidence: 0.55, derivation: "DERIVED, NOT PUBLISHED. Chassis height 26 mm is under 44.45 mm, so it consumes at most 1U on a shelf. A planning allowance, not a manufacturer figure." },
       { field: "depthMm", sourceUrl: RME_PRODUCT, quote: "Dimensions (WxHxD): 170 x 26 x 84 mm", confidence: 0.8, derivation: "Overall chassis depth; this unit has no rails." },
       { field: "weightLb", sourceUrl: RME_PRODUCT, quote: "Weight: 500 g (1.1 lbs)", confidence: 0.85, derivation: "Excludes the external PSU." },
@@ -202,7 +264,29 @@ export const SEED_DEVICES: SeedDevice[] = [
     statusNote: null,
     productUrl: "https://www.shure.com/en-US/products/wireless-systems/axient-digital-psm",
     datasheetUrl: null,
+    // Transmitter front panel callouts 1-12 of the Axient Digital PSM guide,
+    // which documents ADTQ and ADTD from one pair of figures.
+    panel: {
+      front: {
+        elements: [
+          { kind: "knob", label: "PHONES", callouts: [1] },
+          { kind: "jack", label: null, port: "Monitor jack", callouts: [2] },
+          { kind: "window", label: "IR", callouts: [3] },
+          { kind: "led", label: null, callouts: [4] },
+          { kind: "window", label: null, size: "sm", callouts: [5] },
+          { kind: "switch", label: "RF", callouts: [6] },
+          { kind: "display", label: null, size: "lg", callouts: [7], readouts: ["ch 1-4", "level"] },
+          { kind: "button", label: "F1-F4", count: 4, stack: "v", callouts: [8] },
+          { kind: "button", label: "ENTER", callouts: [9] },
+          { kind: "button", label: "EXIT", callouts: [10] },
+          { kind: "knob", label: null, callouts: [11] },
+          { kind: "powerSwitch", label: null, callouts: [12] },
+        ],
+      },
+    },
     ports: [
+      { label: "Monitor jack", connector: "TRS", direction: "output", signal: "analog audio", channels: 2, count: 1, face: "front", projectionMm: null },
+      { label: "Ctrl 2 (PoE)", connector: "RJ45", direction: "bidirectional", signal: "network", channels: null, count: 1, face: "rear", projectionMm: null },
       { label: "Dante 1", connector: "Dante RJ45", direction: "bidirectional", signal: "digital audio", channels: 8, count: 1, face: "rear", projectionMm: null },
       { label: "Dante 2", connector: "Dante RJ45", direction: "bidirectional", signal: "digital audio", channels: 8, count: 1, face: "rear", projectionMm: null },
       { label: "Ctrl 1 (PoE)", connector: "RJ45", direction: "bidirectional", signal: "data", channels: null, count: 1, face: "rear", projectionMm: null },
@@ -214,6 +298,8 @@ export const SEED_DEVICES: SeedDevice[] = [
     ],
     unresolved: [],
     provenance: [
+      { field: "ports", sourceUrl: "https://pubs.shure.com/view/guide/ADPSM/en-US.pdf", quote: "Monitor Jack - 1/8 in (3.5 mm) output jack. | Ethernet Ports - Four Ethernet ports carry the following signals: ctrl 1: Network control / ctrl 2: Network control / Dante Primary: Dante digital audio / Dante Secondary: Dante digital audio", confidence: 0.9, derivation: "ADDED: the front monitor jack (front panel callout 2) was missing entirely, and only three of the four rear Ethernet ports were recorded - ctrl 2 was absent." },
+      { field: "panel.front", sourceUrl: "https://pubs.shure.com/view/guide/ADPSM/en-US.pdf", quote: "Headphone Volume Knob | Monitor Jack - 1/8 in (3.5 mm) output jack. | Infrared (IR) Sync Window | Infrared (IR) Sync LED | Ambient Light Sensor | RF Switch | Display | Function Buttons - named F1, F2, F3, F4 (from top to bottom) | ENTER Button | EXIT Button | Control Wheel | Power Switch", confidence: 0.85, derivation: "Transmitter Front Panel callouts 1-12 of the shared Axient Digital PSM guide, which covers ADTQ and ADTD from one figure. Left-to-right order taken from callout order." },
       { field: "rackUnits", sourceUrl: "https://www.shure.com/en-US/products/wireless-systems/axient-digital-psm", quote: "Four stereo channels of Axient Digital PSM into a single rack space", confidence: 0.95, derivation: null },
       { field: "depthMm", sourceUrl: "https://www.shure.com/en-US/products/wireless-systems/axient-digital-psm", quote: "240 mm", confidence: 0.9, derivation: null },
       { field: "weightLb", sourceUrl: "https://www.shure.com/en-US/products/wireless-systems/axient-digital-psm", quote: "2.0 kg", confidence: 0.9, derivation: "2.0 kg x 2.20462 = 4.4 lb" },
@@ -244,6 +330,22 @@ export const SEED_DEVICES: SeedDevice[] = [
     statusNote: "AVB-era interface gone from major retail 2026-07, superseded by the 2024+ line.",
     productUrl: "https://motu.com/en-us/products/avb/24ao/",
     datasheetUrl: null,
+    // 24Ao front panel callouts 1-6 of the 24Ai/24Ao user guide. Callouts 1-3
+    // are meter and clock fields inside the backlit LCD, described on the
+    // features page as "The large backlit LCD displays all signal activity at
+    // a glance" - the LCD itself is never numbered.
+    panel: {
+      front: {
+        elements: [
+          { kind: "display", label: null, size: "lg", readouts: ["24 analog out", "ADAT in / out", "CLOCK"], callouts: [1, 2, 3] },
+          { kind: "button", label: "SEL", callouts: [5] },
+          { kind: "button", label: null, count: 2, callouts: [5] },
+          { kind: "button", label: "BACK", callouts: [5] },
+          { kind: "button", label: "ID", callouts: [6] },
+          { kind: "powerSwitch", label: null, callouts: [4] },
+        ],
+      },
+    },
     ports: [
       { label: "Analog Out 1-8", connector: "DB25", direction: "output", signal: "analog audio", channels: 8, count: 1, face: "rear", projectionMm: null },
       { label: "Analog Out 9-16", connector: "DB25", direction: "output", signal: "analog audio", channels: 8, count: 1, face: "rear", projectionMm: null },
@@ -255,6 +357,7 @@ export const SEED_DEVICES: SeedDevice[] = [
     ],
     unresolved: [],
     provenance: [
+      { field: "panel.front", sourceUrl: "https://cdn-data.motu.com/manuals/avb/24Ai_24Ao_User_Guide.pdf", quote: "ANALOG OUTPUT METERS for the twenty-four analog outputs. | ADAT OPTICAL input and output metering. | The CLOCK section displays the current operating sample rate and clock mode (source) for the unit. | POWER SWITCH | Push SEL (select) to enter the LCD menu. Push the ARROW buttons to scroll through menu options. Push BACK to return to the previous menu level. | Push ID to display network settings for the device", confidence: 0.7, derivation: "24Ao Front Panel callouts 1-6. Callouts 1-3 are meter and clock fields inside the LCD, not separate parts; the LCD itself is never numbered on the panel page and is sourced from the features text, the large backlit LCD displays all signal activity at a glance." },
       { field: "rackUnits", sourceUrl: "https://motu.com/en-us/products/avb/24ao/", quote: "1U rackmount", confidence: 0.9, derivation: null },
       { field: "depthMm", sourceUrl: "https://motu.com/en-us/products/avb/24ao/", quote: "229 mm", confidence: 0.85, derivation: null },
       { field: "weightLb", sourceUrl: "https://motu.com/en-us/products/avb/24ao/", quote: "6.0 lb", confidence: 0.85, derivation: null },
@@ -291,7 +394,26 @@ export const SEED_DEVICES: SeedDevice[] = [
     statusNote: null,
     productUrl: "https://www.sennheiser.com/en-us/catalog/products/wireless-systems/sr-iem-g4/sr-iem-g4-a-509618",
     datasheetUrl: "https://www.sennheiser.com/globalassets/digizuite/41537-en-sp_1130_v2.0_sr_iem_g4_product_specification_en.pdf",
+    // Product overview, "Front" list 1-9 of the ew IEM G4 manual. The audio
+    // level meter is drawn on the display, not as a physical bargraph: the
+    // only discrete indicators are the blue IR LED and the red warning LED.
+    panel: {
+      front: {
+        elements: [
+          { kind: "jack", label: "PHONES", port: "Headphone output", callouts: [1] },
+          { kind: "knob", label: null, callouts: [2] },
+          { kind: "window", label: "IR", callouts: [3] },
+          { kind: "led", label: null, callouts: [4] },
+          { kind: "display", label: null, size: "lg", callouts: [5], readouts: ["AF level", "bank / channel", "frequency"] },
+          { kind: "knob", label: null, callouts: [6] },
+          { kind: "button", label: "SYNC", callouts: [7] },
+          { kind: "button", label: "ESC", callouts: [8] },
+          { kind: "button", label: "STANDBY", callouts: [9] },
+        ],
+      },
+    },
     ports: [
+      { label: "Headphone output", connector: "TRS", direction: "output", signal: "analog audio", channels: 2, count: 1, face: "front", projectionMm: null },
       {"label": "BAL AF IN L(I)", "connector": "XLR/TRS combo", "direction": "input", "signal": "analog audio", "channels": 1, "count": 1, "face": "rear", "projectionMm": null},
       {"label": "BAL AF IN R(II)", "connector": "XLR/TRS combo", "direction": "input", "signal": "analog audio", "channels": 1, "count": 1, "face": "rear", "projectionMm": null},
       {"label": "LOOP OUT BAL L(I)", "connector": "TRS", "direction": "output", "signal": "analog audio", "channels": 1, "count": 1, "face": "rear", "projectionMm": null},
@@ -306,6 +428,8 @@ export const SEED_DEVICES: SeedDevice[] = [
       "whether 212 mm is chassis-only or overall",
     ],
     provenance: [
+      { field: "ports", sourceUrl: "https://docs.cloud.sennheiser.com/en-us/ew-iem-g4/ew-iem-g4/ew-iem-g4-sr-connections-back.html", quote: "Front: Headphone socket | Volume control for the headphone socket", confidence: 0.9, derivation: "ADDED: the front headphone socket is callout 1 of the manual's Front list and was missing from this device's port table. It sits on the front face, so it does not consume case depth." },
+      { field: "panel.front", sourceUrl: "https://docs.cloud.sennheiser.com/en-us/ew-iem-g4/ew-iem-g4/ew-iem-g4-sr-connections-back.html", quote: "Headphone socket | Volume control for the headphone socket | Infrared interface with a blue LED | Red LED for warnings | Display | Jog dial for navigating through the menu | SYNC button | ESC button | STANDBY button", confidence: 0.9, derivation: "Product overview, Front list 1-9. The AF audio level meter is drawn on the display, not as a discrete bargraph, so it is a readout. Left-to-right order taken from list order." },
       {"field": "formFactor", "sourceUrl": "https://www.sennheiser.com/en-us/catalog/products/wireless-systems/sr-iem-g4/sr-iem-g4-a-509618", "quote": "Half-rack stereo transmitter in a full-metal housing with OLED display for full control", "confidence": 0.95, "derivation": "Manufacturer product page states half-rack directly."},
       {"field": "rackUnits", "sourceUrl": "https://docs.cloud.sennheiser.com/en-us/ew-iem-g4/ew-iem-g4/ew-iem-g4-sr-mounting-rack.html", "quote": "To mount the transmitter in a rack, you will need the GA 3 rack mounting kit (optional accessory).", "confidence": 0.9, "derivation": "The same section covers mounting one unit with a blanking plate or two joined side by side, confirming one or two per 1U opening."},
       {"field": "depthMm", "sourceUrl": "https://docs.cloud.sennheiser.com/en-us/ew-iem-g4/ew-iem-g4/ew-iem-g4-sr-technical-data.html", "quote": "approx. 202 x 212 x 43 mm", "confidence": 0.9, "derivation": "Sennheiser prints width x depth x height; 202 mm width (half-rack) and 43 mm height (1U) bracket the middle figure as depth = 212 mm."},
@@ -336,6 +460,20 @@ export const SEED_DEVICES: SeedDevice[] = [
     statusNote: "Shure has since introduced the SLX-D+ line; no discontinuation statement was found for the SLXD4.",
     productUrl: "https://www.shure.com/en-US/products/wireless-systems/slx_d_digital_wireless/slxd4",
     datasheetUrl: "https://pubs.shure.com/view/guide/SLXD/en-US.pdf",
+    // Receiver front panel callouts 1-7 of the SLXD guide.
+    panel: {
+      front: {
+        elements: [
+          { kind: "led", label: "SYNC", callouts: [1] },
+          { kind: "window", label: "IR", callouts: [2] },
+          { kind: "display", label: null, size: "lg", callouts: [3], readouts: ["group / ch", "battery"] },
+          { kind: "button", label: "SYNC", callouts: [4] },
+          { kind: "button", label: "EXIT", callouts: [5] },
+          { kind: "knob", label: null, callouts: [6] },
+          { kind: "powerSwitch", label: null, callouts: [7] },
+        ],
+      },
+    },
     ports: [
       {"label": "Antenna", "connector": "BNC", "direction": "input", "signal": "antenna", "channels": null, "count": 2, "face": "rear", "projectionMm": null},
       {"label": "XLR Balanced Audio Output", "connector": "XLR3", "direction": "output", "signal": "analog audio", "channels": 1, "count": 1, "face": "rear", "projectionMm": null},
@@ -349,6 +487,7 @@ export const SEED_DEVICES: SeedDevice[] = [
       "chassis-only depth; 152 mm is the overall figure",
     ],
     provenance: [
+      { field: "panel.front", sourceUrl: "https://pubs.shure.com/view/guide/SLXD/en-US.pdf", quote: "Sync LED - Flashing: IR sync mode is enabled, Solid: Receiver and transmitter aligned for IR sync | IR port - Align with the transmitter IR port during an IR sync | Display - Shows menu options, receiver and transmitter settings | Sync button | Exit button | Control knob - Change menu parameters. Push knob to confirm changes | Power button", confidence: 0.88, derivation: "Receiver front panel callouts 1-7. Left-to-right order taken from callout order." },
       {"field": "depthMm", "sourceUrl": "https://pubs.shure.com/view/guide/SLXD/en-US.pdf", "quote": "SLXD4 42 x 197 x 152 mm (1.65 x 7.76 x 5.98 in.), H x W x D", "confidence": 0.95, "derivation": "Depth is the third figure. OVERALL as printed — allow clearance behind for the rear-mounted antennas."},
       {"field": "weightLb", "sourceUrl": "https://pubs.shure.com/view/guide/SLXD/en-US.pdf", "quote": "SLXD4 816 g, without antennas", "confidence": 0.95, "derivation": "0.816 kg x 2.20462 = 1.799 lb. Excludes antennas and the external supply."},
       {"field": "rackUnits", "sourceUrl": "https://pubs.shure.com/view/guide/SLXD/en-US.pdf", "quote": "SLXD4 42 x 197 x 152 mm (1.65 x 7.76 x 5.98 in.), H x W x D", "confidence": 0.75, "derivation": "Not printed as a rack-unit count. Height 42 mm is under 1U and width 197 mm is just under half a 19 in face, so it occupies one U at half width."},
@@ -378,6 +517,25 @@ export const SEED_DEVICES: SeedDevice[] = [
     statusNote: null,
     productUrl: "https://www.shure.com/en-US/products/wireless-systems/glx-d_plus/glxd4rp",
     datasheetUrl: "https://pubs.shure.com/view/guide/GLXD4Rplus/en-US.pdf",
+    // Receiver callouts 1-16 of the GLXD4R+ guide. The guide prints one
+    // continuous list over a figure showing both faces; 1-11 are drawn on the
+    // front, 12-16 on the rear.
+    panel: {
+      front: {
+        elements: [
+          { kind: "led", label: "RF", callouts: [1] },
+          { kind: "button", label: "GROUP", callouts: [2] },
+          { kind: "led", label: "SYNC", callouts: [3] },
+          { kind: "button", label: "LINK", callouts: [4] },
+          { kind: "button", label: "CH", callouts: [5] },
+          { kind: "display", label: null, callouts: [6], readouts: ["group / ch", "battery"] },
+          { kind: "button", label: "GAIN", count: 2, callouts: [7] },
+          { kind: "led", label: null, callouts: [8] },
+          { kind: "bay", label: "CHARGE", callouts: [9] },
+          { kind: "powerSwitch", label: null, callouts: [10] },
+        ],
+      },
+    },
     ports: [
       {"label": "Antenna", "connector": "Other", "direction": "input", "signal": "antenna", "channels": null, "count": 2, "face": "rear", "projectionMm": null},
       {"label": "XLR audio output", "connector": "XLR3", "direction": "output", "signal": "analog audio", "channels": 1, "count": 1, "face": "rear", "projectionMm": null},
@@ -392,6 +550,7 @@ export const SEED_DEVICES: SeedDevice[] = [
       "overall depth including the dipoles; 163 mm is explicitly \"without antenna\"",
     ],
     provenance: [
+      { field: "panel.front", sourceUrl: "https://pubs.shure.com/view/guide/GLXD4Rplus/en-US.pdf", quote: "RF status LED | Group button | Data sync LED | Link button | Channel button | Display - Shows receiver and transmitter status. | Gain buttons - Press to increase or decrease transmitter gain | Battery charging indicator | Battery charging bay - Charges transmitter battery. | Power button", confidence: 0.8, derivation: "Receiver callouts 1-10 of a single continuous 1-16 list drawn over a figure of both faces. The guide prints no front/rear headings; 1-11 are on the front figure. Left-to-right order taken from callout order." },
       {"field": "formFactor", "sourceUrl": "https://www.shure.com/en-US/products/wireless-systems/glx-d_plus/glxd4rp", "quote": "GLXD4R+ - Digital Wireless Dual Band Half-Rack Receiver", "confidence": 0.95, "derivation": "The manufacturer's own product title names it half-rack."},
       {"field": "depthMm", "sourceUrl": "https://pubs.shure.com/view/guide/GLXD4Rplus/en-US.pdf", "quote": "Dimensions: 7.7 x 6.4 x 1.6 in. (196.8 x 162.97 x 41.8 mm), without antenna", "confidence": 0.8, "derivation": "41.8 mm must be height and 196.8 mm width, leaving 162.97 mm as CHASSIS depth. Explicitly excludes the dipoles, so budget more."},
       {"field": "weightLb", "sourceUrl": "https://pubs.shure.com/view/guide/GLXD4Rplus/en-US.pdf", "quote": "Weight: 30.5 oz (866 g)", "confidence": 0.95, "derivation": "30.5 oz / 16 = 1.906 lb; cross-check 866 g / 453.59237 = 1.909 lb."},
@@ -421,6 +580,31 @@ export const SEED_DEVICES: SeedDevice[] = [
     statusNote: "Discontinued. The shure.com ULXP4 page now returns 404 and the ULX line is listed under discontinued service support. No manufacturer source names a direct replacement.",
     productUrl: "https://www.shure.com/en-US/docs/guide/ULX",
     datasheetUrl: "https://content-files.shure.com/Pubs/ULX2/58/ULX_Spec_Sheet.pdf",
+    // ULXP4 Professional receiver, callouts 1-18 (front) of the ULX guide.
+    // Ten of those eighteen are fields inside the LCD, not parts: 2-7 and
+    // 10-13 are readouts and collapse into the one display element. The LCD
+    // window itself is never numbered, which is why it carries no callout.
+    panel: {
+      front: {
+        elements: [
+          { kind: "led", label: "ANT", count: 2, callouts: [1] },
+          { kind: "ledBar", label: "RF", callouts: [8] },
+          { kind: "ledBar", label: "AUDIO", callouts: [9] },
+          {
+            kind: "display",
+            label: null,
+            size: "lg",
+            readouts: ["GROUP / CHANNEL", "FREQUENCY", "battery"],
+            callouts: [2, 3, 4, 5, 6, 7, 10, 11, 12, 13],
+          },
+          { kind: "button", label: "MODE", callouts: [14] },
+          { kind: "button", label: "SET", callouts: [15] },
+          { kind: "knob", label: null, callouts: [16] },
+          { kind: "knob", label: "LEVEL", callouts: [17] },
+          { kind: "powerSwitch", label: null, callouts: [18] },
+        ],
+      },
+    },
     ports: [
       {"label": "Antenna", "connector": "BNC", "direction": "input", "signal": "antenna", "channels": null, "count": 2, "face": "rear", "projectionMm": null},
       {"label": "Low Z Audio", "connector": "XLR3", "direction": "output", "signal": "analog audio", "channels": 1, "count": 1, "face": "rear", "projectionMm": null},
@@ -433,6 +617,7 @@ export const SEED_DEVICES: SeedDevice[] = [
       "antenna count of 2 is inferred from the diversity architecture, not read",
     ],
     provenance: [
+      { field: "panel.front", sourceUrl: ULX_GUIDE, quote: "Receiving Antenna Indicators. One of these amber LEDs will glow | RF Level Indicators. Indicate received RF signal strength. | TX Audio Level Indicators. Green indicates normal operation. Amber indicates approaching overload condition. Red indicates excessive audio levels. | MODE Button | SET Button | Display Control Knob | Level Control | Power On/Off Switch", confidence: 0.75, derivation: "ULXP4 PROFESSIONAL RECEIVER FEATURES AND CONTROLS, callouts 1-18. Callouts 2-7 and 10-13 are fields of the LCD, not parts, and collapse into one display element; the LCD window itself carries no callout in the guide. Left-to-right order taken from callout order." },
       {"field": "depthMm", "sourceUrl": "https://content-files.shure.com/Pubs/ULX2/58/ULX_Spec_Sheet.pdf", "quote": "43 mm H x 214 mm W x 172 mm D (1.72 in. x 8.56 in. x 6.88 in.)", "confidence": 0.9, "derivation": "Printed in millimetres, no conversion needed. OVERALL depth; rack-ear and connector protrusion are not broken out."},
       {"field": "weightLb", "sourceUrl": "https://content-files.shure.com/Pubs/ULX2/58/ULX_Spec_Sheet.pdf", "quote": "ULXP4: 1105 g (2 lbs, 7 oz.)", "confidence": 0.95, "derivation": "2 lb 7 oz = 2.4375 lb. Cross-check: 1105 g / 453.592 = 2.436 lb."},
       {"field": "formFactor", "sourceUrl": "https://content-files.shure.com/Pubs/ULX2/58/ULX_Spec_Sheet.pdf", "quote": "1/2 rack design", "confidence": 0.95, "derivation": "Stated explicitly; corroborated by the 214 mm printed width and the furnished rack hardware."},
@@ -462,6 +647,28 @@ export const SEED_DEVICES: SeedDevice[] = [
     statusNote: "Listed as Discontinued on Shure's own ULXS4 page. The page names no successor, so none is asserted.",
     productUrl: "https://www.shure.com/en-US/products/wireless-systems/ulx_s/ulxs4",
     datasheetUrl: "https://content-files.shure.com/Pubs/ULX2/58/ULX_Spec_Sheet.pdf",
+    // ULXS4 Standard receiver, callouts 1-12 (front) of the ULX guide. Six of
+    // the twelve — 3 to 8 — are fields of the one LCD rather than separate
+    // parts, so they collapse into the display element.
+    panel: {
+      front: {
+        elements: [
+          { kind: "led", label: "RF", callouts: [1] },
+          { kind: "ledBar", label: "TX AUDIO", callouts: [2] },
+          {
+            kind: "display",
+            label: null,
+            size: "lg",
+            readouts: ["GROUP / CHANNEL", "battery", "volume"],
+            callouts: [3, 4, 5, 6, 7, 8],
+          },
+          { kind: "button", label: "MODE", callouts: [9] },
+          { kind: "button", label: "SET", callouts: [10] },
+          { kind: "button", label: null, count: 2, callouts: [11] },
+          { kind: "powerSwitch", label: null, callouts: [12] },
+        ],
+      },
+    },
     ports: [
       {"label": "ANTENNA", "connector": "BNC", "direction": "input", "signal": "antenna", "channels": null, "count": 2, "face": "rear", "projectionMm": null},
       {"label": "Balanced XLR (MIC/LINE switchable)", "connector": "XLR3", "direction": "output", "signal": "analog audio", "channels": 1, "count": 1, "face": "rear", "projectionMm": null},
@@ -474,6 +681,7 @@ export const SEED_DEVICES: SeedDevice[] = [
       "which PS41 regional variant ships with this model",
     ],
     provenance: [
+      { field: "panel.front", sourceUrl: ULX_GUIDE, quote: "RF Indicator. Glows green to indicate presence of received Radio Frequency (RF) signal. | TX Audio Level Indicators. | MODE Button. Press this button to step through the display menu. | SET Button. Saves the altered setting. | Button. Press this button to increase or decrease the Volume level | Power On/Off Switch. Turns the receiver on and off.", confidence: 0.78, derivation: "ULXS4 Standard Receiver Front Panel, callouts 1-12. Callouts 3-8 are fields of the one LCD (antenna indicator, GROUP, CHANNEL, battery, SCAN, TV/volume) and collapse into the display element. Left-to-right order taken from callout order." },
       {"field": "status", "sourceUrl": "https://www.shure.com/en-US/products/wireless-systems/ulx_s/ulxs4", "quote": "Discontinued", "confidence": 0.95, "derivation": "Shure's own product page flags it. The page carries no spec table and no replacement recommendation."},
       {"field": "depthMm", "sourceUrl": "https://content-files.shure.com/Pubs/ULX2/58/ULX_Spec_Sheet.pdf", "quote": "43 mm H x 214 mm W x 163 mm D (1.72 in. x 8.56 in. x 6.52 in.)", "confidence": 0.95, "derivation": "Taken as printed. OVERALL dimensions, so may include rear-panel protrusions. Confirmed identically in the archived ULX user guide."},
       {"field": "weightLb", "sourceUrl": "https://content-files.shure.com/Pubs/ULX2/58/ULX_Spec_Sheet.pdf", "quote": "1049 g (2 lbs, 5 oz.)", "confidence": 0.95, "derivation": "2 lb 5 oz = 2.3125 lb; cross-check 1049 g / 453.592 = 2.313 lb. Net, not shipping weight."},
@@ -515,6 +723,7 @@ export const SEED_DEVICES: SeedDevice[] = [
       {"label": "Headphone output", "connector": "TRS", "direction": "output", "signal": "analog audio", "channels": 2, "count": 1, "face": "front", "projectionMm": null},
     ],
     unresolved: [
+      "panel.front \u2014 Sennheiser has retired every assets.sennheiser.com copy of the ew 300 IEM G3 manual and the G3 is absent from docs.cloud.sennheiser.com, so no callout list could be sourced; this unit falls back to the generic IEM transmitter panel",
       "powerTypicalW",
       "no surviving manufacturer-hosted datasheet URL",
       "rack-mount depth including the GA 3 ears",
@@ -551,6 +760,7 @@ export const SEED_DEVICES: SeedDevice[] = [
     statusNote: null,
     productUrl: null,
     datasheetUrl: null,
+    panel: { front: { elements: [{ kind: "vent", label: null, size: "lg" }] } },
     ports: [],
     unresolved: [],
     provenance: [],
@@ -576,6 +786,7 @@ export const SEED_DEVICES: SeedDevice[] = [
     statusNote: null,
     productUrl: null,
     datasheetUrl: null,
+    panel: { front: { elements: [{ kind: "fan", label: null, count: 4 }] } },
     ports: [
       { label: "AC In", connector: "IEC C14", direction: "input", signal: "power", channels: null, count: 1, face: "rear", projectionMm: null },
     ],
@@ -603,6 +814,7 @@ export const SEED_DEVICES: SeedDevice[] = [
     statusNote: null,
     productUrl: null,
     datasheetUrl: null,
+    panel: { front: { elements: [{ kind: "vent", label: null, size: "sm" }, { kind: "shelfLip", label: null }, { kind: "vent", label: null, size: "sm" }] } },
     ports: [],
     unresolved: [],
     provenance: [],

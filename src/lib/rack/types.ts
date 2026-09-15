@@ -17,6 +17,66 @@ export interface PortSpec {
   projectionMm: number | null;
 }
 
+/**
+ * What a panel element is, as a rack tech would name it.
+ *
+ * The vocabulary is deliberately small and physical. It exists to express what
+ * a manufacturer's own panel callout list describes, and nothing more — if a
+ * manual does not name a thing, it does not get drawn.
+ */
+export type PanelElementKind =
+  | "display"      // LCD or OLED window
+  | "led"          // single indicator
+  | "ledBar"       // segmented level or signal meter
+  | "knob"         // rotary control, often with push
+  | "button"       // momentary
+  | "switch"       // toggle, slide or rocker
+  | "powerSwitch"  // mains or standby
+  | "window"       // IR port, sensor aperture
+  | "bay"          // battery or card bay
+  | "vent"         // slots or holes
+  | "fan"          // fan cutout
+  | "handle"       // rack handle
+  | "shelfLip"     // shelf front edge
+  | "labelStrip"   // write-on channel strip
+  | "jack"         // a connector, drawn from the matching PortSpec
+  | "logo";        // brand plate
+
+export interface PanelElement {
+  kind: PanelElementKind;
+  /** Silkscreen as printed on the panel, or null where the panel carries none. */
+  label?: string | null;
+  /** Several of the same part treated as one group — a bank of four buttons. */
+  count?: number;
+  /** How the group runs. Function-button columns stack vertically. */
+  stack?: "h" | "v";
+  /** Relative width when the renderer shares out the panel face. */
+  size?: "sm" | "md" | "lg";
+  /**
+   * For kind "jack": the PortSpec.label this element stands for, so the real
+   * connector glyph is drawn in its true position on the face.
+   */
+  port?: string | null;
+  /**
+   * Fields printed inside a display. These are readouts, not parts: six of the
+   * Shure ULXS4's twelve front callouts are fields of one LCD, and drawing one
+   * box per callout would put six screens on a receiver that has one.
+   */
+  readouts?: string[];
+  /** Callout numbers in the source manual, so a drawing can be audited. */
+  callouts?: number[];
+}
+
+/** A researched panel layout. Absent means fall back to the category template. */
+export interface PanelFace {
+  elements: PanelElement[];
+}
+
+export interface PanelLayout {
+  front?: PanelFace | null;
+  rear?: PanelFace | null;
+}
+
 export type FormFactor =
   | "full-rack" | "half-rack" | "third-rack" | "quarter-rack" | "desktop" | "accessory";
 
@@ -47,6 +107,14 @@ export interface DeviceSpec {
   poePowered: boolean;
 
   ports: PortSpec[];
+
+  /**
+   * Panel layout read from the manufacturer's own callout list. When present
+   * the renderer draws this device's actual panel; when absent it falls back
+   * to a generic layout for the category, which looks like the class of gear
+   * rather than the unit.
+   */
+  panel?: PanelLayout | null;
 }
 
 export interface CaseSpec {
