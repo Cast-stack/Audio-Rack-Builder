@@ -147,11 +147,57 @@ export interface PlacementSpec {
   label?: string | null;
 }
 
+/** The five classes a cable run is coloured by. */
+export type SignalClass = "analog audio" | "digital audio" | "network" | "rf" | "power";
+
+/**
+ * One end of a run. Either a connector on a device in this rack, or somewhere
+ * outside it that the person names — "FOH console", "SL antenna", "house
+ * distro". The outside ends matter as much as the inside ones: they are the
+ * tails that have to be packed, and the reason a rack arrives and does not
+ * work.
+ */
+export type CableEnd =
+  | {
+      kind: "port";
+      deviceId: string;
+      /** Which placement, since the same model can appear twice in a rack. */
+      position: number;
+      /**
+       * Which half of the U. Required to identify a placement: a pair of
+       * identical half-rack units share a position, so deviceId and position
+       * together do not name one of them.
+       */
+      slot?: Slot;
+      /** PortSpec.label. */
+      port: string;
+      /** Which connector of a multi-connector port, zero-based. */
+      index?: number;
+    }
+  | { kind: "external"; name: string };
+
+export interface CableSpec {
+  id: string;
+  from: CableEnd;
+  to: CableEnd;
+  /** Overrides the class derived from the port, when the two ends disagree. */
+  signal?: SignalClass;
+  /** A hand-set colour, for a shop that sleeves or tapes to its own scheme. */
+  colour?: string | null;
+  /** What is written on the tape at each end. */
+  label?: string | null;
+  /** Measured or specified length, metres. Left null to fill in on paper. */
+  lengthM?: number | null;
+  note?: string | null;
+}
+
 export interface RackSpec {
   name: string;
   case: CaseSpec;
   circuits: Circuit[];
   placements: PlacementSpec[];
+  /** Patch. Absent on a rack nobody has wired yet. */
+  cables?: CableSpec[];
 }
 
 export type Severity = "error" | "warning" | "info";

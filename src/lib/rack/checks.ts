@@ -13,6 +13,7 @@
 
 import { computeBudget, PASSIVE_THERMAL_W_PER_RU, type RackBudget } from "./budget";
 import { caseDepthHeadroom, isHalfWidth, occupiedCells, occupiedPositions, occupiedUnits } from "./geometry";
+import { cableTags, endKey, resolveCables, signalClassOf } from "./cables";
 import type { CheckResult, DeviceSpec, RackSpec } from "./types";
 
 /** Above this fraction of rack height, a loaded case wants to tip on a ramp. */
@@ -43,6 +44,7 @@ export function checkRack(rack: RackSpec, devices: Map<string, DeviceSpec>): Che
     ...checkWeight(rack, budget, devices),
     ...checkThermal(budget),
     ...checkCompleteness(budget, devices),
+    ...checkPatch(rack, devices),
   ];
 
   return {
@@ -413,4 +415,102 @@ function checkCompleteness(
       deviceIds: budget.incomplete.map((i) => i.deviceId),
     },
   ];
+}
+
+/**
+ * Patch checks.
+ *
+ * These are the mistakes that are invisible on a screen and obvious at the
+ * worst moment: a connector wired twice, two outputs facing each other, a run
+ * whose two ends cannot physically mate. None of them fall out of counting
+ * ports, which is why the patch is checked separately from the rack.
+ */
+function checkPatch(rack: RackSpec, devices: Map<string, DeviceSpec>): CheckResult[] {
+  const runs = resolveCables(rack, devices);
+  if (!runs.length) return [];
+
+  const out: CheckResult[] = [];
+  const tags = cableTags(runs);
+  const seen = new Map<string, string[]>();
+
+  for (const run of runs) {
+    const tag = tags.get(run.cable.id) ?? run.cable.id;
+
+    for (const end of [run.cable.from, run.cable.to]) {
+      if (end.kind !== "port") continue;
+      const key = endKey(end);
+      const list = seen.get(key) ?? [];
+      list.push(tag);
+      seen.set(key, list);
+    }
+
+    const a = run.from.port;
+    const b = run.to.port;
+    if (!a || !b) continue;
+    const ids = [run.from.device?.id, run.to.device?.id].filter((x): x is string => !!x);
+
+    // Two outputs, or two inputs, facing each other. A bidirectional port pairs
+    // with anything, which is the whole point of one.
+    const oneWay = (d: string) => d === "input" || d === "output";
+    if (oneWay(a.direction) && oneWay(b.direction) && a.direction === b.direction) {
+      out.push({
+        code: "patch.direction",
+        severity: "error",
+        title: `${tag} joins two ${a.direction}s`,
+        detail: `${run.from.label} and ${run.to.label} are both ${a.direction}s. One end of a run has to be the other kind.`,
+        deviceIds: ids,
+      });
+    }
+
+    if (!connectorsMate(a.connector, b.connector)) {
+      out.push({
+        code: "patch.connector",
+        severity: "warning",
+        title: `${tag} needs an adapter`,
+        detail: `${run.from.label} is ${a.connector} and ${run.to.label} is ${b.connector}. The run is possible but not with one cable.`,
+        deviceIds: ids,
+      });
+    }
+
+    if (signalClassOf(a) !== signalClassOf(b)) {
+      out.push({
+        code: "patch.signal",
+        severity: "warning",
+        title: `${tag} changes signal type`,
+        detail: `${run.from.label} carries ${a.signal} and ${run.to.label} carries ${b.signal}. Check that is deliberate.`,
+        deviceIds: ids,
+      });
+    }
+  }
+
+  for (const [key, tagList] of seen) {
+    if (tagList.length < 2) continue;
+    const port = key.split("|")[3] ?? "a connector";
+    out.push({
+      code: "patch.double-patched",
+      severity: "error",
+      title: `${port} is patched ${tagList.length} times`,
+      detail: `${tagList.join(", ")} all land on the same physical connector. Only one cable fits.`,
+    });
+  }
+
+  return out;
+}
+
+/** Whether two connector types mate without an adapter. */
+function connectorsMate(a: string, b: string): boolean {
+  if (a === b) return true;
+  const COMBO = new Set(["XLR/TRS combo", "XLR3", "TRS", "TS"]);
+  if (a === "XLR/TRS combo" && COMBO.has(b)) return true;
+  if (b === "XLR/TRS combo" && COMBO.has(a)) return true;
+  // A TRS plug goes into a TS socket and the reverse. Whether that is the right
+  // thing to do is a wiring question, not a mechanical one, so it is not
+  // flagged here.
+  const JACK = new Set(["TRS", "TS"]);
+  if (JACK.has(a) && JACK.has(b)) return true;
+  const RJ = new Set(["RJ45", "Dante RJ45", "AES50 RJ45", "etherCON"]);
+  if (RJ.has(a) && RJ.has(b)) return true;
+  // "Other" is the catalog admitting it does not know what the connector is,
+  // so it cannot disagree with anything.
+  return a === "Other" || b === "Other";
 }

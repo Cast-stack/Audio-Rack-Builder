@@ -1205,6 +1205,23 @@ export const DEMO_RACK_MONITOR: RackSpec = {
     { deviceId: "shure-ad600", position: 6, slot: "full", circuit: "B" },
     { deviceId: "generic-fan-1u", position: 7, slot: "full", circuit: "A" },
   ],
+  // A patch that exercises all five signal classes and both kinds of end.
+  cables: [
+    { id: "c1", from: { kind: "port", deviceId: "shure-ad600", position: 6, port: "A" }, to: { kind: "external", name: "SR antenna (paddle)" }, label: "ANT A" },
+    { id: "c2", from: { kind: "port", deviceId: "shure-ad600", position: 6, port: "B" }, to: { kind: "external", name: "SL antenna (paddle)" }, label: "ANT B" },
+    { id: "c3", from: { kind: "port", deviceId: "shure-ad600", position: 6, port: "Dante primary" }, to: { kind: "external", name: "Monitor console \u2014 Dante A" }, label: "DANTE 1" },
+    { id: "c4", from: { kind: "port", deviceId: "shure-ad600", position: 6, port: "ctrl 1" }, to: { kind: "external", name: "Rack switch \u2014 port 1" }, label: "CTRL" },
+    // Daisy-chaining a stereo mix from the first transmitter to the second is
+    // what the loop outputs are for, and it is the run people forget to draw.
+    { id: "c5", from: { kind: "port", deviceId: "shure-p3t", position: 1, slot: "left", port: "Audio Inputs", index: 0 }, to: { kind: "external", name: "Monitor console \u2014 mix 1 L" }, label: "IEM 1 L" },
+    { id: "c6", from: { kind: "port", deviceId: "shure-p3t", position: 1, slot: "left", port: "Audio Inputs", index: 1 }, to: { kind: "external", name: "Monitor console \u2014 mix 1 R" }, label: "IEM 1 R" },
+    { id: "c7", from: { kind: "port", deviceId: "shure-p3t", position: 1, slot: "left", port: "Loop Outputs", index: 0 }, to: { kind: "port", deviceId: "shure-p3t", position: 1, slot: "right", port: "Audio Inputs", index: 0 }, label: "LOOP L" },
+    { id: "c8", from: { kind: "port", deviceId: "shure-p3t", position: 1, slot: "left", port: "Loop Outputs", index: 1 }, to: { kind: "port", deviceId: "shure-p3t", position: 1, slot: "right", port: "Audio Inputs", index: 1 }, label: "LOOP R" },
+    { id: "c9", from: { kind: "port", deviceId: "shure-slx4", position: 4, slot: "left", port: "MIC OUT" }, to: { kind: "external", name: "Monitor console \u2014 ch 21" }, label: "VOX 1" },
+    { id: "c10", from: { kind: "port", deviceId: "shure-slx4", position: 4, slot: "right", port: "MIC OUT" }, to: { kind: "external", name: "Monitor console \u2014 ch 22" }, label: "VOX 2" },
+    { id: "c11", from: { kind: "port", deviceId: "shure-slx4", position: 4, slot: "left", port: "POWER" }, to: { kind: "external", name: "Rack distro \u2014 outlet 3" } },
+    { id: "c12", from: { kind: "port", deviceId: "generic-fan-1u", position: 7, port: "AC In" }, to: { kind: "external", name: "Rack distro \u2014 outlet 1" } },
+  ],
 };
 
 export const DEMO_RACKS: RackSpec[] = [

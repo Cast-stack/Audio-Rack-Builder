@@ -26,6 +26,7 @@ import {
 } from "@/lib/rack/geometry";
 import type { CheckResult, DeviceSpec, RackSpec } from "@/lib/rack/types";
 import { escapeXml as esc, renderElevation } from "./elevation";
+import { cableTags, resolveCables, SIGNAL_CLASSES, SIGNAL_STYLE } from "@/lib/rack/cables";
 
 /** One provenance row, matching the FieldSource table and the seed catalog. */
 export interface SourceRow {
@@ -203,19 +204,20 @@ function elevationSection(input: PatchSheetInput): string {
   <div class="elev-pair">
     <figure>
       <figcaption>Front <span>as you face the rack</span></figcaption>
-      ${renderElevation(rack, devices, "front")}
+      ${renderElevation(rack, devices, "front", { tailRoom: (rack.cables?.length ?? 0) > 0 })}
     </figure>
     <figure>
       <figcaption>Rear <span>as you stand behind it — halves swapped</span></figcaption>
-      ${renderElevation(rack, devices, "rear")}
+      ${renderElevation(rack, devices, "rear", { cables: true })}
     </figure>
   </div>
   <div class="legend">
     <span class="lg"><i class="sw in"></i> Input</span>
     <span class="lg"><i class="sw out"></i> Output</span>
     <span class="lg"><i class="sw bi"></i> Bidirectional</span>
-    <span class="lg note">Connector type is shown by glyph shape and silkscreen, so this page reads correctly in black and white.</span>
+    <span class="lg note">Connector type is shown by glyph shape and silkscreen, so this page reads correctly in black and white. Tags on the right-hand tails are the tape markings; where each one goes is in the cable schedule.</span>
   </div>
+  ${cableKey(input)}
   <div class="notesbox"><span>Notes</span></div>
 </section>`;
 }
@@ -451,6 +453,78 @@ function hostOf(url: string): string {
   }
 }
 
+
+function cableKey(input: PatchSheetInput): string {
+  const runs = resolveCables(input.rack, input.devices);
+  if (!runs.length) return "";
+  const used = new Set(runs.map((r) => r.signal));
+  const items = SIGNAL_CLASSES.filter((c) => used.has(c))
+    .map((c) => {
+      const st = SIGNAL_STYLE[c];
+      return `<span class="lg"><svg class="swatch" viewBox="0 0 60 12" aria-hidden="true">` +
+        `<path d="M2 6H58" stroke="${st.colour}" stroke-width="${5 * st.weight}"${st.dash ? ` stroke-dasharray="${st.dash}"` : ""} stroke-linecap="round" fill="none"/>` +
+        `</svg>${esc(st.label)}</span>`;
+    })
+    .join("");
+  const overridden = runs.filter((r) => r.cable.colour).length;
+  return `<div class="legend cablekey">
+    <span class="keytitle">Cable</span>${items}
+    <span class="lg note">Each class also carries its own dash pattern, so the patch still reads once this page has been photocopied.${overridden ? ` ${overridden} run${overridden === 1 ? " has a" : "s have"} hand-set colour.` : ""}</span>
+  </div>`;
+}
+
+function endCell(label: string, sub: string | null): string {
+  return `<td><b>${esc(label)}</b>${sub ? `<div class="where">${esc(sub)}</div>` : ""}</td>`;
+}
+
+function cableSchedule(input: PatchSheetInput): string {
+  const runs = resolveCables(input.rack, input.devices);
+  if (!runs.length) return "";
+
+  const tags = cableTags(runs);
+  const rows = runs
+    .map((run) => {
+      const st = run.style;
+      const a = run.from;
+      const b = run.to;
+      const connector =
+        a.port?.connector ?? b.port?.connector ?? "—";
+      const swatch =
+        `<svg class="swatch sm" viewBox="0 0 46 12" aria-hidden="true">` +
+        `<path d="M2 6H44" stroke="${run.colour}" stroke-width="${5 * st.weight}"${st.dash ? ` stroke-dasharray="${st.dash}"` : ""} stroke-linecap="round" fill="none"/></svg>`;
+      const where = (e: typeof a) =>
+        e.kind === "external"
+          ? "outside the rack"
+          : `${positionLabel(e.device!, e.position ?? 0, e.slot)}${e.port && e.port.count > 1 ? ` · #${e.index + 1}` : ""}`;
+      return `<tr>
+        <td class="u">${esc(tags.get(run.cable.id) ?? "—")}</td>
+        ${endCell(a.label, where(a))}
+        ${endCell(b.label, where(b))}
+        <td>${esc(connector)}</td>
+        <td class="nowrap">${swatch}${esc(st.label)}${run.cable.colour ? ' <span class="alt">set</span>' : ""}</td>
+        <td class="num">${run.cable.lengthM ? `${run.cable.lengthM} m` : ""}</td>
+        <td class="fill"></td>
+      </tr>`;
+    })
+    .join("");
+
+  const external = runs.filter((r) => r.from.kind === "external" || r.to.kind === "external").length;
+
+  return `
+<section class="sheet">
+  <h2 class="pagetitle">Cable schedule</h2>
+  <p class="lede">${runs.length} run${runs.length === 1 ? "" : "s"}${external ? `, ${external} of which leave${external === 1 ? "s" : ""} the rack` : ""}. Length is blank where it has not been measured &mdash; fill it in off the drawing, not off this table.</p>
+  <table class="grid tight">
+    <thead><tr>
+      <th>Tape</th><th>From</th><th>To</th><th>Connector</th>
+      <th>Signal</th><th class="num">Length</th><th class="fillhead">Checked</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <p class="foot">Colour is by signal class unless a run has one set by hand. The classes are the five different cables you physically reach for, which is why power is one of them.</p>
+</section>`;
+}
+
 // ------------------------------------------------------------------- CSS
 
 const CSS = `
@@ -569,6 +643,12 @@ svg.panel .silk-sm { font-size:26px; opacity:.7; letter-spacing:.5px; }
 .sw.out { background:var(--dir-out); }
 .sw.bi { background:var(--dir-bi); transform:rotate(45deg); }
 .lg.note { color:var(--ink-3); font-style:italic; }
+.cablekey { margin-top:8px; }
+.keytitle { font-family:var(--mono); font-size:6.8pt; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3); }
+svg.swatch { width:40px; height:9px; margin-right:6px; vertical-align:-1px; overflow:visible; }
+svg.swatch.sm { width:30px; }
+td.nowrap { white-space:nowrap; }
+svg.elevation text.el-tail { font-family:var(--mono); font-size:40px; fill:#4A545D; }
 
 .foot { margin:10px 0 0; font-size:7.8pt; color:var(--ink-3); line-height:1.45; }
 .warnfoot { color:var(--warn); }
@@ -597,6 +677,7 @@ export function renderPatchSheet(input: PatchSheetInput): string {
     elevationSection(input),
     deviceSchedule(input, budget),
     connectionSchedule(input),
+    cableSchedule(input),
     circuitSchedule(input, budget),
     depthLedger(input),
     sourcesAppendix(input),

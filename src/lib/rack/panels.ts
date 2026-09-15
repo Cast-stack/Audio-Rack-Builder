@@ -29,7 +29,26 @@ export const W = 1900;            // 19 in × 100
 export const U = 175;
 
 type Half = "left" | "right" | null;
-type Drawer = (x: number, y: number, s: number, c: string) => string;             // 1.75 in × 100
+type Drawer = (x: number, y: number, s: number, c: string) => string;
+
+/**
+ * Where one drawn connector ended up, in this panel's own coordinates.
+ *
+ * Cables have to land on the connector that is actually drawn, not near it, so
+ * the renderer reports what it drew instead of the elevation guessing from the
+ * port table. The two would drift apart the first time a layout changed.
+ */
+export interface PortAnchor {
+  portLabel: string;
+  /** Which connector of a multi-connector port, zero-based. */
+  index: number;
+  x: number;
+  y: number;
+  /** Drawn size, so a highlight ring can match the connector. */
+  size: number;
+}
+
+type AnchorSink = PortAnchor[] | undefined;             // 1.75 in × 100
 var EAR = 118;           // rack ear width
 var PAD = 34;            // inset from the ear to usable panel face
 var LABEL_W = 430;       // brand/model zone on a front panel, as on real gear
@@ -226,7 +245,14 @@ function rearGroups(device: PanelDevice, face: "front" | "rear"): Group[] {
   });
 }
 
-function drawFace(device: PanelDevice, face: "front" | "rear", units: number, PW: number, half: Half): string {
+function drawFace(
+  device: PanelDevice,
+  face: "front" | "rear",
+  units: number,
+  PW: number,
+  half: Half,
+  sink?: AnchorSink,
+): string {
   PW = PW || W;
   var h = units * U;
   var b = faceBounds(PW, half);
@@ -269,6 +295,7 @@ function drawFace(device: PanelDevice, face: "front" | "rear", units: number, PW
       for (var i = 0; i < g.n; i++) {
         var cx = x + (g.each * scale) * (i + 0.5);
         out += connFor(g.shape).draw(cx, cy, size, colour);
+        if (sink) sink.push({ portLabel: g.port.label, index: i, x: cx, y: cy, size: size });
       }
       // Silkscreen, the way it is printed on the panel.
       if (size > 30 && gw > 76) {
@@ -447,6 +474,7 @@ function drawElement(
   mid: number,
   h: number,
   ports: Map<string, PortSpec>,
+  sink?: AnchorSink,
 ): string {
   var cx = x + w / 2;
   var n = Math.max(1, el.count || 1);
@@ -580,7 +608,9 @@ function drawElement(
       var count = port ? Math.min(port.count || 1, 16) : n;
       var size = Math.min(78, h * 0.42);
       for (var q = 0; q < count; q++) {
-        g += connFor(shape).draw(x + (w / count) * (q + 0.5), mid, size, colour);
+        var qx = x + (w / count) * (q + 0.5);
+        g += connFor(shape).draw(qx, mid, size, colour);
+        if (sink && port) sink.push({ portLabel: port.label, index: q, x: qx, y: mid, size: size });
       }
       break;
     }
@@ -606,6 +636,7 @@ function drawLayoutFace(
   units: number,
   PW: number,
   half: Half,
+  sink?: AnchorSink,
 ): string | null {
   var layout = device.panel && device.panel[face];
   var elements = layout && layout.elements;
@@ -632,7 +663,7 @@ function drawLayoutFace(
   for (var i = 0; i < elements.length; i++) {
     var el = elements[i]!;
     var w = (widths[i] ?? 100) * scale;
-    out += drawElement(el, x, w, h / 2, h, ports);
+    out += drawElement(el, x, w, h / 2, h, ports, sink);
     x += w + GAP * scale;
   }
   return out;
@@ -643,7 +674,7 @@ export function draw(
   device: PanelDevice,
   face: "front" | "rear",
   units: number,
-  opts?: { half?: "left" | "right" | null },
+  opts?: { half?: "left" | "right" | null; anchors?: PortAnchor[] },
 ): string {
   opts = opts || {};
   var half = opts.half === "left" || opts.half === "right" ? opts.half : null;
@@ -673,7 +704,8 @@ export function draw(
       '" stroke="var(--pf-edge)" stroke-width="3"/>');
   });
 
-  var laid = drawLayoutFace(device, face, units, PW, half);
+  var sink = opts.anchors;
+  var laid = drawLayoutFace(device, face, units, PW, half, sink);
 
   if (face === "front") {
     // A researched layout replaces both the category furniture and the generic
@@ -681,7 +713,7 @@ export function draw(
     if (laid !== null) parts.push(laid);
     else {
       parts.push(frontFurniture(device, units, PW, half));
-      parts.push(drawFace(device, "front", units, PW, half));
+      parts.push(drawFace(device, "front", units, PW, half, sink));
     }
     if (!isBlankFace(device.category)) {
       parts.push('<text x="' + textLeft(PW, half) + '" y="' + (units > 1 ? U * 0.44 : h * 0.44) +
@@ -690,7 +722,7 @@ export function draw(
         '" class="silk-model">' + esc(trim(device.model, half ? 12 : 18)) + "</text>");
     }
   } else {
-    parts.push(laid !== null ? laid : drawFace(device, "rear", units, PW, half));
+    parts.push(laid !== null ? laid : drawFace(device, "rear", units, PW, half, sink));
     parts.push('<text x="' + faceBounds(PW, half).right + '" y="' + (h - 12) +
       '" class="silk-model" text-anchor="end" opacity=".55">' +
       esc(trim(device.brand + " " + device.model, half ? 18 : 40)) + "</text>");
@@ -714,7 +746,7 @@ export function drawInner(
   device: PanelDevice,
   face: "front" | "rear",
   units: number,
-  opts?: { half?: "left" | "right" | null },
+  opts?: { half?: "left" | "right" | null; anchors?: PortAnchor[] },
 ): string {
   const svg = draw(device, face, units, opts);
   return svg.slice(svg.indexOf(">") + 1, svg.lastIndexOf("</svg>"));
