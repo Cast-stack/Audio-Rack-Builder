@@ -1,0 +1,3222 @@
+<title>Rack Feasibility Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ground:#EDECE9; --surface:#FAFAF8; --surface-2:#E2E2DD; --sunken:#D9D9D3;
+  --ink:#14171A; --ink-2:#3C4348; --ink-muted:#6C7479;
+  --rule:#D2D1CB; --rule-strong:#B2B1A9;
+  --accent:#0F7C82; --accent-soft:#D3E7E7;
+  --crit:#B3291E; --crit-soft:#F5DEDB;
+  --warn:#8A5A06; --warn-soft:#F6EBD4;
+  --ok:#1F6B45; --ok-soft:#DCEDE3;
+  --panel:#23282D; --panel-ink:#DFE3E6;
+  /* Direction, the one question you ask while patching. Three categorical
+     slots, validated all-pairs in both themes. Connector type is carried by
+     glyph shape and the silkscreen label, never by hue. */
+  --dir-in:#2a78d6; --dir-out:#eb6834; --dir-bi:#1baf7a;
+  --display:'Barlow Condensed',Haettenschweiler,'Arial Narrow',sans-serif;
+  --body:'IBM Plex Sans',system-ui,-apple-system,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#0D0F12; --surface:#15191D; --surface-2:#1D2328; --sunken:#0A0C0E;
+    --ink:#E5E8EA; --ink-2:#BAC1C6; --ink-muted:#868F95;
+    --rule:#262D33; --rule-strong:#39424A;
+    --accent:#35B3B8; --accent-soft:#12302F;
+    --crit:#E28275; --crit-soft:#3A1B17;
+    --warn:#D2A44E; --warn-soft:#332714;
+    --ok:#79B893; --ok-soft:#14301F;
+    --panel:#1A1F24; --panel-ink:#DFE3E6;
+    --dir-in:#3987e5; --dir-out:#d95926; --dir-bi:#199e70;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0D0F12; --surface:#15191D; --surface-2:#1D2328; --sunken:#0A0C0E;
+  --ink:#E5E8EA; --ink-2:#BAC1C6; --ink-muted:#868F95;
+  --rule:#262D33; --rule-strong:#39424A;
+  --accent:#35B3B8; --accent-soft:#12302F;
+  --crit:#E28275; --crit-soft:#3A1B17;
+  --warn:#D2A44E; --warn-soft:#332714;
+  --ok:#79B893; --ok-soft:#14301F;
+  --panel:#1A1F24; --panel-ink:#DFE3E6;
+  --dir-in:#3987e5; --dir-out:#d95926; --dir-bi:#199e70;
+}
+
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;margin:0;padding-inline:16px;padding-block:0;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1420px;margin:0 auto}
+h1,h2,h3{font-family:var(--display);margin:0;line-height:1.1;text-wrap:balance}
+h1{font-size:clamp(1.8rem,4vw,2.5rem);font-weight:700;text-transform:uppercase;letter-spacing:.01em}
+p{margin:0}
+.legend{font-family:var(--mono);font-size:.66rem;font-weight:500;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-muted)}
+
+header{padding-block:22px 14px;border-bottom:2px solid var(--ink);display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;justify-content:space-between}
+.lede{max-width:54ch;color:var(--ink-2);font-size:.92rem;margin-top:6px}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.ctl{display:flex;flex-direction:column;gap:3px}
+.ctl > span,.ctl > .legend{font-family:var(--mono);font-size:.62rem;text-transform:uppercase;letter-spacing:.11em;color:var(--ink-muted)}
+select,button{font-family:var(--body);font-size:.85rem;color:var(--ink);background:var(--surface);border:1px solid var(--rule-strong);padding:6px 10px;border-radius:0;cursor:pointer}
+select:focus-visible,button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button:hover{border-color:var(--accent);color:var(--accent)}
+button.ghost{background:transparent}
+button:disabled{opacity:.45;cursor:not-allowed;border-color:var(--rule);color:var(--ink-muted)}
+button:disabled:hover{border-color:var(--rule);color:var(--ink-muted)}
+.seg{display:inline-flex;border:1px solid var(--rule-strong)}
+.seg button{border:0;border-right:1px solid var(--rule-strong);padding:6px 13px;background:var(--surface)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+.seg button[aria-pressed="true"]:hover{color:#fff}
+
+/* catalog | rack (key below) | budget, ledger, findings */
+.cols{display:grid;grid-template-columns:250px minmax(340px,1fr) minmax(300px,360px);gap:18px;align-items:start;padding-block:18px 40px}
+.col{display:flex;flex-direction:column;gap:18px;min-width:0}
+@media (max-width:1180px){
+  .cols{grid-template-columns:230px minmax(320px,1fr)}
+  .col-side{grid-column:1 / -1;flex-direction:row;flex-wrap:wrap}
+  .col-side > *{flex:1 1 280px}
+}
+@media (max-width:840px){
+  .cols{grid-template-columns:1fr}
+  .col-rack{order:1}.col-side{order:2;flex-direction:column}.col-catalog{order:3}
+}
+
+.card{background:var(--surface);border:1px solid var(--rule)}
+.card > h3{font-size:1.02rem;text-transform:uppercase;letter-spacing:.03em;padding:9px 12px;border-bottom:1px solid var(--rule);background:var(--surface-2);display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.card > h3 em{font-style:normal;font-family:var(--mono);font-size:.62rem;letter-spacing:.08em;color:var(--ink-muted);text-transform:none}
+.card-body{padding:11px 12px;display:flex;flex-direction:column;gap:9px}
+
+.catsearch{width:100%;font-family:var(--body);font-size:.84rem;padding:6px 8px;border:1px solid var(--rule-strong);background:var(--surface-2);color:var(--ink)}
+.pal-group{display:flex;flex-direction:column;gap:5px}
+.pal-item{display:flex;align-items:center;gap:8px;border:1px solid var(--rule);background:var(--surface-2);padding:6px 8px;cursor:grab;font-size:.82rem}
+.pal-item:active{cursor:grabbing}
+.pal-item:hover{border-color:var(--accent)}
+.pal-item .nm{flex:1;min-width:0;line-height:1.25}
+.pal-item .nm b{display:block;font-weight:600}
+.pal-item .nm em{font-style:normal;font-family:var(--mono);font-size:.67rem;color:var(--ink-muted)}
+.tag{display:inline-block;font-family:var(--mono);font-size:.58rem;font-weight:600;letter-spacing:.07em;text-transform:uppercase;padding:1px 4px;border:1px solid currentColor;margin-left:5px}
+.tag.half{color:var(--accent)}
+.tag.disc{color:var(--warn)}
+.pal-item .add{flex:none;border:1px solid var(--rule-strong);background:var(--surface);width:24px;height:24px;line-height:1;padding:0;font-family:var(--mono);font-size:.9rem}
+
+.rack-shell{background:var(--panel);border:1px solid var(--rule-strong);padding:10px;
+  --pf-face:#2C3239;--pf-ear:#22272C;--pf-edge:#171B1F;--pf-hole:#0E1114;
+  --pf-pin:#8A949B;--pf-silk:#C8D0D6;--pf-knob:#454D55;--pf-btn:#3A424A;
+  --pf-lcd:#0B1E1C;--pf-lcd-ink:#3FE0B0;--pf-led-on:#39D98A;--pf-led-dim:#1B4C34;--pf-led-off:#2A3138}
+.case{background:linear-gradient(180deg,#20252A,#171B1F);border:1px solid #3A424A;padding:0 13px;position:relative}
+.case-rail{height:24px;background:repeating-linear-gradient(90deg,#3A424A 0 5px,#1B2025 5px 15px);margin-inline:-13px;position:relative}
+.case-rail::before,.case-rail::after{content:"";position:absolute;top:3px;width:50px;height:18px;border:2px solid #4C555E;border-radius:3px;background:#242A30}
+.case-rail::before{left:16%}.case-rail::after{right:16%}
+.case-inner{background:#0B0D10;border:1px solid #3A424A;padding:7px;margin-block:9px}
+.casters{display:flex;justify-content:space-between;padding:0 32px;margin-top:-2px}
+.caster{width:24px;height:24px;border:3px solid #4C555E;border-radius:50%;background:#1B2025}
+.caster::before{content:"";display:block;width:8px;height:9px;margin:-8px auto 0;background:#4C555E}
+
+.rack{display:grid;grid-template-columns:1fr 1fr;gap:2px;position:relative}
+svg.panel{display:block;width:100%;height:100%}
+svg.panel text{font-family:var(--mono);fill:var(--pf-silk)}
+svg.panel .silk-brand{font-size:44px;font-weight:600;letter-spacing:3px}
+svg.panel .silk-model{font-size:34px;opacity:.72}
+svg.panel .silk-sm{font-size:26px;opacity:.68;letter-spacing:.5px}
+
+.slot{background:rgba(255,255,255,.035);border:1px dashed rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center;min-width:0}
+.slot.over{background:var(--accent-soft);border-color:var(--accent);border-style:solid}
+.slot .u{font-family:var(--mono);font-size:.6rem;color:rgba(255,255,255,.3);letter-spacing:.05em}
+.unit{position:relative;overflow:hidden;cursor:grab;min-width:0;display:block;background:transparent;border:0;padding:0}
+.unit:active{cursor:grabbing}
+.unit::before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:transparent;z-index:2}
+.unit.err::before{background:var(--crit)}
+.unit.warn::before{background:var(--warn)}
+.unit.info::before{background:var(--accent)}
+.unit.err{outline:2px solid var(--crit);outline-offset:-2px}
+.unit.warn{outline:2px solid var(--warn);outline-offset:-2px}
+.unit.sel{outline:2px solid var(--accent);outline-offset:-2px}
+.unit .ctl{position:absolute;top:2px;right:3px;display:flex;gap:3px;align-items:center;opacity:0;transition:opacity .12s;background:rgba(8,10,12,.85);padding:2px 3px;border:1px solid #4C555E;z-index:3}
+.unit:hover .ctl,.unit:focus-within .ctl,.unit.sel .ctl{opacity:1}
+@media (hover:none){.unit .ctl{opacity:1}}
+.unit .ctl .u{font-family:var(--mono);font-size:.6rem;color:rgba(255,255,255,.55)}
+.unit select{background:#1B2025;border:1px solid #454D55;color:var(--panel-ink);font-family:var(--mono);font-size:.66rem;padding:1px 3px}
+.unit .rm{background:transparent;border:1px solid #4A525A;color:rgba(255,255,255,.6);width:20px;height:20px;padding:0;line-height:1;font-family:var(--mono)}
+.unit .rm:hover{border-color:var(--crit);color:var(--crit)}
+.rack-meta{display:flex;flex-wrap:wrap;gap:4px 15px;font-family:var(--mono);font-size:.65rem;color:rgba(255,255,255,.45);padding-top:6px;border-top:1px solid rgba(255,255,255,.1);margin-top:7px}
+
+.ports{display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-width:0}
+.chip{display:inline-flex;align-items:center;gap:4px;border:1px solid currentColor;padding:1px 4px 1px 2px;line-height:1;background:var(--surface-2)}
+.chip.in{color:var(--dir-in)} .chip.out{color:var(--dir-out)} .chip.bi{color:var(--dir-bi)}
+.chip svg{display:block;width:14px;height:14px;flex:none}
+.chip .cl{font-family:var(--mono);font-size:.6rem;color:var(--ink);white-space:nowrap}
+.chip .ct{font-family:var(--mono);font-size:.56rem;color:var(--ink-muted)}
+.noports{font-family:var(--mono);font-size:.66rem;color:var(--ink-muted)}
+.keyrow{display:flex;flex-wrap:wrap;gap:9px 16px;align-items:center}
+.keyrow .k{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:.63rem;color:var(--ink-2)}
+.keyrow .k svg{width:14px;height:14px}
+.dirdot{display:inline-block;width:8px;height:8px;border:1.5px solid currentColor}
+.dirdot.in{color:var(--dir-in);border-radius:50%}
+.dirdot.out{color:var(--dir-out)}
+.dirdot.bi{color:var(--dir-bi);transform:rotate(45deg)}
+
+.panelview{background:#0B0D10;border:1px solid #171B1F;padding:8px 9px;display:flex;flex-direction:column;gap:6px;
+  --pf-face:#2C3239;--pf-ear:#22272C;--pf-edge:#171B1F;--pf-hole:#0E1114;
+  --pf-pin:#8A949B;--pf-silk:#C8D0D6;--pf-knob:#454D55;--pf-btn:#3A424A;
+  --pf-lcd:#0B1E1C;--pf-lcd-ink:#3FE0B0;--pf-led-on:#39D98A;--pf-led-dim:#1B4C34;--pf-led-off:#2A3138}
+.panelview .pv-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.panelview .pv-head b{font-family:var(--display);font-size:.92rem;text-transform:uppercase;letter-spacing:.05em;color:var(--panel-ink)}
+.panelview .pv-head span{font-family:var(--mono);font-size:.59rem;color:rgba(255,255,255,.4)}
+.panelart svg{width:100%;height:auto}
+.dtl-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.dtl-head .who b{font-family:var(--display);font-size:1.2rem;text-transform:uppercase;letter-spacing:.03em;display:block}
+.dtl-head .who span{font-family:var(--mono);font-size:.64rem;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.09em}
+.porttable{width:100%;border-collapse:collapse;font-size:.76rem}
+.porttable th,.porttable td{text-align:left;padding:4px 7px;border-bottom:1px solid var(--rule);white-space:nowrap}
+.porttable th{font-family:var(--mono);font-size:.58rem;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-muted);font-weight:500}
+.porttable td.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.porttable tbody tr:last-child td{border-bottom:0}
+.cite{border-left:3px solid var(--accent);padding:5px 0 5px 9px;display:flex;flex-direction:column;gap:2px}
+.cite .f{font-family:var(--mono);font-size:.63rem;font-weight:600;color:var(--accent)}
+.cite .q{font-size:.76rem;color:var(--ink-2);line-height:1.4}
+.cite .s{font-family:var(--mono);font-size:.61rem;color:var(--ink-muted);overflow-wrap:anywhere}
+.cite .s b{font-weight:600;color:var(--ink-2)}
+.depthline{font-family:var(--mono);font-size:.72rem;line-height:1.45}
+
+.stat{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:.84rem;padding-block:3px;border-bottom:1px solid var(--rule)}
+.stat:last-of-type{border-bottom:0}
+.stat .k{color:var(--ink-muted)}
+.stat .v{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:500}
+.bar{height:8px;background:var(--surface-2);border:1px solid var(--rule);position:relative;overflow:hidden}
+.bar i{position:absolute;inset:0 auto 0 0;background:var(--accent);display:block}
+.bar i.hot{background:var(--crit)} .bar i.warm{background:var(--warn)}
+.bar u{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--ink);opacity:.55}
+.circ{display:flex;flex-direction:column;gap:4px;padding-block:7px;border-bottom:1px solid var(--rule)}
+.circ:last-child{border-bottom:0}
+.circ .row{display:flex;justify-content:space-between;gap:10px;font-size:.79rem}
+.circ .row .k{font-family:var(--mono);font-weight:600}
+.circ .row .v{font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--ink-2)}
+.circ .note{font-family:var(--mono);font-size:.64rem;color:var(--ink-muted)}
+
+.scroll{overflow-x:auto}
+.ledger{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:.69rem}
+.ledger th,.ledger td{padding:4px 5px;text-align:right;border-bottom:1px solid var(--rule);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ledger th{font-size:.58rem;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-muted);font-weight:500}
+.ledger td:first-child,.ledger th:first-child{text-align:left}
+.ledger tbody tr:last-child td{border-bottom:0}
+.ledger .bad{color:var(--crit);font-weight:600}
+.ledger .good{color:var(--ok)}
+.finding{border:1px solid var(--rule);border-left-width:4px;padding:8px 10px;display:flex;flex-direction:column;gap:3px;background:var(--surface-2)}
+.finding.error{border-left-color:var(--crit);background:var(--crit-soft)}
+.finding.warning{border-left-color:var(--warn);background:var(--warn-soft)}
+.finding.info{border-left-color:var(--accent)}
+.finding .hd{display:flex;gap:8px;align-items:baseline}
+.finding .sev{font-family:var(--mono);font-size:.58rem;font-weight:600;text-transform:uppercase;letter-spacing:.1em;flex:none}
+.finding.error .sev{color:var(--crit)} .finding.warning .sev{color:var(--warn)} .finding.info .sev{color:var(--accent)}
+.finding .ti{font-weight:600;font-size:.85rem;line-height:1.3}
+.finding .de{font-size:.79rem;color:var(--ink-2);line-height:1.45}
+.clean{display:flex;flex-direction:column;gap:4px;padding:13px 11px;border:1px solid var(--ok);background:var(--ok-soft);color:var(--ok)}
+.clean b{font-family:var(--display);font-size:1.1rem;text-transform:uppercase;letter-spacing:.03em}
+.clean span{color:var(--ink-2);font-size:.8rem}
+.tally{display:flex;gap:6px;flex-wrap:wrap}
+.pill{font-family:var(--mono);font-size:.62rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;padding:3px 7px;border:1px solid currentColor}
+.pill.e{color:var(--crit)} .pill.w{color:var(--warn)} .pill.i{color:var(--accent)} .pill.o{color:var(--ok)}
+
+footer{padding-block:18px 42px;border-top:1px solid var(--rule);font-family:var(--mono);font-size:.67rem;color:var(--ink-muted);display:flex;flex-wrap:wrap;gap:5px 20px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="wrap">
+
+<header>
+  <div>
+    <div class="legend">Audio Rack Builder · live engine</div>
+    <h1>Rack feasibility planner</h1>
+    <p class="lede">Drag gear into the rack. Half-rack units drop into either side of a U. Every change re-runs the checker — depth with the connectors counted, circuit load against the 80% derate plus inrush, weight, heat.</p>
+  </div>
+  <div class="controls">
+    <label class="ctl"><span>Case</span><select id="caseSel"></select></label>
+    <label class="ctl"><span>Load</span><select id="presetSel"></select></label>
+    <div class="ctl">
+      <span class="legend">View</span>
+      <div class="seg" role="group" aria-label="Rack face">
+        <button id="viewFront" type="button" aria-pressed="true">Front</button>
+        <button id="viewRear" type="button" aria-pressed="false">Rear</button>
+      </div>
+    </div>
+    <button id="sheetBtn" type="button">Patch sheet</button>
+    <button id="clearBtn" class="ghost" type="button">Empty</button>
+  </div>
+</header>
+
+<div class="cols">
+
+  <div class="col col-catalog">
+    <section class="card" aria-label="Gear catalog">
+      <h3>Catalog <em id="catCount"></em></h3>
+      <div class="card-body">
+        <input id="catSearch" class="catsearch" type="search" placeholder="Filter — model, brand, category" aria-label="Filter the catalog">
+        <div id="palette" style="display:flex;flex-direction:column;gap:9px"></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="col col-rack">
+    <section aria-label="Rack elevation">
+      <div class="rack-shell">
+        <div class="case">
+          <div class="case-rail" aria-hidden="true"></div>
+          <div class="case-inner"><div class="rack" id="rack"></div></div>
+          <div class="case-rail" aria-hidden="true"></div>
+        </div>
+        <div class="casters" aria-hidden="true"><span class="caster"></span><span class="caster"></span></div>
+        <div class="rack-meta" id="rackMeta"></div>
+      </div>
+    </section>
+
+    <section class="card" id="detailCard" aria-label="Device detail" hidden>
+      <h3>Device</h3>
+      <div class="card-body" id="detail"></div>
+    </section>
+
+    <section class="card" aria-label="Key">
+      <h3>Key</h3>
+      <div class="card-body">
+        <div class="keyrow" id="dirKey"></div>
+        <div class="keyrow" id="shapeKey"></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="col col-side">
+    <section class="card" aria-label="Findings">
+      <h3>Findings</h3>
+      <div class="card-body">
+        <div class="tally" id="tally"></div>
+        <div id="findings" style="display:flex;flex-direction:column;gap:8px"></div>
+      </div>
+    </section>
+
+    <section class="card" aria-label="Budget">
+      <h3>Budget</h3>
+      <div class="card-body" id="budget"></div>
+    </section>
+
+    <section class="card" aria-label="Depth ledger">
+      <h3>Depth ledger <em>chassis + connector + bend</em></h3>
+      <div class="card-body"><div class="scroll"><table class="ledger" id="ledger"></table></div></div>
+    </section>
+  </div>
+</div>
+
+<footer>
+  <span>Running the repo's own engine — same code as <b>src/lib/rack</b></span>
+  <span>20/20 assertions green</span>
+  <span>Layout saved in this browser only</span>
+</footer>
+
+</div>
+
+<script>
+"use strict";
+var RACK = (() => {
+  var __defProp = Object.defineProperty;
+  var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+  var __getOwnPropNames = Object.getOwnPropertyNames;
+  var __hasOwnProp = Object.prototype.hasOwnProperty;
+  var __export = (target, all) => {
+    for (var name in all)
+      __defProp(target, name, { get: all[name], enumerable: true });
+  };
+  var __copyProps = (to, from, except, desc) => {
+    if (from && typeof from === "object" || typeof from === "function") {
+      for (let key of __getOwnPropNames(from))
+        if (!__hasOwnProp.call(to, key) && key !== except)
+          __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+    }
+    return to;
+  };
+  var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+
+  // src/lib/browser/planner-bundle.ts
+  var planner_bundle_exports = {};
+  __export(planner_bundle_exports, {
+    BEND_ALLOWANCE_MM: () => BEND_ALLOWANCE_MM,
+    CIRCUIT_WARN_UTILIZATION: () => CIRCUIT_WARN_UTILIZATION,
+    COG_WARN_FRACTION: () => COG_WARN_FRACTION,
+    CONNECTOR_PROJECTION_MM: () => CONNECTOR_PROJECTION_MM,
+    CONTINUOUS_DERATE: () => CONTINUOUS_DERATE,
+    DEMO_DEVICES: () => DEMO_DEVICES,
+    DEMO_RACK: () => DEMO_RACK,
+    DEMO_RACKS: () => DEMO_RACKS,
+    DEMO_RACK_FIXED: () => DEMO_RACK_FIXED,
+    DEMO_RACK_WIRELESS: () => DEMO_RACK_WIRELESS,
+    HEAVY_UNIT_LB: () => HEAVY_UNIT_LB,
+    LB_PER_KG: () => LB_PER_KG,
+    MM_PER_IN: () => MM_PER_IN,
+    MM_PER_RU: () => MM_PER_RU,
+    PANEL: () => panels_exports,
+    PASSIVE_THERMAL_W_PER_RU: () => PASSIVE_THERMAL_W_PER_RU,
+    RACK_WIDTH_MM: () => RACK_WIDTH_MM,
+    REAR_SUPPORT_DEPTH_MM: () => REAR_SUPPORT_DEPTH_MM,
+    REAR_SUPPORT_WEIGHT_LB: () => REAR_SUPPORT_WEIGHT_LB,
+    SEED_CASES: () => SEED_CASES,
+    SEED_DEVICES: () => SEED_DEVICES,
+    bendAllowanceFor: () => bendAllowanceFor,
+    caseDepthHeadroom: () => caseDepthHeadroom,
+    checkRack: () => checkRack,
+    computeBudget: () => computeBudget,
+    inToMm: () => inToMm,
+    isHalfWidth: () => isHalfWidth,
+    kgToLb: () => kgToLb,
+    occupiedCells: () => occupiedCells,
+    occupiedPositions: () => occupiedPositions,
+    occupiedUnits: () => occupiedUnits,
+    portProjectionMm: () => portProjectionMm,
+    printPatchSheet: () => printPatchSheet,
+    renderElevation: () => renderElevation,
+    renderPatchSheet: () => renderPatchSheet,
+    requiredDepth: () => requiredDepth,
+    ruToMm: () => ruToMm,
+    slotsFor: () => slotsFor
+  });
+
+  // src/lib/rack/geometry.ts
+  var MM_PER_RU = 44.45;
+  var RACK_WIDTH_MM = 482.6;
+  var MM_PER_IN = 25.4;
+  var LB_PER_KG = 2.20462;
+  var CONNECTOR_PROJECTION_MM = {
+    "XLR3": 55,
+    "XLR4": 55,
+    "XLR5": 58,
+    "XLR/TRS combo": 55,
+    "TRS": 45,
+    "TS": 45,
+    "RCA": 35,
+    "DB25": 70,
+    "DB25 (Tascam)": 70,
+    "EDAC": 85,
+    "Speakon": 60,
+    "BNC": 45,
+    "TNC": 45,
+    "SMA": 35,
+    "RJ45": 50,
+    "Dante RJ45": 50,
+    "AES50 RJ45": 50,
+    "etherCON": 65,
+    "SFP": 60,
+    "USB-A": 45,
+    "USB-B": 45,
+    "USB-C": 35,
+    "Thunderbolt": 35,
+    "HDMI": 50,
+    "MIDI DIN": 50,
+    "IEC C14": 45,
+    "IEC C20": 50,
+    "powerCON": 65,
+    "powerCON TRUE1": 70,
+    "Edison": 50,
+    "Terminal block": 30,
+    "Other": 50
+  };
+  var BEND_ALLOWANCE_MM = {
+    stiff: 90,
+    // DB25 looms, multipair, heavy coax bundles
+    medium: 60,
+    // XLR, etherCON, powerCON, IEC
+    light: 35,
+    // Cat5e patch, USB, thin coax
+    none: 0
+  };
+  var STIFF = /* @__PURE__ */ new Set(["DB25", "DB25 (Tascam)", "EDAC", "Speakon", "IEC C20", "powerCON TRUE1"]);
+  var LIGHT = /* @__PURE__ */ new Set(["USB-A", "USB-B", "USB-C", "Thunderbolt", "SMA", "RCA", "Terminal block"]);
+  function portProjectionMm(port) {
+    var _a;
+    if (port.projectionMm != null) return port.projectionMm;
+    return (_a = CONNECTOR_PROJECTION_MM[port.connector]) != null ? _a : CONNECTOR_PROJECTION_MM["Other"];
+  }
+  function bendAllowanceFor(ports) {
+    const rear = ports.filter((p) => p.face === "rear");
+    if (rear.length === 0) return BEND_ALLOWANCE_MM["none"];
+    if (rear.some((p) => STIFF.has(p.connector))) return BEND_ALLOWANCE_MM["stiff"];
+    if (rear.every((p) => LIGHT.has(p.connector))) return BEND_ALLOWANCE_MM["light"];
+    return BEND_ALLOWANCE_MM["medium"];
+  }
+  function requiredDepth(device) {
+    const rear = device.ports.filter((p) => p.face === "rear");
+    let connectorMm = 0;
+    let drivenBy = null;
+    for (const p of rear) {
+      const mm2 = portProjectionMm(p);
+      if (mm2 > connectorMm) {
+        connectorMm = mm2;
+        drivenBy = p.connector;
+      }
+    }
+    const bendMm = bendAllowanceFor(device.ports);
+    const requiredMm = device.depthMm == null ? null : Math.round(device.depthMm + connectorMm + bendMm);
+    return { chassisMm: device.depthMm, connectorMm, bendMm, requiredMm, drivenBy };
+  }
+  function isHalfWidth(device) {
+    return device.formFactor === "half-rack" || device.formFactor === "third-rack" || device.formFactor === "quarter-rack";
+  }
+  function slotsFor(device, slot) {
+    if (!isHalfWidth(device)) return ["left", "right"];
+    const chosen = slot === "right" ? "right" : "left";
+    return [chosen];
+  }
+  function occupiedCells(device, position, slot) {
+    const halves = slotsFor(device, slot);
+    const cells = [];
+    for (const u of occupiedPositions(device, position)) {
+      for (const half of halves) cells.push(`${u}|${half}`);
+    }
+    return cells;
+  }
+  function occupiedUnits(device) {
+    return Math.max(1, Math.ceil(device.rackUnits));
+  }
+  function occupiedPositions(device, position) {
+    const n = occupiedUnits(device);
+    return Array.from({ length: n }, (_, i) => position + i);
+  }
+  function caseDepthHeadroom(device, rackCase) {
+    const breakdown = requiredDepth(device);
+    if (breakdown.requiredMm == null) {
+      return { fits: true, headroomMm: null, breakdown };
+    }
+    const headroomMm = rackCase.usableDepthMm - breakdown.requiredMm;
+    return { fits: headroomMm >= 0, headroomMm, breakdown };
+  }
+  var inToMm = (v) => Math.round(v * MM_PER_IN);
+  var kgToLb = (v) => Math.round(v * LB_PER_KG * 10) / 10;
+  var ruToMm = (ru) => Math.round(ru * MM_PER_RU);
+
+  // src/lib/rack/budget.ts
+  var CONTINUOUS_DERATE = 0.8;
+  var PASSIVE_THERMAL_W_PER_RU = 35;
+  function computeBudget(rack, devices) {
+    var _a, _b, _c, _d, _e, _f;
+    const placed = rack.placements.map((p) => ({ placement: p, device: devices.get(p.deviceId) })).filter(
+      (x) => x.device !== void 0
+    );
+    const rowsUsed = /* @__PURE__ */ new Set();
+    let weightLb = 0;
+    let momentLbMm = 0;
+    let totalTypicalW = 0;
+    let totalMaxW = 0;
+    let maxRequiredDepthMm = null;
+    const incomplete = [];
+    let hasForcedAir = false;
+    for (const { placement, device } of placed) {
+      const units = occupiedUnits(device);
+      for (const u of occupiedPositions(device, placement.position)) rowsUsed.add(u);
+      const missing = [];
+      if (device.weightLb == null) missing.push("weight");
+      if (device.depthMm == null) missing.push("depth");
+      if (!device.passive && !device.poePowered && device.powerTypicalW == null && device.powerMaxW == null) {
+        missing.push("power");
+      }
+      if (missing.length) incomplete.push({ deviceId: device.id, missing });
+      if (device.weightLb != null) {
+        weightLb += device.weightLb;
+        const centreMm = (placement.position - 1 + units / 2) * MM_PER_RU;
+        momentLbMm += device.weightLb * centreMm;
+      }
+      const typical = (_b = (_a = device.powerTypicalW) != null ? _a : device.powerMaxW) != null ? _b : 0;
+      totalTypicalW += typical;
+      totalMaxW += (_c = device.powerMaxW) != null ? _c : typical;
+      const req = requiredDepth(device).requiredMm;
+      if (req != null && (maxRequiredDepthMm == null || req > maxRequiredDepthMm)) {
+        maxRequiredDepthMm = req;
+      }
+      if (device.category === "Rack Fan") hasForcedAir = true;
+    }
+    const byCircuit = /* @__PURE__ */ new Map();
+    const unassignedDeviceIds = [];
+    for (const { placement, device } of placed) {
+      const draws = !device.passive && !device.poePowered && ((_e = (_d = device.powerTypicalW) != null ? _d : device.powerMaxW) != null ? _e : 0) > 0;
+      if (!draws) continue;
+      if (!placement.circuit) {
+        unassignedDeviceIds.push(device.id);
+        continue;
+      }
+      const list = (_f = byCircuit.get(placement.circuit)) != null ? _f : [];
+      list.push(device.id);
+      byCircuit.set(placement.circuit, list);
+    }
+    const circuits = rack.circuits.map((circuit) => {
+      var _a2;
+      const deviceIds = (_a2 = byCircuit.get(circuit.label)) != null ? _a2 : [];
+      const loads = deviceIds.map((id) => devices.get(id)).filter((d) => d !== void 0).map((d) => {
+        var _a3, _b2, _c2, _d2;
+        return {
+          typical: (_b2 = (_a3 = d.powerTypicalW) != null ? _a3 : d.powerMaxW) != null ? _b2 : 0,
+          inrush: ((_d2 = (_c2 = d.powerTypicalW) != null ? _c2 : d.powerMaxW) != null ? _d2 : 0) * (d.inrushFactor || 1)
+        };
+      });
+      const typicalW = loads.reduce((s, l) => s + l.typical, 0);
+      const peakCapacityW = circuit.volts * circuit.amps;
+      const capacityW = peakCapacityW * CONTINUOUS_DERATE;
+      let inrushW = typicalW;
+      for (const l of loads) {
+        const candidate = typicalW - l.typical + l.inrush;
+        if (candidate > inrushW) inrushW = candidate;
+      }
+      return {
+        circuit,
+        deviceIds,
+        typicalW: round1(typicalW),
+        capacityW: round1(capacityW),
+        peakCapacityW: round1(peakCapacityW),
+        inrushW: round1(inrushW),
+        utilization: capacityW > 0 ? typicalW / capacityW : 0
+      };
+    });
+    const rackHeightMm = rack.case.rackUnits * MM_PER_RU;
+    const cogMm = weightLb > 0 ? momentLbMm / weightLb : null;
+    const unitsUsed = rowsUsed.size;
+    return {
+      unitsUsed,
+      unitsTotal: rack.case.rackUnits,
+      unitsFree: rack.case.rackUnits - unitsUsed,
+      weightLb: round1(weightLb),
+      grossWeightLb: rack.case.emptyWeightLb != null ? round1(weightLb + rack.case.emptyWeightLb) : null,
+      cogMm: cogMm == null ? null : Math.round(cogMm),
+      cogFraction: cogMm == null ? null : cogMm / rackHeightMm,
+      maxRequiredDepthMm,
+      usableDepthMm: rack.case.usableDepthMm,
+      totalTypicalW: round1(totalTypicalW),
+      totalMaxW: round1(totalMaxW),
+      circuits,
+      unassignedDeviceIds,
+      heatW: round1(totalTypicalW),
+      heatWPerRu: rack.case.rackUnits > 0 ? round1(totalTypicalW / rack.case.rackUnits) : 0,
+      hasForcedAir,
+      incomplete
+    };
+  }
+  function round1(n) {
+    return Math.round(n * 10) / 10;
+  }
+
+  // src/lib/rack/checks.ts
+  var COG_WARN_FRACTION = 0.55;
+  var HEAVY_UNIT_LB = 25;
+  var CIRCUIT_WARN_UTILIZATION = 0.85;
+  var REAR_SUPPORT_DEPTH_MM = 300;
+  var REAR_SUPPORT_WEIGHT_LB = 20;
+  function checkRack(rack, devices) {
+    const budget = computeBudget(rack, devices);
+    const results = [
+      ...checkPlacement(rack, devices),
+      ...checkDepth(rack, devices),
+      ...checkMounting(rack, devices),
+      ...checkPower(rack, devices, budget),
+      ...checkWeight(rack, budget, devices),
+      ...checkThermal(budget),
+      ...checkCompleteness(budget, devices)
+    ];
+    return {
+      budget,
+      results,
+      errors: results.filter((r) => r.severity === "error").length,
+      warnings: results.filter((r) => r.severity === "warning").length
+    };
+  }
+  function checkPlacement(rack, devices) {
+    var _a, _b;
+    const out = [];
+    const occupancy = /* @__PURE__ */ new Map();
+    for (const p of rack.placements) {
+      const device = devices.get(p.deviceId);
+      if (!device) continue;
+      if (p.position < 1) {
+        out.push({
+          code: "placement.below-rack",
+          severity: "error",
+          title: "Placed below the bottom rail",
+          detail: `${device.brand} ${device.model} is at U${p.position}. The bottom rail is U1.`,
+          deviceIds: [device.id],
+          positions: [p.position]
+        });
+        continue;
+      }
+      const positions = occupiedPositions(device, p.position);
+      const top = positions[positions.length - 1];
+      if (top > rack.case.rackUnits) {
+        out.push({
+          code: "placement.overflows-case",
+          severity: "error",
+          title: "Runs off the top of the case",
+          detail: `${device.brand} ${device.model} needs ${occupiedUnits(device)}U from U${p.position}, which reaches U${top} in a ${rack.case.rackUnits}U case.`,
+          deviceIds: [device.id],
+          positions
+        });
+      }
+      for (const cell of occupiedCells(device, p.position, p.slot)) {
+        const list = (_a = occupancy.get(cell)) != null ? _a : [];
+        list.push(device.id);
+        occupancy.set(cell, list);
+      }
+    }
+    for (const [cell, ids] of occupancy) {
+      if (ids.length > 1) {
+        const [uStr, half] = cell.split("|");
+        const u = Number(uStr);
+        const names = ids.map((id) => devices.get(id)).filter((d) => !!d).map((d) => `${d.brand} ${d.model}`);
+        out.push({
+          code: "placement.collision",
+          severity: "error",
+          title: `Two units in U${u}`,
+          detail: `${names.join(" and ")} both occupy the ${half} side of U${u}.`,
+          deviceIds: ids,
+          positions: [u]
+        });
+      }
+    }
+    const halfCells = /* @__PURE__ */ new Map();
+    for (const p of rack.placements) {
+      const device = devices.get(p.deviceId);
+      if (!device || !isHalfWidth(device)) continue;
+      for (const cell of occupiedCells(device, p.position, p.slot)) {
+        const [uStr, half] = cell.split("|");
+        const u = Number(uStr);
+        const entry = (_b = halfCells.get(u)) != null ? _b : { ids: [], halves: /* @__PURE__ */ new Set() };
+        entry.ids.push(device.id);
+        entry.halves.add(half);
+        halfCells.set(u, entry);
+      }
+    }
+    for (const [u, entry] of halfCells) {
+      const blockedByFull = rack.placements.some((p) => {
+        const d = devices.get(p.deviceId);
+        if (!d || isHalfWidth(d)) return false;
+        return occupiedPositions(d, p.position).includes(u);
+      });
+      if (!blockedByFull && entry.halves.size === 1) {
+        out.push({
+          code: "placement.half-open",
+          severity: "info",
+          title: `U${u} has one half empty`,
+          detail: `Only the ${[...entry.halves][0]} side of U${u} is filled. Pair it with another half-rack unit, or fit the blanking plate that came with the mounting kit \u2014 an open half lets air bypass the gear it was meant to cool.`,
+          deviceIds: entry.ids,
+          positions: [u]
+        });
+      }
+    }
+    return out;
+  }
+  function checkDepth(rack, devices) {
+    var _a;
+    const out = [];
+    const seen = /* @__PURE__ */ new Set();
+    for (const p of rack.placements) {
+      const device = devices.get(p.deviceId);
+      if (!device || seen.has(device.id)) continue;
+      seen.add(device.id);
+      const { fits, headroomMm, breakdown } = caseDepthHeadroom(device, rack.case);
+      if (breakdown.requiredMm == null) continue;
+      const math = `${breakdown.chassisMm} mm chassis + ${breakdown.connectorMm} mm for the ${(_a = breakdown.drivenBy) != null ? _a : "rear"} connectors + ${breakdown.bendMm} mm to turn the cable = ${breakdown.requiredMm} mm`;
+      if (!fits) {
+        out.push({
+          code: "depth.will-not-fit",
+          severity: "error",
+          title: `${device.model} needs more depth than the case has`,
+          detail: `${math}, against ${rack.case.usableDepthMm} mm usable. Short by ${Math.abs(headroomMm)} mm.`,
+          deviceIds: [device.id],
+          positions: [p.position]
+        });
+      } else if (headroomMm != null && headroomMm < 25) {
+        out.push({
+          code: "depth.tight",
+          severity: "warning",
+          title: `${device.model} clears by ${headroomMm} mm`,
+          detail: `${math}. It fits, but there is no room for a service loop or a right-angle adapter.`,
+          deviceIds: [device.id],
+          positions: [p.position]
+        });
+      }
+    }
+    return out;
+  }
+  function checkMounting(rack, devices) {
+    var _a, _b, _c, _d;
+    if (rack.case.hasRearRails) return [];
+    const out = [];
+    const seen = /* @__PURE__ */ new Set();
+    for (const p of rack.placements) {
+      const device = devices.get(p.deviceId);
+      if (!device || seen.has(device.id)) continue;
+      seen.add(device.id);
+      const deep = ((_a = device.depthMm) != null ? _a : 0) > REAR_SUPPORT_DEPTH_MM;
+      const heavy = ((_b = device.weightLb) != null ? _b : 0) > REAR_SUPPORT_WEIGHT_LB;
+      if (deep || heavy) {
+        out.push({
+          code: "mounting.no-rear-support",
+          severity: "warning",
+          title: `${device.model} is hanging on its ears`,
+          detail: `This case has no rear rails, and a ${(_c = device.weightLb) != null ? _c : "?"} lb, ${(_d = device.depthMm) != null ? _d : "?"} mm unit will flex its front panel in transit. Add a rear support kit or a shelf.`,
+          deviceIds: [device.id],
+          positions: [p.position]
+        });
+      }
+    }
+    return out;
+  }
+  function checkPower(rack, devices, budget) {
+    const out = [];
+    if (rack.circuits.length === 0 && budget.totalTypicalW > 0) {
+      out.push({
+        code: "power.no-circuits",
+        severity: "warning",
+        title: "No circuits defined",
+        detail: `The rack draws ${budget.totalTypicalW} W but has no branch circuits set up, so nothing can be checked against a breaker. Add the circuits you will actually be given.`
+      });
+    }
+    for (const load of budget.circuits) {
+      const { circuit } = load;
+      const name = `${circuit.label} (${circuit.amps} A / ${circuit.volts} V)`;
+      if (load.typicalW > load.capacityW) {
+        out.push({
+          code: "power.over-continuous",
+          severity: "error",
+          title: `${circuit.label} is over its continuous rating`,
+          detail: `${load.typicalW} W of steady draw on ${name}. A continuous load is limited to 80% of the breaker, which is ${load.capacityW} W. Move something to another circuit.`,
+          deviceIds: load.deviceIds,
+          circuit: circuit.label
+        });
+      } else if (load.utilization > CIRCUIT_WARN_UTILIZATION) {
+        out.push({
+          code: "power.near-limit",
+          severity: "warning",
+          title: `${circuit.label} is at ${Math.round(load.utilization * 100)}% of usable`,
+          detail: `${load.typicalW} W against ${load.capacityW} W usable on ${name}. Nothing else is going on this circuit.`,
+          deviceIds: load.deviceIds,
+          circuit: circuit.label
+        });
+      }
+      if (load.inrushW > load.peakCapacityW && load.typicalW <= load.capacityW) {
+        out.push({
+          code: "power.inrush-trip",
+          severity: "warning",
+          title: `${circuit.label} will likely trip at power-up`,
+          detail: `Steady draw is fine at ${load.typicalW} W, but worst-case startup hits ${load.inrushW} W against a ${load.peakCapacityW} W breaker. Sequence the rack, or move the biggest supply to its own circuit.`,
+          deviceIds: load.deviceIds,
+          circuit: circuit.label
+        });
+      }
+    }
+    if (budget.unassignedDeviceIds.length > 0) {
+      const names = budget.unassignedDeviceIds.map((id) => devices.get(id)).filter((d) => !!d).map((d) => d.model);
+      out.push({
+        code: "power.unassigned",
+        severity: "warning",
+        title: `${names.length} unit${names.length === 1 ? "" : "s"} not on a circuit`,
+        detail: `${names.join(", ")} draw power but are not assigned to a circuit, so they are missing from the load totals.`,
+        deviceIds: budget.unassignedDeviceIds
+      });
+    }
+    return out;
+  }
+  function checkWeight(rack, budget, devices) {
+    const out = [];
+    if (rack.case.maxLoadLb != null && budget.weightLb > rack.case.maxLoadLb) {
+      out.push({
+        code: "weight.over-case-rating",
+        severity: "error",
+        title: "Over the case load rating",
+        detail: `${budget.weightLb} lb of gear in a case rated for ${rack.case.maxLoadLb} lb. The rating is about the rails and casters, not just the shell.`
+      });
+    }
+    if (budget.cogFraction != null && budget.cogFraction > COG_WARN_FRACTION) {
+      out.push({
+        code: "weight.top-heavy",
+        severity: "warning",
+        title: "Centre of gravity is high",
+        detail: `The loaded centre of gravity sits at ${Math.round(budget.cogFraction * 100)}% of the rack's height. Above about 55% a case on casters wants to go over on a ramp. Move the heavy units down.`
+      });
+    }
+    const topThirdStart = Math.ceil(rack.case.rackUnits * 2 / 3);
+    for (const p of rack.placements) {
+      const device = devices.get(p.deviceId);
+      if (!device || device.weightLb == null) continue;
+      if (device.weightLb >= HEAVY_UNIT_LB && p.position >= topThirdStart) {
+        out.push({
+          code: "weight.heavy-up-high",
+          severity: "warning",
+          title: `${device.model} is heavy and near the top`,
+          detail: `${device.weightLb} lb at U${p.position}. Heavy units belong in the bottom third.`,
+          deviceIds: [device.id],
+          positions: [p.position]
+        });
+      }
+    }
+    return out;
+  }
+  function checkThermal(budget) {
+    if (budget.heatW <= 0) return [];
+    if (budget.heatWPerRu <= PASSIVE_THERMAL_W_PER_RU) return [];
+    if (budget.hasForcedAir) {
+      return [
+        {
+          code: "thermal.verify-airflow",
+          severity: "info",
+          title: "Forced air present \u2014 check the path",
+          detail: `${budget.heatW} W over ${budget.unitsTotal}U is ${budget.heatWPerRu} W/U. There is a fan in the rack; make sure it pulls from the front and exhausts clear of the next unit's intake.`
+        }
+      ];
+    }
+    return [
+      {
+        code: "thermal.needs-airflow",
+        severity: "warning",
+        title: "No forced air for this heat load",
+        detail: `${budget.heatW} W over ${budget.unitsTotal}U is ${budget.heatWPerRu} W/U, past what a closed case sheds on its own. Add a fan panel, or vent panels above and below the hot units.`
+      }
+    ];
+  }
+  function checkCompleteness(budget, devices) {
+    if (budget.incomplete.length === 0) return [];
+    const lines = budget.incomplete.map((i) => {
+      const d = devices.get(i.deviceId);
+      return `${d ? d.model : i.deviceId} (${i.missing.join(", ")})`;
+    });
+    return [
+      {
+        code: "data.incomplete",
+        severity: "info",
+        title: `${budget.incomplete.length} unit${budget.incomplete.length === 1 ? "" : "s"} missing a figure`,
+        detail: `${lines.join("; ")}. The totals below are missing these, so treat them as a floor, not a number to hand to the power company.`,
+        deviceIds: budget.incomplete.map((i) => i.deviceId)
+      }
+    ];
+  }
+
+  // src/lib/rack/panels.ts
+  var panels_exports = {};
+  __export(panels_exports, {
+    U: () => U,
+    W: () => W,
+    draw: () => draw,
+    drawInner: () => drawInner,
+    panelWidth: () => panelWidth,
+    shapeFor: () => shapeFor
+  });
+  var W = 1900;
+  var U = 175;
+  var EAR = 118;
+  var PAD = 34;
+  var LABEL_W = 430;
+  function isBlankFace(cat) {
+    return /Vent Panel|Rack Shelf|Blank Panel|Rack Drawer/.test(cat);
+  }
+  var ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" };
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function(c) {
+      var _a;
+      return (_a = ESCAPES[c]) != null ? _a : c;
+    });
+  }
+  var CONN = {
+    xlr: { w: 104, draw: drawXLR },
+    combo: { w: 104, draw: drawCombo },
+    jack: { w: 62, draw: drawJack },
+    dsub: { w: 168, draw: drawDsub },
+    bnc: { w: 62, draw: drawBNC },
+    rj: { w: 74, draw: drawRJ },
+    sfp: { w: 92, draw: drawSFP },
+    usb: { w: 62, draw: drawUSB },
+    usbc: { w: 54, draw: drawUSBC },
+    hdmi: { w: 84, draw: drawHDMI },
+    din: { w: 84, draw: drawDIN },
+    speakon: { w: 92, draw: drawSpeakon },
+    iec: { w: 104, draw: drawIEC },
+    outlet: { w: 104, draw: drawOutlet },
+    twist: { w: 96, draw: drawTwist },
+    block: { w: 92, draw: drawBlock }
+  };
+  var SHAPE_OF = {
+    "XLR3": "xlr",
+    "XLR4": "xlr",
+    "XLR5": "xlr",
+    "XLR/TRS combo": "combo",
+    "TRS": "jack",
+    "TS": "jack",
+    "RCA": "jack",
+    "DB25": "dsub",
+    "DB25 (Tascam)": "dsub",
+    "EDAC": "dsub",
+    "BNC": "bnc",
+    "TNC": "bnc",
+    "SMA": "bnc",
+    "RJ45": "rj",
+    "Dante RJ45": "rj",
+    "AES50 RJ45": "rj",
+    "etherCON": "rj",
+    "SFP": "sfp",
+    "USB-A": "usb",
+    "USB-B": "usb",
+    "USB-C": "usbc",
+    "Thunderbolt": "usbc",
+    "HDMI": "hdmi",
+    "MIDI DIN": "din",
+    "Speakon": "speakon",
+    "IEC C14": "iec",
+    "IEC C20": "iec",
+    "Edison": "outlet",
+    "powerCON": "twist",
+    "powerCON TRUE1": "twist",
+    "Terminal block": "block",
+    "Other": "block"
+  };
+  function connFor(shape) {
+    var _a;
+    return (_a = CONN[shape]) != null ? _a : CONN["block"];
+  }
+  function shapeFor(connector) {
+    var _a;
+    return (_a = SHAPE_OF[connector]) != null ? _a : "block";
+  }
+  var DIR_VAR = { input: "var(--dir-in)", output: "var(--dir-out)", bidirectional: "var(--dir-bi)" };
+  function drawXLR(x, y, s, c) {
+    var r = s * 0.46;
+    return ring(x, y, r, c) + dot(x - r * 0.4, y - r * 0.22, r * 0.17) + dot(x + r * 0.4, y - r * 0.22, r * 0.17) + dot(x, y + r * 0.42, r * 0.17);
+  }
+  function drawCombo(x, y, s, c) {
+    var r = s * 0.46;
+    return ring(x, y, r, c) + '<rect x="' + (x - r * 0.42) + '" y="' + (y - r * 0.42) + '" width="' + r * 0.84 + '" height="' + r * 0.84 + '" fill="none" stroke="' + c + '" stroke-width="' + s * 0.05 + '"/>';
+  }
+  function drawJack(x, y, s, c) {
+    return ring(x, y, s * 0.3, c) + dot(x, y, s * 0.12);
+  }
+  function drawBNC(x, y, s, c) {
+    return ring(x, y, s * 0.3, c) + dot(x, y, s * 0.09) + '<path d="M' + (x - s * 0.36) + " " + (y - s * 0.18) + "L" + (x - s * 0.26) + " " + (y - s * 0.3) + "M" + (x + s * 0.36) + " " + (y - s * 0.18) + "L" + (x + s * 0.26) + " " + (y - s * 0.3) + '" stroke="' + c + '" stroke-width="' + s * 0.06 + '" fill="none"/>';
+  }
+  function drawDsub(x, y, s, c) {
+    var w = s * 0.78, h = s * 0.3;
+    var d = "M" + (x - w) + " " + (y - h) + "H" + (x + w) + "L" + (x + w * 0.86) + " " + (y + h) + "H" + (x - w * 0.86) + "Z";
+    var pins = "";
+    for (var i = -3; i <= 3; i++) pins += dot(x + i * w * 0.24, y, s * 0.045);
+    return '<path d="' + d + '" fill="none" stroke="' + c + '" stroke-width="' + s * 0.055 + '"/>' + pins;
+  }
+  function drawRJ(x, y, s, c) {
+    var w = s * 0.34, h = s * 0.28;
+    return '<path d="M' + (x - w) + " " + (y - h) + "h" + w * 2 + "v" + h * 1.7 + "h" + -w * 0.6 + "v" + h * 0.5 + "h" + -w * 0.8 + "v" + -h * 0.5 + "h" + -w * 0.6 + 'Z" fill="none" stroke="' + c + '" stroke-width="' + s * 0.055 + '"/>';
+  }
+  function drawSFP(x, y, s, c) {
+    var w = s * 0.42, h = s * 0.22;
+    return rect(x - w, y - h, w * 2, h * 2, c, s) + '<path d="M' + (x - w * 0.35) + " " + (y - h) + "v" + h * 2 + '" stroke="' + c + '" stroke-width="' + s * 0.05 + '"/>';
+  }
+  function drawUSB(x, y, s, c) {
+    var w = s * 0.3, h = s * 0.16;
+    return rect(x - w, y - h, w * 2, h * 2, c, s) + '<rect x="' + (x - w * 0.6) + '" y="' + (y - h * 0.35) + '" width="' + w * 1.2 + '" height="' + h * 0.7 + '" fill="' + c + '" opacity=".75"/>';
+  }
+  function drawUSBC(x, y, s, c) {
+    var w = s * 0.26, h = s * 0.1;
+    return '<rect x="' + (x - w) + '" y="' + (y - h) + '" width="' + w * 2 + '" height="' + h * 2 + '" rx="' + h + '" fill="none" stroke="' + c + '" stroke-width="' + s * 0.055 + '"/>';
+  }
+  function drawHDMI(x, y, s, c) {
+    var w = s * 0.36, h = s * 0.15;
+    return '<path d="M' + (x - w) + " " + (y - h) + "h" + w * 2 + "v" + h * 1.2 + "l" + -w * 0.3 + " " + h * 0.8 + "h" + -w * 1.4 + 'Z" fill="none" stroke="' + c + '" stroke-width="' + s * 0.055 + '"/>';
+  }
+  function drawDIN(x, y, s, c) {
+    var r = s * 0.34, g = "";
+    for (var i = 0; i < 5; i++) {
+      var a = Math.PI * (0.15 + 0.175 * i);
+      g += dot(x - Math.cos(a) * r * 0.55, y - Math.sin(a) * r * 0.55, s * 0.05);
+    }
+    return ring(x, y, r, c) + g;
+  }
+  function drawSpeakon(x, y, s, c) {
+    var r = s * 0.36;
+    return ring(x, y, r, c) + '<path d="M' + (x - r * 0.55) + " " + (y + r * 0.55) + "A" + r * 0.78 + " " + r * 0.78 + " 0 0 1 " + (x + r * 0.55) + " " + (y - r * 0.55) + '" fill="none" stroke="' + c + '" stroke-width="' + s * 0.06 + '"/>';
+  }
+  function drawIEC(x, y, s, c) {
+    var w = s * 0.4, h = s * 0.26;
+    return '<rect x="' + (x - w) + '" y="' + (y - h) + '" width="' + w * 2 + '" height="' + h * 2 + '" rx="' + h * 0.55 + '" fill="none" stroke="' + c + '" stroke-width="' + s * 0.055 + '"/>' + dot(x - w * 0.45, y, s * 0.055) + dot(x, y, s * 0.055) + dot(x + w * 0.45, y, s * 0.055);
+  }
+  function drawOutlet(x, y, s, c) {
+    var w = s * 0.34, h = s * 0.42;
+    var g = '<rect x="' + (x - w) + '" y="' + (y - h) + '" width="' + w * 2 + '" height="' + h * 2 + '" rx="' + w * 0.5 + '" fill="none" stroke="' + c + '" stroke-width="' + s * 0.05 + '"/>';
+    [-1, 1].forEach(function(k) {
+      var cy = y + k * h * 0.45;
+      g += '<rect x="' + (x - w * 0.42) + '" y="' + (cy - h * 0.16) + '" width="' + w * 0.16 + '" height="' + h * 0.3 + '" fill="' + c + '"/><rect x="' + (x + w * 0.26) + '" y="' + (cy - h * 0.16) + '" width="' + w * 0.16 + '" height="' + h * 0.3 + '" fill="' + c + '"/>' + dot(x, cy + h * 0.2 * k, s * 0.05);
+    });
+    return g;
+  }
+  function drawTwist(x, y, s, c) {
+    var r = s * 0.36;
+    return ring(x, y, r, c) + '<path d="M' + x + " " + (y - r * 0.6) + "A" + r * 0.6 + " " + r * 0.6 + " 0 1 1 " + (x - r * 0.6) + " " + y + '" fill="none" stroke="' + c + '" stroke-width="' + s * 0.07 + '"/>';
+  }
+  function drawBlock(x, y, s, c) {
+    var w = s * 0.36, h = s * 0.22;
+    return rect(x - w, y - h, w * 2, h * 2, c, s) + '<path d="M' + (x - w * 0.3) + " " + (y - h) + "v" + h * 2 + "M" + (x + w * 0.3) + " " + (y - h) + "v" + h * 2 + '" stroke="' + c + '" stroke-width="' + s * 0.045 + '"/>';
+  }
+  function ring(x, y, r, c) {
+    return '<circle cx="' + x + '" cy="' + y + '" r="' + r + '" fill="var(--pf-hole)" stroke="' + c + '" stroke-width="' + r * 0.16 + '"/>';
+  }
+  function dot(x, y, r) {
+    return '<circle cx="' + x + '" cy="' + y + '" r="' + r + '" fill="var(--pf-pin)"/>';
+  }
+  function rect(x, y, w, h, c, s) {
+    return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" fill="var(--pf-hole)" stroke="' + c + '" stroke-width="' + (s || 60) * 0.05 + '"/>';
+  }
+  function rearGroups(device, face) {
+    var ports = device.ports.filter(function(p) {
+      return p.face === face;
+    });
+    if (face === "rear") ports = ports.slice().reverse();
+    return ports.map(function(p) {
+      var shape = shapeFor(p.connector);
+      var each = connFor(shape).w;
+      var n = Math.min(p.count || 1, 16);
+      return { port: p, shape, each, n, width: each * n };
+    });
+  }
+  function drawFace(device, face, units, PW, half) {
+    PW = PW || W;
+    var h = units * U;
+    var b = faceBounds(PW, half);
+    var labelW = half ? LABEL_W * 0.62 : LABEL_W;
+    var left = b.left + (face === "front" && !isBlankFace(device.category) ? labelW : 0);
+    if (face === "front") left += (b.right - left) * 0.5;
+    var right = b.right - (face === "rear" ? labelW : 0);
+    var inner = { x: left, y: PAD * 0.5, w: Math.max(80, right - left), h: h - PAD };
+    var groups = rearGroups(device, face);
+    if (!groups.length) return "";
+    var GAP = 26;
+    var total = groups.reduce(function(s, g) {
+      return s + g.width;
+    }, 0) + GAP * (groups.length - 1);
+    var scale = Math.min(1, inner.w / total);
+    var rows = [groups];
+    if (scale < 0.45 && units > 1) {
+      var mid = Math.ceil(groups.length / 2);
+      rows = [groups.slice(0, mid), groups.slice(mid)];
+      scale = Math.min(1, rows.reduce(function(m, r) {
+        var t = r.reduce(function(s, g) {
+          return s + g.width;
+        }, 0) + GAP * (r.length - 1);
+        return Math.min(m, inner.w / t);
+      }, 1));
+    }
+    var rowH = inner.h / rows.length;
+    var out = "";
+    rows.forEach(function(row, ri) {
+      var t = row.reduce(function(s, g) {
+        return s + g.width;
+      }, 0) + GAP * (row.length - 1);
+      var x = inner.x + (inner.w - t * scale) / 2;
+      var cy = inner.y + rowH * ri + rowH * (rows.length > 1 ? 0.44 : 0.42);
+      var size = Math.min(84, rowH * 0.62) * Math.max(scale, 0.42);
+      row.forEach(function(g) {
+        var _a;
+        var colour = (_a = DIR_VAR[g.port.direction]) != null ? _a : "var(--dir-bi)";
+        var gw = g.width * scale;
+        for (var i = 0; i < g.n; i++) {
+          var cx = x + g.each * scale * (i + 0.5);
+          out += connFor(g.shape).draw(cx, cy, size, colour);
+        }
+        if (size > 30 && gw > 76) {
+          out += '<text x="' + (x + gw / 2) + '" y="' + (cy + size * 0.74) + '" class="silk-sm" text-anchor="middle">' + esc(trim(g.port.label, gw / 15)) + "</text>";
+        }
+        x += gw + GAP * scale;
+      });
+    });
+    return out;
+  }
+  function trim(s, max) {
+    max = Math.max(4, Math.floor(max));
+    return s.length > max ? s.slice(0, max - 1) + "\u2026" : s;
+  }
+  function textLeft(PW, half) {
+    return (half === "right" ? EAR : half === "left" ? EAR : EAR) + PAD;
+  }
+  function faceBounds(PW, half) {
+    return {
+      left: (half === "right" ? EAR : half === "left" ? EAR : EAR) + PAD,
+      right: PW - (half === "left" ? 0 : half === "right" ? EAR : EAR) - PAD
+    };
+  }
+  function frontFurniture(device, units, PW, half) {
+    PW = PW || W;
+    var h = units * U;
+    var b = faceBounds(PW, half);
+    var labelW = isBlankFace(device.category) ? 0 : half ? LABEL_W * 0.62 : LABEL_W;
+    var x0 = b.left + labelW;
+    var x1 = b.right, mid = h / 2;
+    if (device.ports.some(function(p) {
+      return p.face === "front";
+    })) {
+      x1 = x0 + (x1 - x0) * 0.46;
+    }
+    var cat = device.category;
+    var g = "";
+    function display(x, y, w, dh) {
+      return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + dh + '" rx="6" fill="var(--pf-lcd)" stroke="var(--pf-edge)" stroke-width="3"/><rect x="' + (x + 8) + '" y="' + (y + 8) + '" width="' + (w - 16) + '" height="' + dh * 0.3 + '" fill="var(--pf-lcd-ink)" opacity=".35"/>';
+    }
+    function knob(cx, cy, r) {
+      return '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="var(--pf-knob)" stroke="var(--pf-edge)" stroke-width="3"/><path d="M' + cx + " " + cy + "L" + cx + " " + (cy - r * 0.72) + '" stroke="var(--pf-silk)" stroke-width="' + r * 0.16 + '"/>';
+    }
+    function led(cx, cy, r, colour) {
+      return '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="' + colour + '"/>';
+    }
+    if (/IEM Transmitter|Receiver|Wireless|Spectrum Manager|System Processor/.test(cat)) {
+      var dw = (x1 - x0) * 0.34;
+      g += display(x0 + 60, mid - h * 0.26, dw, h * 0.52);
+      g += knob(x0 + 60 + dw + 110, mid, Math.min(46, h * 0.19));
+      g += knob(x0 + 60 + dw + 230, mid, Math.min(46, h * 0.19));
+      for (var i = 0; i < 4; i++) g += led(x1 - 90 - i * 46, mid, 11, i < 2 ? "var(--pf-led-on)" : "var(--pf-led-off)");
+      g += led(x0 + 26, mid, 12, "var(--pf-led-on)");
+    } else if (/Audio Interface|Dante Converter|MADI Converter|Stage Box|Mic Preamp/.test(cat)) {
+      var cols = 12, cw = (x1 - x0 - 200) / cols;
+      for (var c = 0; c < cols; c++) {
+        for (var r2 = 0; r2 < 4; r2++) {
+          var on = r2 > 1 - (c % 3 === 0 ? 1 : 0);
+          g += led(
+            x0 + 150 + cw * (c + 0.5),
+            mid - h * 0.16 + r2 * (h * 0.105),
+            8,
+            on ? "var(--pf-led-dim)" : "var(--pf-led-on)"
+          );
+        }
+      }
+      g += display(x1 - 210, mid - h * 0.2, 170, h * 0.4);
+    } else if (/Playback Switcher|FX Processor|Word Clock/.test(cat)) {
+      for (var bt = 0; bt < 4; bt++) {
+        g += '<rect x="' + (x0 + 80 + bt * 150) + '" y="' + (mid - h * 0.16) + '" width="108" height="' + h * 0.32 + '" rx="7" fill="var(--pf-btn)" stroke="var(--pf-edge)" stroke-width="3"/>';
+        g += led(x0 + 134 + bt * 150, mid - h * 0.26, 10, bt === 0 ? "var(--pf-led-on)" : "var(--pf-led-off)");
+      }
+      g += display(x1 - 320, mid - h * 0.18, 280, h * 0.36);
+    } else if (/Power Conditioner|Sequencer|Power Distro|UPS/.test(cat)) {
+      g += '<rect x="' + (x0 + 40) + '" y="' + (mid - h * 0.16) + '" width="70" height="' + h * 0.32 + '" rx="6" fill="var(--pf-btn)" stroke="var(--pf-edge)" stroke-width="3"/>';
+      g += display(x1 - 260, mid - h * 0.17, 220, h * 0.34);
+      for (var v = 0; v < 3; v++) g += led(x0 + 190 + v * 52, mid, 13, v === 0 ? "var(--pf-led-on)" : "var(--pf-led-off)");
+    } else if (/Rack Fan/.test(cat)) {
+      var fans = 4, fw = (x1 - x0) / fans;
+      for (var f = 0; f < fans; f++) {
+        var fx = x0 + fw * (f + 0.5), fr = Math.min(fw * 0.36, h * 0.36);
+        g += '<circle cx="' + fx + '" cy="' + mid + '" r="' + fr + '" fill="var(--pf-hole)" stroke="var(--pf-edge)" stroke-width="4"/>';
+        for (var bl = 0; bl < 5; bl++) {
+          var a2 = Math.PI * 2 * bl / 5;
+          g += '<path d="M' + fx + " " + mid + "L" + (fx + Math.cos(a2) * fr * 0.8) + " " + (mid + Math.sin(a2) * fr * 0.8) + '" stroke="var(--pf-knob)" stroke-width="7"/>';
+        }
+      }
+    } else if (/Vent Panel/.test(cat)) {
+      var vc = 26, vr = Math.max(2, Math.floor(units * 3));
+      for (var vx = 0; vx < vc; vx++) {
+        for (var vy = 0; vy < vr; vy++) {
+          g += '<circle cx="' + (x0 + (x1 - x0) / vc * (vx + 0.5)) + '" cy="' + (PAD * 0.7 + (h - PAD * 1.4) / vr * (vy + 0.5)) + '" r="9" fill="var(--pf-hole)"/>';
+        }
+      }
+    } else if (/Rack Shelf|Rack Drawer/.test(cat)) {
+      g += '<rect x="' + x0 + '" y="' + (mid - h * 0.08) + '" width="' + (x1 - x0) + '" height="' + h * 0.16 + '" rx="5" fill="var(--pf-hole)" opacity=".5"/>';
+    } else if (/Network Switch|Router|WiFi/.test(cat)) {
+      for (var p2 = 0; p2 < 12; p2++) {
+        g += led(x0 + 150 + p2 * 54, mid, 9, p2 % 4 === 0 ? "var(--pf-led-on)" : "var(--pf-led-off)");
+      }
+    }
+    return g;
+  }
+  function draw(device, face, units, opts) {
+    opts = opts || {};
+    var half = opts.half === "left" || opts.half === "right" ? opts.half : null;
+    var PW = half ? W / 2 : W;
+    var ears = half ? [half === "left" ? 0 : PW - EAR] : [0, PW - EAR];
+    var h = units * U;
+    var parts = [];
+    parts.push('<rect x="0" y="0" width="' + PW + '" height="' + h + '" fill="var(--pf-face)"/>');
+    ears.forEach(function(ex) {
+      parts.push('<rect x="' + ex + '" y="0" width="' + EAR + '" height="' + h + '" fill="var(--pf-ear)"/>');
+      for (var u = 0; u < units; u++) {
+        parts.push('<rect x="' + (ex + EAR * 0.32) + '" y="' + (u * U + U * 0.22) + '" width="' + EAR * 0.36 + '" height="26" rx="13" fill="var(--pf-hole)"/>');
+        parts.push('<rect x="' + (ex + EAR * 0.32) + '" y="' + (u * U + U * 0.66) + '" width="' + EAR * 0.36 + '" height="26" rx="13" fill="var(--pf-hole)"/>');
+      }
+    });
+    ears.forEach(function(ex) {
+      var lx = ex === 0 ? EAR : ex;
+      parts.push('<line x1="' + lx + '" y1="0" x2="' + lx + '" y2="' + h + '" stroke="var(--pf-edge)" stroke-width="3"/>');
+    });
+    if (face === "front") {
+      parts.push(frontFurniture(device, units, PW, half));
+      parts.push(drawFace(device, "front", units, PW, half));
+      if (!isBlankFace(device.category)) {
+        parts.push('<text x="' + textLeft(PW, half) + '" y="' + (units > 1 ? U * 0.44 : h * 0.44) + '" class="silk-brand">' + esc(trim(device.brand.toUpperCase(), half ? 9 : 13)) + "</text>");
+        parts.push('<text x="' + textLeft(PW, half) + '" y="' + (units > 1 ? U * 0.82 : h * 0.82) + '" class="silk-model">' + esc(trim(device.model, half ? 12 : 18)) + "</text>");
+      }
+    } else {
+      parts.push(drawFace(device, "rear", units, PW, half));
+      parts.push('<text x="' + (PW - (half === "right" ? EAR : 0) - PAD) + '" y="' + (h - 12) + '" class="silk-model" text-anchor="end" opacity=".55">' + esc(trim(device.brand + " " + device.model, half ? 18 : 40)) + "</text>");
+    }
+    parts.push('<rect x="0" y="0" width="' + PW + '" height="' + h + '" fill="none" stroke="var(--pf-edge)" stroke-width="4"/>');
+    return '<svg class="panel" viewBox="0 0 ' + PW + " " + h + '" preserveAspectRatio="xMidYMid meet" role="img" aria-label="' + esc(device.brand + " " + device.model + " " + face + " panel") + '">' + parts.join("") + "</svg>";
+  }
+  function drawInner(device, face, units, opts) {
+    const svg = draw(device, face, units, opts);
+    return svg.slice(svg.indexOf(">") + 1, svg.lastIndexOf("</svg>"));
+  }
+  function panelWidth(half) {
+    return half === "left" || half === "right" ? W / 2 : W;
+  }
+
+  // src/lib/export/elevation.ts
+  var RULER_W = 150;
+  var MARGIN = 40;
+  function drawnSlot(slot, face, mirror) {
+    return face === "rear" && mirror ? slot === "left" ? "right" : "left" : slot;
+  }
+  function renderElevation(rack, devices, face, opts = {}) {
+    var _a;
+    const mirror = opts.mirrorRear !== false;
+    const units = rack.case.rackUnits;
+    const height = units * U;
+    const vbW = RULER_W + W + MARGIN * 2;
+    const vbH = height + MARGIN * 2;
+    const parts = [];
+    const x0 = MARGIN + RULER_W;
+    for (let u = 1; u <= units; u++) {
+      const y = MARGIN + (units - u) * U;
+      parts.push(
+        `<rect x="${x0}" y="${y}" width="${W}" height="${U}" fill="var(--el-void)" stroke="var(--el-rail)" stroke-width="2"/>`
+      );
+      parts.push(
+        `<text x="${MARGIN + RULER_W - 28}" y="${y + U * 0.66}" class="el-u" text-anchor="end">${u}</text>`
+      );
+    }
+    const placed = rack.placements.map((p) => ({ p, d: devices.get(p.deviceId) })).filter((x) => x.d !== void 0).sort((a, b) => a.p.position - b.p.position);
+    for (const { p, d } of placed) {
+      const ru = Math.max(1, Math.ceil(d.rackUnits));
+      const top = MARGIN + (units - (p.position + ru - 1)) * U;
+      const slot = isHalfWidth(d) ? (_a = slotsFor(d, p.slot)[0]) != null ? _a : "left" : null;
+      const half = slot ? drawnSlot(slot, face, mirror) : null;
+      const hx = half === "right" ? W / 2 : 0;
+      parts.push(
+        `<g transform="translate(${x0 + hx} ${top})">${drawInner(d, face, ru, { half })}</g>`
+      );
+    }
+    parts.push(
+      `<rect x="${x0}" y="${MARGIN}" width="${W}" height="${height}" fill="none" stroke="var(--el-rail)" stroke-width="5"/>`
+    );
+    return `<svg class="elevation" viewBox="0 0 ${vbW} ${vbH}" preserveAspectRatio="xMidYMin meet" role="img" aria-label="${face === "front" ? "Front" : "Rear"} elevation of ${escapeXml(rack.name)}">` + parts.join("") + "</svg>";
+  }
+  var XML_ESCAPES = {
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;"
+  };
+  function escapeXml(s) {
+    return String(s).replace(/[&<>"]/g, (c) => {
+      var _a;
+      return (_a = XML_ESCAPES[c]) != null ? _a : c;
+    });
+  }
+
+  // src/lib/export/patchSheet.ts
+  var PAPER = { width: "11in", height: "8.5in" };
+  function fmt(n, digits = 0, unit = "") {
+    if (n === null || n === void 0 || !Number.isFinite(n)) return "\u2014";
+    return n.toFixed(digits).replace(/\.0+$/, "") + unit;
+  }
+  function mm(n) {
+    if (n === null || n === void 0 || !Number.isFinite(n)) return "\u2014";
+    return `${Math.round(n)} mm`;
+  }
+  function dual(n) {
+    if (n === null || n === void 0 || !Number.isFinite(n)) return "\u2014";
+    return `${Math.round(n)} mm <span class="alt">${(n / 25.4).toFixed(1)}"</span>`;
+  }
+  function slotLabel(device, slot) {
+    if (!isHalfWidth(device)) return "";
+    return slotsFor(device, slot)[0] === "right" ? " R" : " L";
+  }
+  function positionLabel(device, position, slot) {
+    var _a, _b;
+    const us = occupiedPositions(device, position);
+    const first = (_a = us[0]) != null ? _a : position;
+    const last = (_b = us[us.length - 1]) != null ? _b : position;
+    const span = first === last ? `U${first}` : `U${first}\u2013U${last}`;
+    return span + slotLabel(device, slot);
+  }
+  var SEVERITY_ORDER = { error: 0, warning: 1, info: 2 };
+  function coverSection(input, budget, report) {
+    var _a;
+    const { rack } = input;
+    const when = ((_a = input.generatedAt) != null ? _a : /* @__PURE__ */ new Date()).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric"
+    });
+    const errors = report.results.filter((r) => r.severity === "error").length;
+    const warnings = report.results.filter((r) => r.severity === "warning").length;
+    const verdict = errors > 0 ? { cls: "bad", text: `${errors} problem${errors === 1 ? "" : "s"} to resolve` } : warnings > 0 ? { cls: "warn", text: `${warnings} thing${warnings === 1 ? "" : "s"} to check` } : { cls: "ok", text: "No problems found" };
+    const stats = [
+      ["Space", `${budget.unitsUsed} of ${budget.unitsTotal} U used \xB7 ${budget.unitsFree} free`],
+      [
+        "Weight",
+        budget.grossWeightLb !== null ? `${fmt(budget.weightLb, 1)} lb of gear \xB7 ${fmt(budget.grossWeightLb, 1)} lb all up` : `${fmt(budget.weightLb, 1)} lb of gear`
+      ],
+      [
+        "Deepest unit",
+        budget.maxRequiredDepthMm !== null ? `${dual(budget.maxRequiredDepthMm)} needed \xB7 ${dual(budget.usableDepthMm)} available` : "\u2014"
+      ],
+      [
+        "Centre of gravity",
+        budget.cogFraction !== null ? `${mm(budget.cogMm)} up \xB7 ${Math.round(budget.cogFraction * 100)}% of rack height` : "\u2014"
+      ],
+      ["Steady draw", `${fmt(budget.totalTypicalW, 0)} W \xB7 ${fmt(budget.totalMaxW, 0)} W worst case`],
+      [
+        "Heat",
+        `${fmt(budget.heatW, 0)} W \xB7 ${fmt(budget.heatWPerRu, 1)} W per U` + (budget.hasForcedAir ? " \xB7 forced air" : " \xB7 convection only")
+      ]
+    ];
+    return `
+<section class="sheet cover">
+  <header class="masthead">
+    <div>
+      <div class="kicker">Rack patch sheet</div>
+      <h1>${escapeXml(rack.name)}</h1>
+      <div class="sub">${escapeXml(rack.case.name)} \xB7 ${rack.case.rackUnits}U \xB7 ${dual(rack.case.usableDepthMm)} usable depth${rack.case.hasRearRails ? " \xB7 rear rails" : " \xB7 front rails only"}</div>
+    </div>
+    <div class="meta">
+      <div><span>Generated</span>${escapeXml(when)}</div>
+      ${input.preparedBy ? `<div><span>Prepared by</span>${escapeXml(input.preparedBy)}</div>` : ""}
+      <div><span>Devices</span>${rack.placements.length}</div>
+    </div>
+  </header>
+
+  <div class="verdict ${verdict.cls}">${escapeXml(verdict.text)}</div>
+
+  <div class="statgrid">
+    ${stats.map(([k, v]) => `<div class="stat"><dt>${escapeXml(k)}</dt><dd>${v}</dd></div>`).join("")}
+  </div>
+
+  ${findingsBlock(report.results, input.devices, input.rack)}
+</section>`;
+  }
+  function findingsBlock(results, devices, rack) {
+    if (!results.length) {
+      return `<div class="findings"><h2>Findings</h2><p class="empty">Nothing flagged. Space, depth, power, weight and heat all check out against the figures in the schedule below.</p></div>`;
+    }
+    const sorted = [...results].sort(
+      (a, b) => {
+        var _a, _b;
+        return ((_a = SEVERITY_ORDER[a.severity]) != null ? _a : 3) - ((_b = SEVERITY_ORDER[b.severity]) != null ? _b : 3);
+      }
+    );
+    const rows = sorted.map((r) => {
+      var _a, _b;
+      const names = ((_a = r.deviceIds) != null ? _a : []).map((id) => devices.get(id)).filter((d) => !!d).map((d) => `${d.brand} ${d.model}`);
+      const where = [
+        names.join(", "),
+        ((_b = r.positions) == null ? void 0 : _b.length) ? `U${r.positions.join(", U")}` : "",
+        r.circuit ? `circuit ${r.circuit}` : ""
+      ].filter(Boolean).join(" \xB7 ");
+      return `<tr class="sev-${r.severity}">
+        <td class="sev"><span class="pill ${r.severity}">${r.severity}</span></td>
+        <td><b>${escapeXml(r.title)}</b><div class="detail">${escapeXml(r.detail)}</div>${where ? `<div class="where">${escapeXml(where)}</div>` : ""}</td>
+      </tr>`;
+    }).join("");
+    void rack;
+    return `<div class="findings"><h2>Findings</h2><table class="findtable"><tbody>${rows}</tbody></table></div>`;
+  }
+  function elevationSection(input) {
+    const { rack, devices } = input;
+    return `
+<section class="sheet elevations">
+  <h2 class="pagetitle">Elevations</h2>
+  <div class="elev-pair">
+    <figure>
+      <figcaption>Front <span>as you face the rack</span></figcaption>
+      ${renderElevation(rack, devices, "front")}
+    </figure>
+    <figure>
+      <figcaption>Rear <span>as you stand behind it \u2014 halves swapped</span></figcaption>
+      ${renderElevation(rack, devices, "rear")}
+    </figure>
+  </div>
+  <div class="legend">
+    <span class="lg"><i class="sw in"></i> Input</span>
+    <span class="lg"><i class="sw out"></i> Output</span>
+    <span class="lg"><i class="sw bi"></i> Bidirectional</span>
+    <span class="lg note">Connector type is shown by glyph shape and silkscreen, so this page reads correctly in black and white.</span>
+  </div>
+  <div class="notesbox"><span>Notes</span></div>
+</section>`;
+  }
+  function deviceSchedule(input, budget) {
+    const { rack, devices } = input;
+    const placed = [...rack.placements].map((p) => ({ p, d: devices.get(p.deviceId) })).filter((x) => !!x.d).sort((a, b) => b.p.position - a.p.position);
+    const incomplete = new Map(budget.incomplete.map((i) => [i.deviceId, i.missing]));
+    const rows = placed.map(({ p, d }) => {
+      var _a, _b, _c;
+      const depth = requiredDepth(d);
+      const missing = (_a = incomplete.get(d.id)) != null ? _a : [];
+      return `<tr>
+      <td class="u">${escapeXml(positionLabel(d, p.position, p.slot))}</td>
+      <td><b>${escapeXml(d.brand)} ${escapeXml(d.model)}</b>${p.label ? `<div class="where">${escapeXml(p.label)}</div>` : ""}<div class="where">${escapeXml(d.category)}</div></td>
+      <td class="num">${fmt(d.rackUnits, 1)}${isHalfWidth(d) ? " \xBDW" : ""}</td>
+      <td class="num">${dual(d.depthMm)}</td>
+      <td class="num strong">${dual(depth.requiredMm)}</td>
+      <td class="num">${fmt(d.weightLb, 1)}</td>
+      <td class="num">${d.passive ? "passive" : fmt((_b = d.powerTypicalW) != null ? _b : d.powerMaxW, 0, " W")}${d.powerTypicalW === null && d.powerMaxW !== null ? ' <span class="alt">max</span>' : ""}</td>
+      <td class="num">${escapeXml((_c = p.circuit) != null ? _c : "\u2014")}</td>
+      <td class="flag">${missing.length ? `<span class="pill warning">no ${escapeXml(missing.join(", "))}</span>` : ""}</td>
+    </tr>`;
+    }).join("");
+    return `
+<section class="sheet">
+  <h2 class="pagetitle">Device schedule</h2>
+  <table class="grid">
+    <thead><tr>
+      <th>Pos</th><th>Device</th><th class="num">U</th><th class="num">Chassis</th>
+      <th class="num">Needs</th><th class="num">lb</th><th class="num">Draw</th>
+      <th class="num">Ckt</th><th></th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <p class="foot">\u201CNeeds\u201D is the real depth: chassis plus the deepest mated connector behind it plus a cable bend allowance. It is the number that decides whether the lid closes, and it is not a figure any manufacturer publishes.</p>
+</section>`;
+  }
+  function depthLedger(input) {
+    const { rack, devices } = input;
+    const placed = [...rack.placements].map((p) => ({ p, d: devices.get(p.deviceId) })).filter((x) => !!x.d).sort((a, b) => {
+      var _a, _b;
+      const da = (_a = requiredDepth(a.d).requiredMm) != null ? _a : 0;
+      const db = (_b = requiredDepth(b.d).requiredMm) != null ? _b : 0;
+      return db - da;
+    });
+    const rows = placed.map(({ p, d }) => {
+      const b = requiredDepth(d);
+      const head = caseDepthHeadroom(d, rack.case).headroomMm;
+      const over = head !== null && head < 0;
+      const tight = head !== null && head >= 0 && head < 25;
+      return `<tr class="${over ? "sev-error" : tight ? "sev-warning" : ""}">
+      <td class="u">${escapeXml(positionLabel(d, p.position, p.slot))}</td>
+      <td>${escapeXml(d.brand)} ${escapeXml(d.model)}</td>
+      <td class="num">${mm(b.chassisMm)}</td>
+      <td class="num">+ ${mm(b.connectorMm)}</td>
+      <td class="num">+ ${mm(b.bendMm)}</td>
+      <td class="num strong">${mm(b.requiredMm)}</td>
+      <td class="num ${over ? "bad" : tight ? "warn" : "ok"}">${head === null ? "\u2014" : (head < 0 ? "\u2212" : "+") + mm(Math.abs(head))}</td>
+    </tr>`;
+    }).join("");
+    return `
+<section class="sheet">
+  <h2 class="pagetitle">Depth ledger</h2>
+  <p class="lede">Case usable depth: <b>${dual(rack.case.usableDepthMm)}</b> between the rails. Headroom is what is left once the plug and the cable bend are accounted for.</p>
+  <table class="grid">
+    <thead><tr>
+      <th>Pos</th><th>Device</th><th class="num">Chassis</th><th class="num">Connector</th>
+      <th class="num">Bend</th><th class="num">Required</th><th class="num">Headroom</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <p class="foot warnfoot">Connector projection and bend allowances are this tool's working figures, not manufacturer data. Treat a headroom under 25 mm as \u201Cmeasure it before you buy the case.\u201D</p>
+</section>`;
+  }
+  function connectionSchedule(input) {
+    const { rack, devices } = input;
+    const placed = [...rack.placements].map((p) => ({ p, d: devices.get(p.deviceId) })).filter((x) => !!x.d).sort((a, b) => b.p.position - a.p.position);
+    const rows = [];
+    for (const { p, d } of placed) {
+      const ports = [...d.ports].sort(
+        (a, b) => a.face === b.face ? 0 : a.face === "rear" ? -1 : 1
+      );
+      if (!ports.length) continue;
+      rows.push(
+        `<tr class="devrow"><td colspan="8"><b>${escapeXml(d.brand)} ${escapeXml(d.model)}</b> <span class="where">${escapeXml(positionLabel(d, p.position, p.slot))}${p.label ? ` \xB7 ${escapeXml(p.label)}` : ""}</span></td></tr>`
+      );
+      for (const port of ports) {
+        const dir = port.direction === "input" ? "in" : port.direction === "output" ? "out" : "bi";
+        rows.push(`<tr>
+        <td class="u">${escapeXml(port.face)}</td>
+        <td>${escapeXml(port.label)}</td>
+        <td class="num">${port.count}</td>
+        <td>${escapeXml(port.connector)}</td>
+        <td><span class="dir ${dir}"></span>${escapeXml(port.direction)}</td>
+        <td>${escapeXml(port.signal)}</td>
+        <td class="num">${port.channels === null ? "\u2014" : port.channels}</td>
+        <td class="fill"></td>
+      </tr>`);
+      }
+    }
+    return `
+<section class="sheet">
+  <h2 class="pagetitle">Connection schedule</h2>
+  <p class="lede">Every connector on every unit, rear face first. The last column is deliberately blank \u2014 fill it in as the rack is patched.</p>
+  <table class="grid tight">
+    <thead><tr>
+      <th>Face</th><th>Label</th><th class="num">Qty</th><th>Connector</th>
+      <th>Direction</th><th>Signal</th><th class="num">Ch</th><th class="fillhead">Patched to</th>
+    </tr></thead>
+    <tbody>${rows.join("")}</tbody>
+  </table>
+</section>`;
+  }
+  function circuitSchedule(input, budget) {
+    const { devices } = input;
+    if (!budget.circuits.length && !budget.unassignedDeviceIds.length) return "";
+    const rows = budget.circuits.map((c) => {
+      const names = c.deviceIds.map((id) => devices.get(id)).filter((d) => !!d).map((d) => `${d.brand} ${d.model}`);
+      const pct = Math.round(c.utilization * 100);
+      const cls = c.utilization > 1 ? "sev-error" : c.utilization > 0.85 ? "sev-warning" : "";
+      return `<tr class="${cls}">
+      <td class="cktcell"><b>${escapeXml(c.circuit.label)}</b><div class="where">${c.circuit.volts} V \xB7 ${c.circuit.amps} A</div></td>
+      <td>${names.length ? escapeXml(names.join(", ")) : '<span class="where">nothing assigned</span>'}</td>
+      <td class="num">${fmt(c.typicalW, 0, " W")}</td>
+      <td class="num">${fmt(c.capacityW, 0, " W")}</td>
+      <td class="num">${fmt(c.inrushW, 0, " W")}</td>
+      <td class="num strong">
+        <div class="bar"><i style="width:${Math.min(100, pct)}%"></i></div>${pct}%
+      </td>
+    </tr>`;
+    }).join("");
+    const orphans = budget.unassignedDeviceIds.map((id) => devices.get(id)).filter((d) => !!d).map((d) => `${d.brand} ${d.model}`);
+    return `
+<section class="sheet">
+  <h2 class="pagetitle">Circuit schedule</h2>
+  <table class="grid">
+    <thead><tr>
+      <th>Circuit</th><th>On it</th><th class="num">Steady</th>
+      <th class="num">Continuous cap</th><th class="num">Worst inrush</th><th class="num">Load</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <p class="foot">Continuous capacity is 80% of the breaker rating, per NEC 210.19(A) and 210.20(A) \u2014 a rack running all night is a continuous load. Worst inrush is the largest single unit's startup surge with everything else already drawing steady.</p>
+  ${orphans.length ? `<p class="foot warnfoot">Not assigned to any circuit: ${escapeXml(orphans.join(", "))}.</p>` : ""}
+</section>`;
+  }
+  function sourcesAppendix(input) {
+    var _a;
+    const { rack, devices, sources, unresolved } = input;
+    if (!sources || sources.size === 0) return "";
+    const seen = /* @__PURE__ */ new Set();
+    const blocks = [];
+    for (const p of [...rack.placements].sort((a, b) => b.position - a.position)) {
+      const d = devices.get(p.deviceId);
+      if (!d || seen.has(d.id)) continue;
+      seen.add(d.id);
+      const rows = sources.get(d.id);
+      if (!(rows == null ? void 0 : rows.length)) continue;
+      const items = rows.map((r) => {
+        const host = hostOf(r.sourceUrl);
+        const conf = r.confidence >= 0.9 ? "high" : r.confidence >= 0.75 ? "good" : r.confidence >= 0.6 ? "fair" : "low";
+        return `<li>
+        <div class="srcfield"><code>${escapeXml(r.field)}</code> <span class="pill conf-${conf}">${conf} confidence</span></div>
+        <blockquote>${escapeXml(r.quote)}</blockquote>
+        ${r.derivation ? `<div class="deriv"><b>Derived:</b> ${escapeXml(r.derivation)}</div>` : ""}
+        <div class="srcurl">${escapeXml(host)} \u2014 <span class="url">${escapeXml(r.sourceUrl)}</span></div>
+      </li>`;
+      }).join("");
+      const missing = (_a = unresolved == null ? void 0 : unresolved.get(d.id)) != null ? _a : [];
+      blocks.push(`<div class="srcblock">
+      <h3>${escapeXml(d.brand)} ${escapeXml(d.model)}</h3>
+      <ul class="srclist">${items}</ul>
+      ${missing.length ? `<p class="foot warnfoot">No published source found for: ${escapeXml(missing.join(", "))}.</p>` : ""}
+    </div>`);
+    }
+    if (!blocks.length) return "";
+    return `
+<section class="sheet sources">
+  <h2 class="pagetitle">Sources</h2>
+  <p class="lede">Every figure in the schedules above, quoted from where it came from. Anything marked <b>derived</b> was computed rather than read \u2014 the arithmetic is shown so you can check it.</p>
+  <div class="srcwrap">${blocks.join("")}</div>
+</section>`;
+  }
+  function hostOf(url) {
+    try {
+      return new URL(url).host.replace(/^www\./, "");
+    } catch {
+      return url;
+    }
+  }
+  var CSS = `
+@page { size: ${PAPER.width} ${PAPER.height}; margin: 0.5in 0.5in 0.62in; }
+*,*::before,*::after { box-sizing: border-box; }
+:root {
+  --ink:#14181C; --ink-2:#4A545D; --ink-3:#7C8792; --rule:#C9D1D8; --rule-2:#E4E9ED;
+  --bad:#B3261E; --warn:#9A6400; --ok:#1B6E4A;
+  --dir-in:#1F5FA8; --dir-out:#B4491C; --dir-bi:#14785A;
+  /* Shop-drawing palette: the panel renderer's own variables, flipped to
+     line art so the page photocopies and takes a pen. */
+  --pf-face:#FFFFFF; --pf-ear:#F4F7F9; --pf-edge:#14181C; --pf-hole:#E7ECF0;
+  --pf-pin:#4A545D; --pf-silk:#14181C; --pf-knob:#C3CCD4; --pf-btn:#EDF1F4;
+  --pf-lcd:#E7ECF0; --pf-lcd-ink:#4A545D; --pf-led-on:#4A545D; --pf-led-dim:#C3CCD4; --pf-led-off:#E7ECF0;
+  --el-void:#FBFCFD; --el-rail:#14181C;
+  --sans:"Helvetica Neue",Helvetica,Arial,sans-serif;
+  --mono:"SFMono-Regular",Menlo,Consolas,monospace;
+}
+html,body { margin:0; padding:0; }
+body { font-family:var(--sans); color:var(--ink); font-size:9.2pt; line-height:1.4;
+  -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+.sheet { page-break-after:always; break-after:page; }
+.sheet:last-child { page-break-after:auto; break-after:auto; }
+
+.masthead { display:flex; justify-content:space-between; align-items:flex-start; gap:24px;
+  border-bottom:2.5px solid var(--ink); padding-bottom:10px; margin-bottom:16px; }
+.kicker { font-family:var(--mono); font-size:7.5pt; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--ink-3); margin-bottom:3px; }
+h1 { font-size:21pt; margin:0 0 3px; letter-spacing:-.01em; }
+.sub { color:var(--ink-2); font-size:9pt; }
+.meta { text-align:right; font-family:var(--mono); font-size:8pt; color:var(--ink-2); }
+.meta div { margin-bottom:2px; }
+.meta span { display:block; font-size:6.8pt; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); }
+
+.verdict { font-size:12pt; font-weight:600; padding:8px 12px; margin-bottom:14px;
+  border-left:5px solid var(--ok); background:#F2F8F5; }
+.verdict.warn { border-color:var(--warn); background:#FBF6EC; }
+.verdict.bad { border-color:var(--bad); background:#FBF0EF; }
+
+.statgrid { display:grid; grid-template-columns:repeat(3,1fr); gap:0; margin-bottom:18px;
+  border-top:1px solid var(--rule); border-left:1px solid var(--rule); }
+.stat { border-right:1px solid var(--rule); border-bottom:1px solid var(--rule); padding:8px 11px; }
+.stat dt { font-family:var(--mono); font-size:6.8pt; letter-spacing:.11em; text-transform:uppercase;
+  color:var(--ink-3); margin-bottom:3px; }
+.stat dd { margin:0; font-size:10pt; }
+.alt { color:var(--ink-3); font-size:.85em; }
+
+h2.pagetitle { font-size:13pt; margin:0 0 4px; padding-bottom:6px; border-bottom:2px solid var(--ink); }
+.lede { color:var(--ink-2); margin:8px 0 12px; }
+.findings h2 { font-size:11pt; margin:0 0 6px; }
+.empty { color:var(--ink-2); margin:0; }
+
+table { width:100%; border-collapse:collapse; }
+thead { display:table-header-group; }
+tfoot { display:table-footer-group; }
+.grid th { font-family:var(--mono); font-size:6.8pt; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--ink-3); text-align:left; padding:6px 7px; border-bottom:1.5px solid var(--ink); }
+.grid td { padding:6px 7px; border-bottom:1px solid var(--rule-2); vertical-align:top; }
+.grid.tight td, .grid.tight th { padding:3.5px 7px; }
+.grid tbody tr { page-break-inside:avoid; break-inside:avoid; }
+.num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.strong { font-weight:600; }
+.u { font-family:var(--mono); font-size:8pt; white-space:nowrap; }
+.where { color:var(--ink-3); font-size:7.6pt; }
+td.cktcell { white-space:nowrap; width:14%; }
+.detail { color:var(--ink-2); }
+td.ok { color:var(--ok); } td.warn { color:var(--warn); } td.bad { color:var(--bad); font-weight:600; }
+tr.sev-error td { background:#FCF4F3; } tr.sev-warning td { background:#FDFAF3; }
+tr.devrow td { background:#F1F4F6; border-bottom:1px solid var(--rule); padding-top:7px; }
+td.fill, th.fillhead { width:22%; border-left:1px solid var(--rule); }
+td.fill { background:repeating-linear-gradient(transparent,transparent 97%,var(--rule-2) 97%); }
+
+.findtable td { padding:6px 8px 6px 0; border-bottom:1px solid var(--rule-2); vertical-align:top; }
+.findtable td.sev { width:66px; }
+.pill { display:inline-block; font-family:var(--mono); font-size:6.6pt; letter-spacing:.08em;
+  text-transform:uppercase; padding:1.5px 5px; border:1px solid currentColor; border-radius:2px; }
+.pill.error { color:var(--bad); } .pill.warning { color:var(--warn); } .pill.info { color:var(--ink-3); }
+.pill.conf-high { color:var(--ok); } .pill.conf-good { color:var(--ink-2); }
+.pill.conf-fair { color:var(--warn); } .pill.conf-low { color:var(--bad); }
+
+.bar { display:inline-block; width:54px; height:5px; background:var(--rule-2); margin-right:6px;
+  vertical-align:middle; }
+.bar i { display:block; height:100%; background:var(--ink-2); }
+tr.sev-warning .bar i { background:var(--warn); } tr.sev-error .bar i { background:var(--bad); }
+
+.dir { display:inline-block; width:7px; height:7px; margin-right:5px; vertical-align:baseline;
+  background:var(--dir-bi); transform:rotate(45deg); }
+.dir.in { background:var(--dir-in); border-radius:50%; transform:none; }
+.dir.out { background:var(--dir-out); transform:none; }
+
+/* A short rack leaves paper below the drawing. Rather than print air, the
+   remainder becomes ruled note space, which is what the page gets used for
+   anyway. A tall rack squeezes it to nothing on its own. */
+.sheet.elevations { display:flex; flex-direction:column; height:7.38in; }
+.notesbox { flex:1 1 auto; min-height:0; margin-top:12px; border-top:1px solid var(--rule);
+  background:repeating-linear-gradient(#FFF,#FFF 23px,var(--rule-2) 23px,var(--rule-2) 24px);
+  position:relative; }
+.notesbox span { position:absolute; top:3px; left:0; font-family:var(--mono); font-size:6.8pt;
+  letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3); background:#FFF; padding-right:6px; }
+.elev-pair { display:grid; grid-template-columns:1fr 1fr; gap:22px; align-items:start; margin-top:10px; }
+.elev-pair figure { margin:0; }
+figcaption { font-family:var(--mono); font-size:7.4pt; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--ink); margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid var(--rule); }
+figcaption span { letter-spacing:0; text-transform:none; color:var(--ink-3); }
+svg.elevation { width:100%; height:auto; max-height:6.2in; }
+svg.elevation text.el-u { font-family:var(--mono); font-size:52px; fill:#7C8792; }
+svg.panel text { font-family:var(--mono); fill:var(--pf-silk); }
+svg.panel .silk-brand { font-size:44px; font-weight:600; letter-spacing:3px; }
+svg.panel .silk-model { font-size:34px; opacity:.72; }
+svg.panel .silk-sm { font-size:26px; opacity:.7; letter-spacing:.5px; }
+
+.legend { margin-top:12px; padding-top:9px; border-top:1px solid var(--rule); display:flex;
+  gap:18px; align-items:center; flex-wrap:wrap; font-size:8pt; color:var(--ink-2); }
+.lg i.sw { display:inline-block; width:9px; height:9px; margin-right:5px; vertical-align:-1px; }
+.sw.in { background:var(--dir-in); border-radius:50%; }
+.sw.out { background:var(--dir-out); }
+.sw.bi { background:var(--dir-bi); transform:rotate(45deg); }
+.lg.note { color:var(--ink-3); font-style:italic; }
+
+.foot { margin:10px 0 0; font-size:7.8pt; color:var(--ink-3); line-height:1.45; }
+.warnfoot { color:var(--warn); }
+
+.sources .srcwrap { column-count:2; column-gap:26px; column-rule:1px solid var(--rule-2); }
+.srcblock { page-break-inside:avoid; break-inside:avoid; margin-bottom:14px; }
+.srcblock h3 { font-size:10pt; margin:0 0 6px; padding-bottom:3px; border-bottom:1px solid var(--rule); }
+.srclist { list-style:none; margin:0; padding:0; }
+.srclist li { margin-bottom:9px; padding-left:10px; border-left:2px solid var(--rule-2); }
+.srcfield code { font-family:var(--mono); font-size:8pt; background:#F1F4F6; padding:1px 4px; }
+blockquote { margin:4px 0; font-size:8.2pt; color:var(--ink-2); font-style:italic; }
+.deriv { font-size:7.8pt; color:var(--ink-2); }
+.srcurl { font-size:7.4pt; color:var(--ink-3); margin-top:2px; }
+.srcurl .url { font-family:var(--mono); word-break:break-all; }
+`;
+  function renderPatchSheet(input) {
+    const budget = computeBudget(input.rack, input.devices);
+    const report = checkRack(input.rack, input.devices);
+    const body = [
+      coverSection(input, budget, report),
+      elevationSection(input),
+      deviceSchedule(input, budget),
+      connectionSchedule(input),
+      circuitSchedule(input, budget),
+      depthLedger(input),
+      sourcesAppendix(input)
+    ].filter(Boolean).join("\n");
+    return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>${escapeXml(input.rack.name)} \u2014 patch sheet</title>
+<style>${CSS}</style>
+</head><body>${body}</body></html>`;
+  }
+
+  // src/lib/seed-data.ts
+  var SHURE_AD600 = "https://pubs.shure.com/view/guide/AD600/en-US.pdf";
+  var RADIAL_SPECS = "https://www.radialeng.com/product/sw8/specifications";
+  var RADIAL_MANUAL = "https://www.radialeng.com/wp-content/uploads/2018/03/SW8-mkII-Manual-WEB-05-2023.pdf";
+  var RME_MANUAL = "https://rme-audio.de/downloads/dface_dante_e.pdf";
+  var RME_PRODUCT = "https://rme-audio.de/digiface-dante.html";
+  var SEED_DEVICES = [
+    {
+      id: "shure-ad600",
+      slug: "shure-ad600",
+      brand: "Shure",
+      model: "AD600",
+      category: "Spectrum Manager",
+      passive: false,
+      description: "1U spectrum manager for Axient Digital: six BNC antenna inputs feed wideband scanning and frequency coordination, with quad Gigabit Ethernet and a locking IEC in/cascade pair.",
+      formFactor: "full-rack",
+      rackUnits: 1,
+      depthMm: 286,
+      depthIsOverall: true,
+      weightLb: 8.15,
+      powerTypicalW: null,
+      powerMaxW: 144,
+      inrushFactor: 1.5,
+      poePowered: false,
+      status: "current",
+      statusNote: "Regional variants AD600US and AD600-DC.",
+      productUrl: "https://www.shure.com/en-US/products/accessories/ad600",
+      datasheetUrl: SHURE_AD600,
+      ports: [
+        ...["A", "B", "C", "D", "E", "F"].map((l) => ({
+          label: l,
+          connector: "BNC",
+          direction: "input",
+          signal: "antenna",
+          channels: null,
+          count: 1,
+          face: "rear",
+          projectionMm: null
+        })),
+        { label: "ctrl 1", connector: "RJ45", direction: "bidirectional", signal: "network", channels: null, count: 1, face: "rear", projectionMm: null },
+        { label: "ctrl 2", connector: "RJ45", direction: "bidirectional", signal: "network", channels: null, count: 1, face: "rear", projectionMm: null },
+        { label: "Dante primary", connector: "Dante RJ45", direction: "bidirectional", signal: "digital audio", channels: null, count: 1, face: "rear", projectionMm: null },
+        { label: "Dante secondary", connector: "Dante RJ45", direction: "bidirectional", signal: "digital audio", channels: null, count: 1, face: "rear", projectionMm: null },
+        { label: "USB", connector: "USB-A", direction: "bidirectional", signal: "data", channels: null, count: 1, face: "rear", projectionMm: null },
+        { label: "AC power input", connector: "IEC C14", direction: "input", signal: "power", channels: null, count: 1, face: "rear", projectionMm: null },
+        { label: "AC power cascade", connector: "IEC C14", direction: "output", signal: "power", channels: null, count: 1, face: "rear", projectionMm: null },
+        { label: "Monitor / headphone", connector: "TRS", direction: "output", signal: "analog audio", channels: 2, count: 1, face: "front", projectionMm: null }
+      ],
+      unresolved: [
+        "powerTypicalW",
+        "powerMaxW is derived from the 1.2 A current drain, not read from a spec table",
+        "depth behind rails (manufacturer prints overall depth only)"
+      ],
+      provenance: [
+        { field: "rackUnits", sourceUrl: SHURE_AD600, quote: "Dimensions 43.2 x 482.6 x 285.7 mm (1.7 x 19.0 x 11.25 inches), H x W x D", confidence: 0.9, derivation: "Printed height 43.2 mm; one rack unit is 44.45 mm, so the chassis is 1RU. The manual does not print an RU figure." },
+        { field: "depthMm", sourceUrl: SHURE_AD600, quote: "Dimensions 43.2 x 482.6 x 285.7 mm (1.7 x 19.0 x 11.25 inches), H x W x D", confidence: 0.8, derivation: "11.25 in x 25.4 = 285.75 mm, rounded to 286. Printed OVERALL depth, not verified as depth behind the rails." },
+        { field: "weightLb", sourceUrl: SHURE_AD600, quote: "Weight 3.7 kg (8.15 lbs)", confidence: 0.95, derivation: "3.7 kg x 2.20462 = 8.157 lb, matching the printed figure." },
+        { field: "powerMaxW", sourceUrl: SHURE_AD600, quote: "Current Drain 1.2 A", confidence: 0.6, derivation: "DERIVED, NOT PRINTED. 1.2 A x 120 V = 144 W worst case at US line. A circuit-budgeting ceiling only." },
+        { field: "ports", sourceUrl: SHURE_AD600, quote: "Coaxial inputs for antennas A, B, C, D, E, F | Four Ethernet ports: ctrl 1 (PoE), ctrl 2 (PoE), Dante primary, Dante secondary. | USB port | AC power input - IEC locking connector | AC power cascade (locking)", confidence: 0.92, derivation: "Rear panel enumerated callout by callout." }
+      ]
+    },
+    {
+      id: "radial-sw8",
+      slug: "radial-engineering-sw8",
+      brand: "Radial Engineering",
+      model: "SW8",
+      category: "Playback Switcher",
+      passive: false,
+      description: "8-channel transformer-isolated auto-switcher between two multitrack playback rigs, feeding the PA through eight mic-level XLR DI outputs. No IEC inlet: two external 15 VDC supplies.",
+      formFactor: "full-rack",
+      rackUnits: 1,
+      depthMm: 152,
+      depthIsOverall: true,
+      weightLb: 9.2,
+      powerTypicalW: null,
+      powerMaxW: 12,
+      inrushFactor: 1,
+      poePowered: false,
+      status: "current",
+      statusNote: "Current MK2 revision.",
+      productUrl: "https://www.radialeng.com/product/sw8",
+      datasheetUrl: RADIAL_MANUAL,
+      ports: [
+        { label: "XLR OUT", connector: "XLR3", direction: "output", signal: "analog audio", channels: 8, count: 8, face: "rear", projectionMm: null },
+        { label: 'TRS 1/4" INPUTS-A', connector: "TRS", direction: "input", signal: "analog audio", channels: 8, count: 8, face: "rear", projectionMm: null },
+        { label: 'TRS 1/4" INPUTS-B', connector: "TRS", direction: "input", signal: "analog audio", channels: 8, count: 8, face: "rear", projectionMm: null },
+        { label: "D-Sub INPUTS A", connector: "DB25", direction: "input", signal: "analog audio", channels: 8, count: 1, face: "rear", projectionMm: null },
+        { label: "D-Sub INPUTS B", connector: "DB25", direction: "input", signal: "analog audio", channels: 8, count: 1, face: "rear", projectionMm: null },
+        { label: "D-Sub OUTPUT", connector: "DB25", direction: "output", signal: "analog audio", channels: 8, count: 1, face: "rear", projectionMm: null },
+        { label: "JR2 FOOTSWITCH XLR", connector: "XLR3", direction: "input", signal: "control", channels: null, count: 1, face: "rear", projectionMm: null },
+        { label: "15 VDC SUPPLY", connector: "Other", direction: "input", signal: "power", channels: null, count: 2, face: "rear", projectionMm: null }
+      ],
+      unresolved: [
+        "powerTypicalW",
+        "depth behind rack rails (only overall chassis depth is printed)",
+        "mains input voltage range of the supplied external PSUs"
+      ],
+      provenance: [
+        { field: "rackUnits", sourceUrl: RADIAL_SPECS, quote: 'Size: 17.5" x 6" x 1.75" (44.5cm x 15.25cm x 4.5cm)', confidence: 0.88, derivation: "Height 1.75 in = exactly 1 rack unit. The manufacturer does not print '1U'." },
+        { field: "depthMm", sourceUrl: RADIAL_SPECS, quote: 'Size: 17.5" x 6" x 1.75" (44.5cm x 15.25cm x 4.5cm)', confidence: 0.82, derivation: "6 in x 25.4 = 152.4 mm; the manufacturer's own 15.25 cm agrees. OVERALL chassis depth." },
+        { field: "weightLb", sourceUrl: RADIAL_SPECS, quote: "Weight: 9.2 lb (4.2kg)", confidence: 0.96, derivation: "Shipping weight is printed separately as 9.7 lb and was not used." },
+        { field: "powerMaxW", sourceUrl: RADIAL_SPECS, quote: "Two +15VDC/400mA power supplies included", confidence: 0.85, derivation: "PSU RATING, not measured draw. 15 V x 0.4 A = 6 W per supply, two supplies = 12 W of DC capacity." },
+        { field: "ports", sourceUrl: RADIAL_MANUAL, quote: '8. XLR OUT: Balanced, low-Z mic-level direct box outputs connect to the PA system | 11. TRS 1/4" INPUTS-A & B | 12. D-Sub OUTPUT | 13. D-Sub INPUTS: Balanced line-level A and B inputs', confidence: 0.9, derivation: "Rear panel callouts from the MK2 user guide." }
+      ]
+    },
+    {
+      id: "rme-digiface-dante",
+      slug: "rme-digiface-dante",
+      brand: "RME",
+      model: "Digiface Dante",
+      category: "Dante Converter",
+      passive: false,
+      description: "Bus-powered USB 3.0 interface and standalone converter: 64ch Dante over a 4-port Gigabit switch and 64ch coaxial MADI. A 26 mm desktop box \u2014 it needs a shelf, and all its patching is on the front.",
+      formFactor: "desktop",
+      rackUnits: 1,
+      depthMm: 84,
+      depthIsOverall: true,
+      weightLb: 1.1,
+      powerTypicalW: 3,
+      powerMaxW: 6,
+      inrushFactor: 1,
+      poePowered: false,
+      status: "current",
+      statusNote: null,
+      productUrl: RME_PRODUCT,
+      datasheetUrl: RME_MANUAL,
+      ports: [
+        { label: "Gigabit Ethernet (Dante)", connector: "Dante RJ45", direction: "bidirectional", signal: "network", channels: 64, count: 4, face: "front", projectionMm: null },
+        { label: "MADI In / Word Clock In", connector: "BNC", direction: "input", signal: "digital audio", channels: 64, count: 1, face: "front", projectionMm: null },
+        { label: "MADI Out / Word Clock Out", connector: "BNC", direction: "output", signal: "digital audio", channels: 64, count: 1, face: "front", projectionMm: null },
+        { label: "Phones", connector: "TRS", direction: "output", signal: "analog audio", channels: 2, count: 1, face: "front", projectionMm: null },
+        { label: "USB 3.0", connector: "USB-B", direction: "bidirectional", signal: "digital audio", channels: 256, count: 1, face: "rear", projectionMm: null },
+        { label: "Power supply connector (DC 12 V, lockable)", connector: "Other", direction: "input", signal: "power", channels: null, count: 1, face: "rear", projectionMm: null }
+      ],
+      unresolved: [
+        "depth behind rack rails \u2014 not applicable; 84 mm is the overall depth of a non-rack desktop box",
+        "rackUnits as a manufacturer rating \u2014 RME publishes none; derived from the 26 mm height, assumes a shelf"
+      ],
+      provenance: [
+        { field: "rackUnits", sourceUrl: RME_PRODUCT, quote: "Dimensions (WxHxD): 170 x 26 x 84 mm", confidence: 0.55, derivation: "DERIVED, NOT PUBLISHED. Chassis height 26 mm is under 44.45 mm, so it consumes at most 1U on a shelf. A planning allowance, not a manufacturer figure." },
+        { field: "depthMm", sourceUrl: RME_PRODUCT, quote: "Dimensions (WxHxD): 170 x 26 x 84 mm", confidence: 0.8, derivation: "Overall chassis depth; this unit has no rails." },
+        { field: "weightLb", sourceUrl: RME_PRODUCT, quote: "Weight: 500 g (1.1 lbs)", confidence: 0.85, derivation: "Excludes the external PSU." },
+        { field: "powerTypicalW", sourceUrl: RME_PRODUCT, quote: "Typical power consumption: 3 Watts", confidence: 0.8, derivation: "DRAW, not a PSU rating \u2014 the PSU is listed separately as DC 12 V 24 W." },
+        { field: "ports", sourceUrl: RME_MANUAL, quote: "The front of the Digiface Dante features four Gigabit Ethernet ports, 2 BNC sockets for word or MADI I/O, a state LED, and the headphone output.", confidence: 0.95, derivation: "All audio and network I/O is on the FRONT face; only USB and DC are on the rear." }
+      ]
+    },
+    {
+      id: "shure-adtq",
+      slug: "shure-adtq",
+      brand: "Shure",
+      model: "ADTQ",
+      category: "IEM Transmitter",
+      passive: false,
+      description: "Four stereo channels of Axient Digital PSM in a single rack space, with Dante and redundant DC input.",
+      formFactor: "full-rack",
+      rackUnits: 1,
+      depthMm: 240,
+      depthIsOverall: true,
+      weightLb: 4.4,
+      powerTypicalW: 35,
+      powerMaxW: 45,
+      inrushFactor: 1.5,
+      poePowered: false,
+      status: "current",
+      statusNote: null,
+      productUrl: "https://www.shure.com/en-US/products/wireless-systems/axient-digital-psm",
+      datasheetUrl: null,
+      ports: [
+        { label: "Dante 1", connector: "Dante RJ45", direction: "bidirectional", signal: "digital audio", channels: 8, count: 1, face: "rear", projectionMm: null },
+        { label: "Dante 2", connector: "Dante RJ45", direction: "bidirectional", signal: "digital audio", channels: 8, count: 1, face: "rear", projectionMm: null },
+        { label: "Ctrl 1 (PoE)", connector: "RJ45", direction: "bidirectional", signal: "data", channels: null, count: 1, face: "rear", projectionMm: null },
+        { label: "Analog In 1-8", connector: "XLR/TRS combo", direction: "input", signal: "analog audio", channels: 8, count: 8, face: "rear", projectionMm: null },
+        { label: "RF A", connector: "BNC", direction: "output", signal: "antenna", channels: null, count: 1, face: "rear", projectionMm: null },
+        { label: "RF B", connector: "BNC", direction: "output", signal: "antenna", channels: null, count: 1, face: "rear", projectionMm: null },
+        { label: "DC In", connector: "XLR4", direction: "input", signal: "power", channels: null, count: 1, face: "rear", projectionMm: null },
+        { label: "AC In", connector: "IEC C14", direction: "input", signal: "power", channels: null, count: 1, face: "rear", projectionMm: null }
+      ],
+      unresolved: [],
+      provenance: [
+        { field: "rackUnits", sourceUrl: "https://www.shure.com/en-US/products/wireless-systems/axient-digital-psm", quote: "Four stereo channels of Axient Digital PSM into a single rack space", confidence: 0.95, derivation: null },
+        { field: "depthMm", sourceUrl: "https://www.shure.com/en-US/products/wireless-systems/axient-digital-psm", quote: "240 mm", confidence: 0.9, derivation: null },
+        { field: "weightLb", sourceUrl: "https://www.shure.com/en-US/products/wireless-systems/axient-digital-psm", quote: "2.0 kg", confidence: 0.9, derivation: "2.0 kg x 2.20462 = 4.4 lb" },
+        { field: "powerTypicalW", sourceUrl: "https://www.shure.com/en-US/products/wireless-systems/axient-digital-psm", quote: "35 W typical", confidence: 0.9, derivation: null },
+        { field: "ports", sourceUrl: "https://www.shure.com/en-US/products/wireless-systems/axient-digital-psm", quote: "rear panel connector list", confidence: 0.85, derivation: null }
+      ]
+    },
+    {
+      id: "motu-24ao",
+      slug: "motu-24ao",
+      brand: "MOTU",
+      model: "24Ao",
+      category: "Audio Interface",
+      passive: false,
+      description: "Output-heavy AVB interface: 24 channels of analog output on three DB25 connectors. Built for IEM rigs.",
+      formFactor: "full-rack",
+      rackUnits: 1,
+      depthMm: 229,
+      depthIsOverall: true,
+      weightLb: 6,
+      powerTypicalW: 25,
+      powerMaxW: 35,
+      inrushFactor: 1.5,
+      poePowered: false,
+      status: "discontinued",
+      statusNote: "AVB-era interface gone from major retail 2026-07, superseded by the 2024+ line.",
+      productUrl: "https://motu.com/en-us/products/avb/24ao/",
+      datasheetUrl: null,
+      ports: [
+        { label: "Analog Out 1-8", connector: "DB25", direction: "output", signal: "analog audio", channels: 8, count: 1, face: "rear", projectionMm: null },
+        { label: "Analog Out 9-16", connector: "DB25", direction: "output", signal: "analog audio", channels: 8, count: 1, face: "rear", projectionMm: null },
+        { label: "Analog Out 17-24", connector: "DB25", direction: "output", signal: "analog audio", channels: 8, count: 1, face: "rear", projectionMm: null },
+        { label: "AVB Network 1", connector: "RJ45", direction: "bidirectional", signal: "network", channels: null, count: 1, face: "rear", projectionMm: null },
+        { label: "USB-C", connector: "USB-C", direction: "bidirectional", signal: "digital audio", channels: null, count: 1, face: "rear", projectionMm: null },
+        { label: "Word Clock In", connector: "BNC", direction: "input", signal: "clock", channels: null, count: 1, face: "rear", projectionMm: null },
+        { label: "Power", connector: "IEC C14", direction: "input", signal: "power", channels: null, count: 1, face: "rear", projectionMm: null }
+      ],
+      unresolved: [],
+      provenance: [
+        { field: "rackUnits", sourceUrl: "https://motu.com/en-us/products/avb/24ao/", quote: "1U rackmount", confidence: 0.9, derivation: null },
+        { field: "depthMm", sourceUrl: "https://motu.com/en-us/products/avb/24ao/", quote: "229 mm", confidence: 0.85, derivation: null },
+        { field: "weightLb", sourceUrl: "https://motu.com/en-us/products/avb/24ao/", quote: "6.0 lb", confidence: 0.85, derivation: null },
+        { field: "powerTypicalW", sourceUrl: "https://motu.com/en-us/products/avb/24ao/", quote: "25W typical", confidence: 0.8, derivation: null },
+        { field: "ports", sourceUrl: "https://motu.com/en-us/products/avb/24ao/", quote: "24 channels of analog output on three DB25 connectors", confidence: 0.9, derivation: null }
+      ]
+    },
+    // ------------------------------------------------- half-rack, two per U
+    // Wireless receivers and IEM transmitters are where half-rack lives, and a
+    // rack of them is the most common build there is. Three current, three the
+    // manufacturers have stopped making — which is exactly the gear that is
+    // still in the case, and exactly what a catalog of current products misses.
+    {
+      id: "sennheiser-sr-iem-g4",
+      slug: "sennheiser-sr-iem-g4",
+      brand: "Sennheiser",
+      model: "SR IEM G4",
+      category: "IEM Transmitter",
+      passive: false,
+      description: "Half-rack stereo IEM transmitter from the ew IEM G4 system: two combo inputs, balanced loop outs, BNC RF out and Ethernet. Ships with the GA 3 kit to mount one or two in 1U.",
+      formFactor: "half-rack",
+      rackUnits: 1,
+      depthMm: 212,
+      depthIsOverall: true,
+      weightLb: 2.16,
+      powerTypicalW: null,
+      powerMaxW: 4.2,
+      inrushFactor: 1,
+      poePowered: false,
+      status: "current",
+      statusNote: null,
+      productUrl: "https://www.sennheiser.com/en-us/catalog/products/wireless-systems/sr-iem-g4/sr-iem-g4-a-509618",
+      datasheetUrl: "https://www.sennheiser.com/globalassets/digizuite/41537-en-sp_1130_v2.0_sr_iem_g4_product_specification_en.pdf",
+      ports: [
+        { "label": "BAL AF IN L(I)", "connector": "XLR/TRS combo", "direction": "input", "signal": "analog audio", "channels": 1, "count": 1, "face": "rear", "projectionMm": null },
+        { "label": "BAL AF IN R(II)", "connector": "XLR/TRS combo", "direction": "input", "signal": "analog audio", "channels": 1, "count": 1, "face": "rear", "projectionMm": null },
+        { "label": "LOOP OUT BAL L(I)", "connector": "TRS", "direction": "output", "signal": "analog audio", "channels": 1, "count": 1, "face": "rear", "projectionMm": null },
+        { "label": "LOOP OUT BAL R(II)", "connector": "TRS", "direction": "output", "signal": "analog audio", "channels": 1, "count": 1, "face": "rear", "projectionMm": null },
+        { "label": "RF OUT", "connector": "BNC", "direction": "output", "signal": "antenna", "channels": null, "count": 1, "face": "rear", "projectionMm": null },
+        { "label": "ETHERNET RJ45", "connector": "RJ45", "direction": "bidirectional", "signal": "network", "channels": null, "count": 1, "face": "rear", "projectionMm": null },
+        { "label": "DC IN", "connector": "Other", "direction": "input", "signal": "power", "channels": null, "count": 1, "face": "rear", "projectionMm": null }
+      ],
+      unresolved: [
+        'powerTypicalW \u2014 only "max. 350 mA" is printed',
+        "mains rating of the NT 2-3 supply",
+        "whether 212 mm is chassis-only or overall"
+      ],
+      provenance: [
+        { "field": "formFactor", "sourceUrl": "https://www.sennheiser.com/en-us/catalog/products/wireless-systems/sr-iem-g4/sr-iem-g4-a-509618", "quote": "Half-rack stereo transmitter in a full-metal housing with OLED display for full control", "confidence": 0.95, "derivation": "Manufacturer product page states half-rack directly." },
+        { "field": "rackUnits", "sourceUrl": "https://docs.cloud.sennheiser.com/en-us/ew-iem-g4/ew-iem-g4/ew-iem-g4-sr-mounting-rack.html", "quote": "To mount the transmitter in a rack, you will need the GA 3 rack mounting kit (optional accessory).", "confidence": 0.9, "derivation": "The same section covers mounting one unit with a blanking plate or two joined side by side, confirming one or two per 1U opening." },
+        { "field": "depthMm", "sourceUrl": "https://docs.cloud.sennheiser.com/en-us/ew-iem-g4/ew-iem-g4/ew-iem-g4-sr-technical-data.html", "quote": "approx. 202 x 212 x 43 mm", "confidence": 0.9, "derivation": "Sennheiser prints width x depth x height; 202 mm width (half-rack) and 43 mm height (1U) bracket the middle figure as depth = 212 mm." },
+        { "field": "weightLb", "sourceUrl": "https://www.sennheiser.com/en-us/catalog/products/wireless-systems/sr-iem-g4/sr-iem-g4-a-509618", "quote": "approximately 980 grams (2.16 lbs)", "confidence": 0.95, "derivation": "0.980 kg x 2.20462 = 2.1605 lb, matching the printed figure. Excludes the PSU and rack kit." },
+        { "field": "powerMaxW", "sourceUrl": "https://docs.cloud.sennheiser.com/en-us/ew-iem-g4/ew-iem-g4/ew-iem-g4-sr-technical-data.html", "quote": "Power consumption: max. 350 mA", "confidence": 0.85, "derivation": "A DRAW figure, not a PSU nameplate: 12 V x 0.350 A = 4.2 W maximum. No typical figure is printed." },
+        { "field": "ports", "sourceUrl": "https://docs.cloud.sennheiser.com/en-us/ew-iem-g4/ew-iem-g4/ew-iem-g4-sr-connections-back.html", "quote": "XLR-3/6.3 mm jack combo socket BAL AF IN L(I)", "confidence": 0.95, "derivation": "Rear panel enumerated callout by callout, items 1-8." }
+      ]
+    },
+    {
+      id: "shure-slxd4",
+      slug: "shure-slxd4",
+      brand: "Shure",
+      model: "SLXD4",
+      category: "Wireless Mic Receiver",
+      passive: false,
+      description: "Single-channel SLX-D digital wireless receiver in a half-rack chassis: two BNC antenna inputs, balanced XLR and 1/4 in outputs, and a 10/100 Ethernet port. External 15 V supply.",
+      formFactor: "half-rack",
+      rackUnits: 1,
+      depthMm: 152,
+      depthIsOverall: true,
+      weightLb: 1.8,
+      powerTypicalW: null,
+      powerMaxW: 9,
+      inrushFactor: 1,
+      poePowered: false,
+      status: "current",
+      statusNote: "Shure has since introduced the SLX-D+ line; no discontinuation statement was found for the SLXD4.",
+      productUrl: "https://www.shure.com/en-US/products/wireless-systems/slx_d_digital_wireless/slxd4",
+      datasheetUrl: "https://pubs.shure.com/view/guide/SLXD/en-US.pdf",
+      ports: [
+        { "label": "Antenna", "connector": "BNC", "direction": "input", "signal": "antenna", "channels": null, "count": 2, "face": "rear", "projectionMm": null },
+        { "label": "XLR Balanced Audio Output", "connector": "XLR3", "direction": "output", "signal": "analog audio", "channels": 1, "count": 1, "face": "rear", "projectionMm": null },
+        { "label": '1/4" Balanced Audio Output', "connector": "TRS", "direction": "output", "signal": "analog audio", "channels": 1, "count": 1, "face": "rear", "projectionMm": null },
+        { "label": "Ethernet Port", "connector": "RJ45", "direction": "bidirectional", "signal": "network", "channels": null, "count": 1, "face": "rear", "projectionMm": null },
+        { "label": "Power supply port", "connector": "Other", "direction": "input", "signal": "power", "channels": null, "count": 1, "face": "rear", "projectionMm": null }
+      ],
+      unresolved: [
+        "powerTypicalW \u2014 only the 15 V @ 600 mA PSU rating is printed",
+        "rear-panel A/B antenna silkscreen labels",
+        "chassis-only depth; 152 mm is the overall figure"
+      ],
+      provenance: [
+        { "field": "depthMm", "sourceUrl": "https://pubs.shure.com/view/guide/SLXD/en-US.pdf", "quote": "SLXD4 42 x 197 x 152 mm (1.65 x 7.76 x 5.98 in.), H x W x D", "confidence": 0.95, "derivation": "Depth is the third figure. OVERALL as printed \u2014 allow clearance behind for the rear-mounted antennas." },
+        { "field": "weightLb", "sourceUrl": "https://pubs.shure.com/view/guide/SLXD/en-US.pdf", "quote": "SLXD4 816 g, without antennas", "confidence": 0.95, "derivation": "0.816 kg x 2.20462 = 1.799 lb. Excludes antennas and the external supply." },
+        { "field": "rackUnits", "sourceUrl": "https://pubs.shure.com/view/guide/SLXD/en-US.pdf", "quote": "SLXD4 42 x 197 x 152 mm (1.65 x 7.76 x 5.98 in.), H x W x D", "confidence": 0.75, "derivation": "Not printed as a rack-unit count. Height 42 mm is under 1U and width 197 mm is just under half a 19 in face, so it occupies one U at half width." },
+        { "field": "powerMaxW", "sourceUrl": "https://pubs.shure.com/view/guide/SLXD/en-US.pdf", "quote": "15 V DC @ 600 mA, supplied by external power supply (tip positive)", "confidence": 0.9, "derivation": "15 V x 0.600 A = 9.0 W. This is the PSU rating, not a measured draw, so powerTypicalW stays null." },
+        { "field": "ports", "sourceUrl": "https://pubs.shure.com/view/guide/SLXD/en-US.pdf", "quote": "Network Interface / Single Port Ethernet 10/100 Mbps", "confidence": 0.95, "derivation": "Confirms a single Ethernet port \u2014 no loop-through switch. Control networking, not audio-over-IP; the SLXD4 carries no Dante." }
+      ]
+    },
+    {
+      id: "shure-glxd4rp",
+      slug: "shure-glxd4r-plus",
+      brand: "Shure",
+      model: "GLXD4R+",
+      category: "Wireless Mic Receiver",
+      passive: false,
+      description: "Half-rack GLX-D+ dual-band receiver with balanced XLR and unbalanced 1/4 in outputs, USB-C, removable dipoles, and a front bay that charges the transmitter battery \u2014 which is what pushes its draw to the ceiling.",
+      formFactor: "half-rack",
+      rackUnits: 1,
+      depthMm: 163,
+      depthIsOverall: false,
+      weightLb: 1.91,
+      powerTypicalW: null,
+      powerMaxW: 10.2,
+      inrushFactor: 1,
+      poePowered: false,
+      status: "current",
+      statusNote: null,
+      productUrl: "https://www.shure.com/en-US/products/wireless-systems/glx-d_plus/glxd4rp",
+      datasheetUrl: "https://pubs.shure.com/view/guide/GLXD4Rplus/en-US.pdf",
+      ports: [
+        { "label": "Antenna", "connector": "Other", "direction": "input", "signal": "antenna", "channels": null, "count": 2, "face": "rear", "projectionMm": null },
+        { "label": "XLR audio output", "connector": "XLR3", "direction": "output", "signal": "analog audio", "channels": 1, "count": 1, "face": "rear", "projectionMm": null },
+        { "label": "Inst/Aux output", "connector": "TS", "direction": "output", "signal": "analog audio", "channels": 1, "count": 1, "face": "rear", "projectionMm": null },
+        { "label": "USB-C port", "connector": "USB-C", "direction": "bidirectional", "signal": "data", "channels": null, "count": 1, "face": "rear", "projectionMm": null },
+        { "label": "Power supply port", "connector": "Other", "direction": "input", "signal": "power", "channels": null, "count": 1, "face": "rear", "projectionMm": null },
+        { "label": "Battery charging bay", "connector": "Other", "direction": "output", "signal": "power", "channels": null, "count": 1, "face": "front", "projectionMm": null }
+      ],
+      unresolved: [
+        "powerTypicalW \u2014 only the 14.5-17 V @ 600 mA rating is printed",
+        "antenna RF connector standard (TNC/SMA/BNC) is not printed",
+        'overall depth including the dipoles; 163 mm is explicitly "without antenna"'
+      ],
+      provenance: [
+        { "field": "formFactor", "sourceUrl": "https://www.shure.com/en-US/products/wireless-systems/glx-d_plus/glxd4rp", "quote": "GLXD4R+ - Digital Wireless Dual Band Half-Rack Receiver", "confidence": 0.95, "derivation": "The manufacturer's own product title names it half-rack." },
+        { "field": "depthMm", "sourceUrl": "https://pubs.shure.com/view/guide/GLXD4Rplus/en-US.pdf", "quote": "Dimensions: 7.7 x 6.4 x 1.6 in. (196.8 x 162.97 x 41.8 mm), without antenna", "confidence": 0.8, "derivation": "41.8 mm must be height and 196.8 mm width, leaving 162.97 mm as CHASSIS depth. Explicitly excludes the dipoles, so budget more." },
+        { "field": "weightLb", "sourceUrl": "https://pubs.shure.com/view/guide/GLXD4Rplus/en-US.pdf", "quote": "Weight: 30.5 oz (866 g)", "confidence": 0.95, "derivation": "30.5 oz / 16 = 1.906 lb; cross-check 866 g / 453.59237 = 1.909 lb." },
+        { "field": "powerMaxW", "sourceUrl": "https://pubs.shure.com/view/guide/GLXD4Rplus/en-US.pdf", "quote": "Power Requirements: 14.5 V - 17 V, 600 mA (efficiency level VI power supply)", "confidence": 0.8, "derivation": "Input RATING, not measured draw: 17 V x 0.600 A = 10.2 W worst case. A receiver charging a battery in the front bay sits near that ceiling; one with an empty bay draws materially less." },
+        { "field": "ports", "sourceUrl": "https://pubs.shure.com/view/guide/GLXD4Rplus/en-US.pdf", "quote": "The receiver's built-in charging bay will charge transmitter batteries when the receiver is plugged in to a power outlet.", "confidence": 0.9, "derivation": "The front bay is recorded as a power port because it is the reason this receiver's real draw exceeds a passive receiver of the same size." }
+      ]
+    },
+    {
+      id: "shure-ulxp4",
+      slug: "shure-ulxp4",
+      brand: "Shure",
+      model: "ULXP4",
+      category: "Wireless Mic Receiver",
+      passive: false,
+      description: "Half-rack UHF diversity receiver from Shure's ULX Professional series: balanced XLR (Low Z) and unbalanced 1/4 in (High Z) outputs, BNC antennas with in-line DC power, external 14-18 Vdc supply.",
+      formFactor: "half-rack",
+      rackUnits: 1,
+      depthMm: 172,
+      depthIsOverall: true,
+      weightLb: 2.44,
+      powerTypicalW: null,
+      powerMaxW: 9.9,
+      inrushFactor: 1,
+      poePowered: false,
+      status: "discontinued",
+      statusNote: "Discontinued. The shure.com ULXP4 page now returns 404 and the ULX line is listed under discontinued service support. No manufacturer source names a direct replacement.",
+      productUrl: "https://www.shure.com/en-US/docs/guide/ULX",
+      datasheetUrl: "https://content-files.shure.com/Pubs/ULX2/58/ULX_Spec_Sheet.pdf",
+      ports: [
+        { "label": "Antenna", "connector": "BNC", "direction": "input", "signal": "antenna", "channels": null, "count": 2, "face": "rear", "projectionMm": null },
+        { "label": "Low Z Audio", "connector": "XLR3", "direction": "output", "signal": "analog audio", "channels": 1, "count": 1, "face": "rear", "projectionMm": null },
+        { "label": "High Z Audio", "connector": "TS", "direction": "output", "signal": "analog audio", "channels": 1, "count": 1, "face": "rear", "projectionMm": null },
+        { "label": "DC power input", "connector": "Other", "direction": "input", "signal": "power", "channels": null, "count": 1, "face": "rear", "projectionMm": null }
+      ],
+      unresolved: [
+        "powerTypicalW \u2014 no wattage is printed; 9.9 W is 18 V x 0.55 A",
+        "rear-panel silkscreen labels \u2014 no panel drawing was obtainable, so port names come from the spec table",
+        "antenna count of 2 is inferred from the diversity architecture, not read"
+      ],
+      provenance: [
+        { "field": "depthMm", "sourceUrl": "https://content-files.shure.com/Pubs/ULX2/58/ULX_Spec_Sheet.pdf", "quote": "43 mm H x 214 mm W x 172 mm D (1.72 in. x 8.56 in. x 6.88 in.)", "confidence": 0.9, "derivation": "Printed in millimetres, no conversion needed. OVERALL depth; rack-ear and connector protrusion are not broken out." },
+        { "field": "weightLb", "sourceUrl": "https://content-files.shure.com/Pubs/ULX2/58/ULX_Spec_Sheet.pdf", "quote": "ULXP4: 1105 g (2 lbs, 7 oz.)", "confidence": 0.95, "derivation": "2 lb 7 oz = 2.4375 lb. Cross-check: 1105 g / 453.592 = 2.436 lb." },
+        { "field": "formFactor", "sourceUrl": "https://content-files.shure.com/Pubs/ULX2/58/ULX_Spec_Sheet.pdf", "quote": "1/2 rack design", "confidence": 0.95, "derivation": "Stated explicitly; corroborated by the 214 mm printed width and the furnished rack hardware." },
+        { "field": "powerMaxW", "sourceUrl": "https://content-files.shure.com/Pubs/ULX2/58/ULX_Spec_Sheet.pdf", "quote": "ULXS4, ULXP4: 14 - 18 Vdc (negative ground), 550 mA", "confidence": 0.6, "derivation": "DERIVED: no wattage is printed anywhere. 18 Vdc x 0.550 A = 9.9 W worst case; at 14 V it would be 7.7 W." },
+        { "field": "status", "sourceUrl": "https://www.shure.com/en-US/products/wireless-systems/ulx_s/ulxs4", "quote": "Discontinued", "confidence": 0.7, "derivation": "This verbatim label is on the sibling ULXS4 page, not the ULXP4 itself. Supporting: the ULXP4 URL now 404s and Shure's service KB carries a 'ulxp-discontinuation' article." }
+      ]
+    },
+    {
+      id: "shure-ulxs4",
+      slug: "shure-ulxs4",
+      brand: "Shure",
+      model: "ULXS4",
+      category: "Wireless Mic Receiver",
+      passive: false,
+      description: "Half-rack UHF diversity receiver from Shure's ULX Standard series: BNC antenna inputs, mic/line switchable balanced XLR output and an unbalanced 1/4 in output. Plastic chassis \u2014 needs a rack kit.",
+      formFactor: "half-rack",
+      rackUnits: 1,
+      depthMm: 163,
+      depthIsOverall: true,
+      weightLb: 2.31,
+      powerTypicalW: null,
+      powerMaxW: 9.9,
+      inrushFactor: 1,
+      poePowered: false,
+      status: "discontinued",
+      statusNote: "Listed as Discontinued on Shure's own ULXS4 page. The page names no successor, so none is asserted.",
+      productUrl: "https://www.shure.com/en-US/products/wireless-systems/ulx_s/ulxs4",
+      datasheetUrl: "https://content-files.shure.com/Pubs/ULX2/58/ULX_Spec_Sheet.pdf",
+      ports: [
+        { "label": "ANTENNA", "connector": "BNC", "direction": "input", "signal": "antenna", "channels": null, "count": 2, "face": "rear", "projectionMm": null },
+        { "label": "Balanced XLR (MIC/LINE switchable)", "connector": "XLR3", "direction": "output", "signal": "analog audio", "channels": 1, "count": 1, "face": "rear", "projectionMm": null },
+        { "label": "Unbalanced 6.35 mm", "connector": "TS", "direction": "output", "signal": "analog audio", "channels": 1, "count": 1, "face": "rear", "projectionMm": null },
+        { "label": "DC power input", "connector": "Other", "direction": "input", "signal": "power", "channels": null, "count": 1, "face": "rear", "projectionMm": null }
+      ],
+      unresolved: [
+        "powerTypicalW \u2014 only the 14-18 Vdc / 550 mA input rating is printed",
+        "chassis-only depth \u2014 163 mm is Shure's OVERALL figure",
+        "which PS41 regional variant ships with this model"
+      ],
+      provenance: [
+        { "field": "status", "sourceUrl": "https://www.shure.com/en-US/products/wireless-systems/ulx_s/ulxs4", "quote": "Discontinued", "confidence": 0.95, "derivation": "Shure's own product page flags it. The page carries no spec table and no replacement recommendation." },
+        { "field": "depthMm", "sourceUrl": "https://content-files.shure.com/Pubs/ULX2/58/ULX_Spec_Sheet.pdf", "quote": "43 mm H x 214 mm W x 163 mm D (1.72 in. x 8.56 in. x 6.52 in.)", "confidence": 0.95, "derivation": "Taken as printed. OVERALL dimensions, so may include rear-panel protrusions. Confirmed identically in the archived ULX user guide." },
+        { "field": "weightLb", "sourceUrl": "https://content-files.shure.com/Pubs/ULX2/58/ULX_Spec_Sheet.pdf", "quote": "1049 g (2 lbs, 5 oz.)", "confidence": 0.95, "derivation": "2 lb 5 oz = 2.3125 lb; cross-check 1049 g / 453.592 = 2.313 lb. Net, not shipping weight." },
+        { "field": "formFactor", "sourceUrl": "https://content-files.shure.com/Pubs/ULX2/58/ULX_Spec_Sheet.pdf", "quote": "1/2 rack design", "confidence": 0.95, "derivation": "Manufacturer feature line. Note the chassis is 'Durable plastic' with no integral ears, so a Shure rack kit is required." },
+        { "field": "powerMaxW", "sourceUrl": "https://content-files.shure.com/Pubs/ULX2/58/ULX_Spec_Sheet.pdf", "quote": "14 - 18 Vdc (negative ground), 550 mA", "confidence": 0.65, "derivation": "DERIVED, not printed: 18 V x 0.550 A = 9.9 W. At the nominal 14-15 V adapter output it is nearer 7.7 W." },
+        { "field": "ports", "sourceUrl": "https://pubs.shure.com/view/guide/ULX/en-US.pdf", "quote": "Balanced XLR: Connect to a mixer or other professional audio input. Use the MIC/LINE switch to adjust for microphone or line-level inputs", "confidence": 0.9, "derivation": "The MIC/LINE switch is a control, not a connector, so it is not a separate port." }
+      ]
+    },
+    {
+      id: "sennheiser-sr300-iem-g3",
+      slug: "sennheiser-sr-300-iem-g3",
+      brand: "Sennheiser",
+      model: "SR 300 IEM G3",
+      category: "IEM Transmitter",
+      passive: false,
+      description: "Half-rack stereo UHF transmitter from the ew 300 IEM G3 system: combo inputs with balanced loop outs, BNC antenna output with remote powering, Ethernet for remote control, front headphone monitor.",
+      formFactor: "half-rack",
+      rackUnits: 1,
+      depthMm: 202,
+      depthIsOverall: true,
+      weightLb: 2.16,
+      powerTypicalW: null,
+      powerMaxW: 4.2,
+      inrushFactor: 1,
+      poePowered: false,
+      status: "discontinued",
+      statusNote: "Sennheiser's page states the product is no longer available to purchase. The G4 generation is the current equivalent, but no manufacturer source states G4 supersedes G3.",
+      productUrl: "https://www.sennheiser.com/en-us/catalog/uncategorized/sr-300-iem-g3/sr-300-iem-g3-503650",
+      datasheetUrl: null,
+      ports: [
+        { "label": "BAL AF IN L(I)", "connector": "XLR/TRS combo", "direction": "input", "signal": "analog audio", "channels": 1, "count": 1, "face": "rear", "projectionMm": null },
+        { "label": "BAL AF IN R(II)", "connector": "XLR/TRS combo", "direction": "input", "signal": "analog audio", "channels": 1, "count": 1, "face": "rear", "projectionMm": null },
+        { "label": "LOOP OUT BAL L(I)", "connector": "TRS", "direction": "output", "signal": "analog audio", "channels": 1, "count": 1, "face": "rear", "projectionMm": null },
+        { "label": "LOOP OUT BAL R(II)", "connector": "TRS", "direction": "output", "signal": "analog audio", "channels": 1, "count": 1, "face": "rear", "projectionMm": null },
+        { "label": "RF OUT", "connector": "BNC", "direction": "output", "signal": "antenna", "channels": null, "count": 1, "face": "rear", "projectionMm": null },
+        { "label": "ETHERNET RJ 45", "connector": "RJ45", "direction": "bidirectional", "signal": "network", "channels": null, "count": 1, "face": "rear", "projectionMm": null },
+        { "label": "DC IN", "connector": "Other", "direction": "input", "signal": "power", "channels": null, "count": 1, "face": "rear", "projectionMm": null },
+        { "label": "Headphone output", "connector": "TRS", "direction": "output", "signal": "analog audio", "channels": 2, "count": 1, "face": "front", "projectionMm": null }
+      ],
+      unresolved: [
+        "powerTypicalW",
+        "no surviving manufacturer-hosted datasheet URL",
+        "rack-mount depth including the GA 3 ears",
+        "the two sources disagree on which printed figure is width and which is depth"
+      ],
+      provenance: [
+        { "field": "status", "sourceUrl": "https://www.sennheiser.com/en-us/catalog/uncategorized/sr-300-iem-g3/sr-300-iem-g3-503650", "quote": "This product is no longer available to be purchased", "confidence": 0.95, "derivation": "Manufacturer legacy page for this exact SKU (503650)." },
+        { "field": "depthMm", "sourceUrl": "https://www.sennheiser.com/en-us/catalog/uncategorized/sr-300-iem-g3/sr-300-iem-g3-503650", "quote": "212 x 202 x 43 mm", "confidence": 0.85, "derivation": "Taking Sennheiser's width x depth x height order gives depth 202 mm. Held at 0.85 because the instruction manual prints the same three numbers in the opposite horizontal order." },
+        { "field": "weightLb", "sourceUrl": "https://www.sennheiser.com/en-us/catalog/uncategorized/sr-300-iem-g3/sr-300-iem-g3-503650", "quote": "980", "confidence": 0.9, "derivation": "Product page weight field in grams: 0.980 kg / 0.45359237 = 2.1605 lb. Matches the manual's 980 g." },
+        { "field": "powerMaxW", "sourceUrl": "https://www.sennheiser.com/en-us/catalog/uncategorized/sr-300-iem-g3/sr-300-iem-g3-503650", "quote": "Current consumption: max. 350 mA", "confidence": 0.9, "derivation": "A DRAW figure, not a supply rating: 0.350 A x 12 V = 4.2 W. No typical consumption is printed." },
+        { "field": "ports", "sourceUrl": "https://www.sennheiser.com/en-us/catalog/uncategorized/sr-300-iem-g3/sr-300-iem-g3-503650", "quote": "Antenna output (RF OUT) with remote power supply input, BNC socket", "confidence": 0.95, "derivation": "Rear panel enumerated from the printed manual; the BNC also carries remote power to an antenna booster." }
+      ]
+    },
+    // --- generic infrastructure. Dimensions here are the standard, not a product.
+    {
+      id: "generic-vent-1u",
+      slug: "generic-vent-panel-1u",
+      brand: "Generic",
+      model: "1U Vent Panel",
+      category: "Vent Panel",
+      passive: true,
+      description: "1U perforated panel. Costs nothing, buys convection between hot units.",
+      formFactor: "full-rack",
+      rackUnits: 1,
+      depthMm: 25,
+      depthIsOverall: true,
+      weightLb: 1.2,
+      powerTypicalW: null,
+      powerMaxW: null,
+      inrushFactor: 1,
+      poePowered: false,
+      status: "current",
+      statusNote: null,
+      productUrl: null,
+      datasheetUrl: null,
+      ports: [],
+      unresolved: [],
+      provenance: []
+    },
+    {
+      id: "generic-fan-1u",
+      slug: "generic-fan-panel-1u",
+      brand: "Generic",
+      model: "1U Fan Panel",
+      category: "Rack Fan",
+      passive: false,
+      description: "1U four-fan panel pulling from the front. The cheapest fix for a rack that runs hot.",
+      formFactor: "full-rack",
+      rackUnits: 1,
+      depthMm: 130,
+      depthIsOverall: true,
+      weightLb: 4,
+      powerTypicalW: 20,
+      powerMaxW: 30,
+      inrushFactor: 1,
+      poePowered: false,
+      status: "current",
+      statusNote: null,
+      productUrl: null,
+      datasheetUrl: null,
+      ports: [
+        { label: "AC In", connector: "IEC C14", direction: "input", signal: "power", channels: null, count: 1, face: "rear", projectionMm: null }
+      ],
+      unresolved: [],
+      provenance: []
+    },
+    {
+      id: "generic-shelf-1u",
+      slug: "generic-vented-shelf-1u",
+      brand: "Generic",
+      model: "1U Vented Shelf",
+      category: "Rack Shelf",
+      passive: true,
+      description: "1U shelf for the desktop boxes that were never meant to be racked.",
+      formFactor: "full-rack",
+      rackUnits: 1,
+      depthMm: 254,
+      depthIsOverall: true,
+      weightLb: 3.5,
+      powerTypicalW: null,
+      powerMaxW: null,
+      inrushFactor: 1,
+      poePowered: false,
+      status: "current",
+      statusNote: null,
+      productUrl: null,
+      datasheetUrl: null,
+      ports: [],
+      unresolved: [],
+      provenance: []
+    }
+  ];
+  var SEED_CASES = [
+    {
+      slug: "shock-4u-20in",
+      name: '4U shock case, 20" rails',
+      description: "Small utility rack. Front and rear rails, casters.",
+      rackUnits: 4,
+      usableDepthMm: 508,
+      hasRearRails: true,
+      maxLoadLb: 120,
+      emptyWeightLb: 46
+    },
+    {
+      slug: "shock-8u-24in",
+      name: '8U shock case, 24" rails',
+      description: "The standard IEM or playback rack.",
+      rackUnits: 8,
+      usableDepthMm: 610,
+      hasRearRails: true,
+      maxLoadLb: 220,
+      emptyWeightLb: 72
+    },
+    {
+      slug: "shallow-6u-12in",
+      name: '6U shallow case, 12" rails',
+      description: "Front rails only. Fly-pack sized, and the reason depth checks exist.",
+      rackUnits: 6,
+      usableDepthMm: 305,
+      hasRearRails: false,
+      maxLoadLb: 90,
+      emptyWeightLb: 34
+    }
+  ];
+  var DEMO_RACK = {
+    name: "Fly pack \u2014 6U shallow",
+    case: SEED_CASES[2],
+    circuits: [
+      { label: "A", volts: 120, amps: 20 },
+      { label: "B", volts: 120, amps: 15 }
+    ],
+    placements: [
+      { deviceId: "radial-sw8", position: 1, circuit: "A" },
+      { deviceId: "motu-24ao", position: 2, circuit: "A" },
+      { deviceId: "shure-adtq", position: 3, circuit: "A" },
+      { deviceId: "shure-ad600", position: 4, circuit: "B" },
+      { deviceId: "generic-shelf-1u", position: 5, circuit: null },
+      { deviceId: "rme-digiface-dante", position: 6, circuit: "B" }
+    ]
+  };
+  var DEMO_RACK_FIXED = {
+    name: 'Touring rack \u2014 8U, 24" rails',
+    case: SEED_CASES[1],
+    circuits: [
+      { label: "A", volts: 120, amps: 20 },
+      { label: "B", volts: 120, amps: 15 }
+    ],
+    placements: [
+      { deviceId: "radial-sw8", position: 1, circuit: "A" },
+      { deviceId: "motu-24ao", position: 2, circuit: "A" },
+      { deviceId: "shure-adtq", position: 3, circuit: "A" },
+      { deviceId: "generic-vent-1u", position: 4, circuit: null },
+      { deviceId: "shure-ad600", position: 5, circuit: "B" },
+      { deviceId: "generic-shelf-1u", position: 6, circuit: null },
+      { deviceId: "rme-digiface-dante", position: 7, circuit: "B" },
+      { deviceId: "generic-fan-1u", position: 8, circuit: "B" }
+    ]
+  };
+  var DEMO_RACK_WIRELESS = {
+    name: "Wireless rack \u2014 8U, half-rack pairs",
+    case: SEED_CASES[1],
+    circuits: [
+      { label: "A", volts: 120, amps: 20 },
+      { label: "B", volts: 120, amps: 15 }
+    ],
+    placements: [
+      { deviceId: "sennheiser-sr-iem-g4", position: 1, slot: "left", circuit: "A" },
+      { deviceId: "sennheiser-sr-iem-g4", position: 1, slot: "right", circuit: "A" },
+      { deviceId: "sennheiser-sr300-iem-g3", position: 2, slot: "left", circuit: "A" },
+      { deviceId: "shure-slxd4", position: 2, slot: "right", circuit: "A" },
+      { deviceId: "shure-ulxp4", position: 3, slot: "left", circuit: "B" },
+      { deviceId: "shure-ulxs4", position: 3, slot: "right", circuit: "B" },
+      { deviceId: "shure-glxd4rp", position: 4, slot: "left", circuit: "B" },
+      { deviceId: "generic-vent-1u", position: 5, slot: "full", circuit: null },
+      { deviceId: "shure-ad600", position: 6, slot: "full", circuit: "B" },
+      { deviceId: "generic-fan-1u", position: 7, slot: "full", circuit: "A" }
+    ]
+  };
+  var DEMO_RACKS = [DEMO_RACK, DEMO_RACK_FIXED, DEMO_RACK_WIRELESS];
+  var DEMO_DEVICES = new Map(
+    SEED_DEVICES.map((d) => [d.id, d])
+  );
+
+  // src/lib/browser/planner-bundle.ts
+  function printPatchSheet(rack, devices, opts = {}) {
+    var _a;
+    const sources = new Map(
+      SEED_DEVICES.map((d) => [d.id, d.provenance])
+    );
+    const unresolved = new Map(
+      SEED_DEVICES.filter((d) => d.unresolved.length).map((d) => [d.id, d.unresolved])
+    );
+    const html = renderPatchSheet({
+      rack,
+      devices,
+      sources,
+      unresolved,
+      preparedBy: (_a = opts.preparedBy) != null ? _a : null
+    });
+    const frame = document.createElement("iframe");
+    frame.setAttribute("aria-hidden", "true");
+    frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0";
+    document.body.appendChild(frame);
+    const doc = frame.contentDocument;
+    const win = frame.contentWindow;
+    if (!doc || !win) {
+      frame.remove();
+      return;
+    }
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      frame.remove();
+    };
+    doc.open();
+    doc.write(html);
+    doc.close();
+    win.addEventListener("afterprint", () => window.setTimeout(cleanup, 500));
+    window.setTimeout(() => {
+      win.focus();
+      win.print();
+      window.setTimeout(cleanup, 6e4);
+    }, 120);
+  }
+  return __toCommonJS(planner_bundle_exports);
+})();
+
+</script>
+<script>
+(function () {
+  "use strict";
+  var E = RACK;
+  // The panel renderer used to be a second inline script; it ships inside the
+  // bundle now so the planner and the printed sheet draw from one copy.
+  var PANEL = E.PANEL;
+  var DEVICES = E.SEED_DEVICES;
+  var BY_ID = new Map(DEVICES.map(function (d) { return [d.id, d]; }));
+  var CASES = E.SEED_CASES;
+  var PRESETS = E.DEMO_RACKS;
+  var STORE = "arb.planner.v2";
+  var uidSeq = 0;
+
+  function uid() { return "p" + (++uidSeq); }
+
+  function fromPreset(i) {
+    var preset = PRESETS[i];
+    return {
+      caseSlug: preset.case.slug,
+      view: "front",
+      selected: null,
+      filter: "",
+      circuits: preset.circuits.map(function (c) { return { label: c.label, volts: c.volts, amps: c.amps }; }),
+      placements: preset.placements.map(function (p) {
+        return { uid: uid(), deviceId: p.deviceId, position: p.position, slot: p.slot || "full", circuit: p.circuit };
+      })
+    };
+  }
+
+  var state = fromPreset(2);
+  try {
+    var saved = JSON.parse(localStorage.getItem(STORE) || "null");
+    if (saved && Array.isArray(saved.placements) && CASES.some(function (c) { return c.slug === saved.caseSlug; })) {
+      saved.placements.forEach(function (p) { if (!p.uid) p.uid = uid(); });
+      saved.filter = saved.filter || "";
+      state = saved;
+    }
+  } catch (e) { /* blocked storage — the planner still works */ }
+  function persist() { try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) {} }
+
+  // -------------------------------------------------------------- helpers
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+  function fmt(v, suffix) {
+    if (v == null) return "—";
+    return (Math.round(v * 10) / 10) + (suffix || "");
+  }
+  function currentCase() {
+    return CASES.filter(function (c) { return c.slug === state.caseSlug; })[0] || CASES[0];
+  }
+  function rackSpec() {
+    return {
+      name: "Planner",
+      case: currentCase(),
+      circuits: state.circuits,
+      placements: state.placements.map(function (p) {
+        return { deviceId: p.deviceId, position: p.position, slot: p.slot, circuit: p.circuit };
+      })
+    };
+  }
+  function halvesOf(device, slot) {
+    return E.isHalfWidth(device) ? [slot === "right" ? "right" : "left"] : ["left", "right"];
+  }
+  /** Cells a placement occupies, as "U|half". */
+  function cellsOf(p) {
+    var d = BY_ID.get(p.deviceId);
+    if (!d) return [];
+    var n = E.occupiedUnits(d), out = [];
+    var halves = halvesOf(d, p.slot);
+    for (var i = 0; i < n; i++) {
+      for (var j = 0; j < halves.length; j++) out.push((p.position + i) + "|" + halves[j]);
+    }
+    return out;
+  }
+  function occupancy(ignoreUid) {
+    var taken = {};
+    state.placements.forEach(function (p) {
+      if (ignoreUid && p.uid === ignoreUid) return;
+      cellsOf(p).forEach(function (c) { taken[c] = true; });
+    });
+    return taken;
+  }
+  function fits(device, position, half, ignoreUid) {
+    var total = currentCase().rackUnits;
+    var n = E.occupiedUnits(device);
+    if (position < 1 || position + n - 1 > total) return false;
+    var taken = occupancy(ignoreUid);
+    var halves = E.isHalfWidth(device) ? [half || "left"] : ["left", "right"];
+    for (var i = 0; i < n; i++) {
+      for (var j = 0; j < halves.length; j++) {
+        if (taken[(position + i) + "|" + halves[j]]) return false;
+      }
+    }
+    return true;
+  }
+  function firstFree(device) {
+    var total = currentCase().rackUnits;
+    var halves = E.isHalfWidth(device) ? ["left", "right"] : ["left"];
+    for (var u = 1; u <= total; u++) {
+      for (var k = 0; k < halves.length; k++) {
+        if (fits(device, u, halves[k], null)) return { position: u, half: halves[k] };
+      }
+    }
+    return null;
+  }
+  /**
+   * Rear view is a mirror: the unit on the rack's left is on your right when
+   * you walk around the back. Column 1 on screen is therefore the RIGHT half
+   * of the rack whenever the rear face is showing.
+   */
+  function columnFor(half) {
+    if (state.view === "rear") return half === "left" ? 2 : 1;
+    return half === "left" ? 1 : 2;
+  }
+  function halfForColumn(col) {
+    if (state.view === "rear") return col === 1 ? "right" : "left";
+    return col === 1 ? "left" : "right";
+  }
+
+  // --------------------------------------------------------------- glyphs
+  var SHAPES = {
+    xlr:    '<circle cx="10" cy="10" r="8"/><circle cx="7" cy="8.5" r="1.3" fill="currentColor"/><circle cx="13" cy="8.5" r="1.3" fill="currentColor"/><circle cx="10" cy="13" r="1.3" fill="currentColor"/>',
+    combo:  '<circle cx="10" cy="10" r="8"/><rect x="6.5" y="6.5" width="7" height="7"/>',
+    jack:   '<circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="2.6" fill="currentColor"/>',
+    dsub:   '<path d="M3 7h14l-1.6 6H4.6z"/><circle cx="7" cy="10" r="1" fill="currentColor"/><circle cx="10" cy="10" r="1" fill="currentColor"/><circle cx="13" cy="10" r="1" fill="currentColor"/>',
+    bnc:    '<circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="1.6" fill="currentColor"/><path d="M3.6 7.4 L5.6 6M16.4 7.4 L14.4 6"/>',
+    rj:     '<path d="M4 5.5h12v7.5H4z"/><path d="M8 13v2.5h4V13"/>',
+    iec:    '<rect x="3.5" y="6" width="13" height="8" rx="2.5"/><circle cx="7" cy="10" r="1.1" fill="currentColor"/><circle cx="10" cy="10" r="1.1" fill="currentColor"/><circle cx="13" cy="10" r="1.1" fill="currentColor"/>',
+    outlet: '<rect x="4" y="3.5" width="12" height="13" rx="6"/><rect x="7" y="6" width="1.6" height="3.4" fill="currentColor"/><rect x="11.4" y="6" width="1.6" height="3.4" fill="currentColor"/><circle cx="10" cy="12.6" r="1.1" fill="currentColor"/>',
+    twist:  '<circle cx="10" cy="10" r="7.4"/><path d="M10 4.5a5.5 5.5 0 1 1-5.5 5.5"/>',
+    usb:    '<rect x="4" y="7" width="12" height="6"/><rect x="6.5" y="9" width="7" height="2" fill="currentColor"/>',
+    usbc:   '<rect x="3.5" y="7.5" width="13" height="5" rx="2.5"/>',
+    hdmi:   '<path d="M4 7.5h12v3.5l-2 1.5H6l-2-1.5z"/>',
+    din:    '<circle cx="10" cy="10" r="7.5"/><path d="M4.5 13a7.5 7.5 0 0 1 11 0"/><circle cx="6.4" cy="9.6" r=".9" fill="currentColor"/><circle cx="10" cy="8.4" r=".9" fill="currentColor"/><circle cx="13.6" cy="9.6" r=".9" fill="currentColor"/>',
+    speakon:'<circle cx="10" cy="10" r="7.5"/><path d="M6.5 13.5 A5 5 0 0 1 13.5 6.5"/>',
+    block:  '<rect x="3.5" y="6.5" width="13" height="7"/><path d="M7 6.5v7M13 6.5v7"/>',
+    sfp:    '<rect x="3.5" y="6.5" width="13" height="7"/><path d="M6 6.5v7"/>'
+  };
+  var DIR_CLASS = { input: "in", output: "out", bidirectional: "bi" };
+  function glyphSvg(connector) {
+    var key = PANEL.shapeFor(connector);
+    if (!SHAPES[key]) key = "block";
+    return '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" aria-hidden="true">' + SHAPES[key] + "</svg>";
+  }
+  function chip(port) {
+    var node = el("span", "chip " + (DIR_CLASS[port.direction] || "bi"));
+    node.innerHTML = glyphSvg(port.connector);
+    node.appendChild(el("span", "cl", port.label));
+    var tail = [];
+    if (port.count > 1) tail.push("×" + port.count);
+    if (port.channels) tail.push(port.channels + "ch");
+    if (tail.length) node.appendChild(el("span", "ct", tail.join(" ")));
+    node.title = port.label + " — " + port.connector + ", " + port.direction + ", " + port.signal;
+    return node;
+  }
+
+  // ------------------------------------------------------------- controls
+  var caseSel = document.getElementById("caseSel");
+  CASES.forEach(function (c) {
+    var o = el("option", null, c.name + "  ·  " + c.usableDepthMm + " mm usable");
+    o.value = c.slug;
+    caseSel.appendChild(o);
+  });
+  caseSel.value = state.caseSlug;
+  caseSel.addEventListener("change", function () {
+    state.caseSlug = caseSel.value;
+    var total = currentCase().rackUnits;
+    state.placements = state.placements.filter(function (p) {
+      var d = BY_ID.get(p.deviceId);
+      return d && p.position + E.occupiedUnits(d) - 1 <= total;
+    });
+    render();
+  });
+
+  var presetSel = document.getElementById("presetSel");
+  presetSel.appendChild(el("option", null, "—"));
+  PRESETS.forEach(function (r, i) {
+    var o = el("option", null, r.name);
+    o.value = String(i);
+    presetSel.appendChild(o);
+  });
+  presetSel.addEventListener("change", function () {
+    var i = Number(presetSel.value);
+    if (!PRESETS[i]) return;
+    var view = state.view, filter = state.filter;
+    state = fromPreset(i);
+    state.view = view;
+    state.filter = filter;
+    caseSel.value = state.caseSlug;
+    presetSel.value = "—";
+    render();
+  });
+
+  // The patch sheet is rendered by the same module the server export uses, so
+  // what prints here and what the API returns are the same document.
+  var sheetBtn = document.getElementById("sheetBtn");
+  sheetBtn.addEventListener("click", function () {
+    E.printPatchSheet(rackSpec(), BY_ID);
+  });
+
+  document.getElementById("clearBtn").addEventListener("click", function () {
+    state.placements = [];
+    state.selected = null;
+    render();
+  });
+
+  var viewFront = document.getElementById("viewFront");
+  var viewRear = document.getElementById("viewRear");
+  viewFront.addEventListener("click", function () { state.view = "front"; render(); });
+  viewRear.addEventListener("click", function () { state.view = "rear"; render(); });
+
+  var catSearch = document.getElementById("catSearch");
+  catSearch.value = state.filter;
+  catSearch.addEventListener("input", function () {
+    state.filter = catSearch.value;
+    renderPalette();
+    persist();
+  });
+
+  // --------------------------------------------------------------- catalog
+  function renderPalette() {
+    var host = document.getElementById("palette");
+    host.textContent = "";
+    var q = state.filter.trim().toLowerCase();
+    var list = DEVICES.filter(function (d) {
+      if (!q) return true;
+      return (d.brand + " " + d.model + " " + d.category).toLowerCase().indexOf(q) >= 0;
+    });
+    document.getElementById("catCount").textContent =
+      list.length + (list.length === DEVICES.length ? " devices" : " of " + DEVICES.length);
+
+    var groups = new Map();
+    list.forEach(function (d) {
+      if (!groups.has(d.category)) groups.set(d.category, []);
+      groups.get(d.category).push(d);
+    });
+    if (!groups.size) {
+      host.appendChild(el("p", "noports", "Nothing matches “" + state.filter + "”."));
+      return;
+    }
+    groups.forEach(function (items, category) {
+      var g = el("div", "pal-group");
+      g.appendChild(el("div", "legend", category));
+      items.forEach(function (d) {
+        var item = el("div", "pal-item");
+        item.draggable = true;
+        item.addEventListener("dragstart", function (ev) {
+          ev.dataTransfer.setData("text/plain", JSON.stringify({ kind: "new", deviceId: d.id }));
+          ev.dataTransfer.effectAllowed = "copy";
+        });
+
+        var nm = el("div", "nm");
+        var b = el("b", null, d.brand + " " + d.model);
+        if (E.isHalfWidth(d)) b.appendChild(el("span", "tag half", "½ rack"));
+        if (d.status === "discontinued") b.appendChild(el("span", "tag disc", "disc"));
+        nm.appendChild(b);
+        var req = E.requiredDepth(d).requiredMm;
+        nm.appendChild(el("em", null,
+          E.occupiedUnits(d) + "U · " + (req == null ? "?" : req + " mm") + " · " + fmt(d.weightLb, " lb")));
+        item.appendChild(nm);
+
+        var add = el("button", "add", "+");
+        add.type = "button";
+        add.title = "Place in the first free slot";
+        add.setAttribute("aria-label", "Place " + d.brand + " " + d.model);
+        add.addEventListener("click", function () {
+          var spot = firstFree(d);
+          if (!spot) { add.textContent = "✕"; setTimeout(function () { add.textContent = "+"; }, 900); return; }
+          state.placements.push({
+            uid: uid(), deviceId: d.id, position: spot.position,
+            slot: E.isHalfWidth(d) ? spot.half : "full",
+            circuit: state.circuits.length ? state.circuits[0].label : null
+          });
+          render();
+        });
+        item.appendChild(add);
+        g.appendChild(item);
+      });
+      host.appendChild(g);
+    });
+  }
+
+  // ------------------------------------------------------------------ rack
+  function wireDrop(node, position, half) {
+    node.addEventListener("dragover", function (ev) { ev.preventDefault(); node.classList.add("over"); });
+    node.addEventListener("dragleave", function () { node.classList.remove("over"); });
+    node.addEventListener("drop", function (ev) {
+      ev.preventDefault();
+      node.classList.remove("over");
+      var payload;
+      try { payload = JSON.parse(ev.dataTransfer.getData("text/plain")); } catch (e) { return; }
+
+      if (payload.kind === "move") {
+        var existing = state.placements.filter(function (x) { return x.uid === payload.uid; })[0];
+        if (!existing) return;
+        var dev = BY_ID.get(existing.deviceId);
+        if (!dev || !fits(dev, position, half, existing.uid)) return;
+        existing.position = position;
+        existing.slot = E.isHalfWidth(dev) ? half : "full";
+      } else {
+        var d = BY_ID.get(payload.deviceId);
+        if (!d || !fits(d, position, half, null)) return;
+        state.placements.push({
+          uid: uid(), deviceId: d.id, position: position,
+          slot: E.isHalfWidth(d) ? half : "full",
+          circuit: state.circuits.length ? state.circuits[0].label : null
+        });
+      }
+      render();
+    });
+  }
+
+  function renderRack(report) {
+    var host = document.getElementById("rack");
+    host.textContent = "";
+    var rackCase = currentCase();
+    var total = rackCase.rackUnits;
+
+    // A rack unit is 1.75 in against a 19 in panel, so the row height follows
+    // the container width or the drawings come out squashed.
+    var avail = host.clientWidth || host.parentElement.clientWidth || 620;
+    var uH = Math.max(24, Math.round((avail * PANEL.U) / PANEL.W));
+    host.style.gridTemplateRows = "repeat(" + total + ", " + uH + "px)";
+
+    var sev = new Map();
+    report.results.forEach(function (r) {
+      var rank = { error: 3, warning: 2, info: 1 }[r.severity] || 0;
+      (r.deviceIds || []).forEach(function (id) {
+        if ((sev.get(id) || 0) < rank) sev.set(id, rank);
+      });
+    });
+    var SEV_CLASS = { 3: "err", 2: "warn", 1: "info" };
+
+    var filled = {};
+    state.placements.forEach(function (p) {
+      var d = BY_ID.get(p.deviceId);
+      if (!d) return;
+      var units = E.occupiedUnits(d);
+      var topRow = total - (p.position + units - 1) + 1;
+      if (topRow < 1) return;
+
+      var half = E.isHalfWidth(d) ? (p.slot === "right" ? "right" : "left") : null;
+      var node = el("div", "unit" + (sev.has(d.id) ? " " + SEV_CLASS[sev.get(d.id)] : "") +
+        (state.selected === p.uid ? " sel" : ""));
+      node.style.gridRow = topRow + " / span " + units;
+      node.style.gridColumn = half ? String(columnFor(half)) : "1 / span 2";
+      node.draggable = true;
+      node.tabIndex = 0;
+      node.innerHTML = PANEL.draw(d, state.view, units, { half: half });
+      node.title = d.brand + " " + d.model + " — U" + p.position +
+        (half ? " (" + half + " half)" : "") + (state.view === "rear" ? ", rear" : ", front");
+
+      node.addEventListener("dragstart", function (ev) {
+        ev.dataTransfer.setData("text/plain", JSON.stringify({ kind: "move", uid: p.uid }));
+        ev.dataTransfer.effectAllowed = "move";
+      });
+      node.addEventListener("click", function (ev) {
+        if (ev.target.closest("select,button")) return;
+        state.selected = state.selected === p.uid ? null : p.uid;
+        render();
+      });
+      node.addEventListener("keydown", function (ev) {
+        if (ev.key === "Enter" || ev.key === " ") {
+          ev.preventDefault();
+          state.selected = state.selected === p.uid ? null : p.uid;
+          render();
+        }
+      });
+
+      var ctl = el("span", "ctl");
+      ctl.appendChild(el("span", "u", "U" + p.position + (half ? (half === "left" ? " L" : " R") : "")));
+      if (!d.passive && !d.poePowered && state.circuits.length) {
+        var sel = el("select");
+        sel.setAttribute("aria-label", "Circuit for " + d.model);
+        var none = el("option", null, "—"); none.value = "";
+        sel.appendChild(none);
+        state.circuits.forEach(function (c) {
+          var o = el("option", null, c.label); o.value = c.label; sel.appendChild(o);
+        });
+        sel.value = p.circuit || "";
+        sel.addEventListener("change", function () { p.circuit = sel.value || null; render(); });
+        ctl.appendChild(sel);
+      }
+      var rm = el("button", "rm", "×");
+      rm.type = "button";
+      rm.setAttribute("aria-label", "Remove " + d.model);
+      rm.addEventListener("click", function () {
+        state.placements = state.placements.filter(function (x) { return x.uid !== p.uid; });
+        if (state.selected === p.uid) state.selected = null;
+        render();
+      });
+      ctl.appendChild(rm);
+      node.appendChild(ctl);
+
+      host.appendChild(node);
+      cellsOf(p).forEach(function (c) { filled[c] = true; });
+    });
+
+    // Every empty half is a drop target.
+    for (var u = total; u >= 1; u--) {
+      for (var col = 1; col <= 2; col++) {
+        var half = halfForColumn(col);
+        if (filled[u + "|" + half]) continue;
+        var slot = el("div", "slot");
+        slot.style.gridRow = (total - u + 1) + " / span 1";
+        slot.style.gridColumn = String(col);
+        slot.appendChild(el("span", "u", "U" + u + (half === "left" ? " L" : " R")));
+        wireDrop(slot, u, half);
+        host.appendChild(slot);
+      }
+    }
+
+    var meta = document.getElementById("rackMeta");
+    meta.textContent = "";
+    meta.appendChild(el("span", null, rackCase.name));
+    meta.appendChild(el("span", null, rackCase.usableDepthMm + " mm usable"));
+    meta.appendChild(el("span", null, rackCase.hasRearRails ? "front + rear rails" : "front rails only"));
+    meta.appendChild(el("span", null, state.view === "rear" ? "rear view — left/right mirrored" : "front view"));
+    meta.appendChild(el("span", null, state.circuits.map(function (c) { return c.label + ": " + c.amps + "A"; }).join("  ")));
+  }
+
+  // ---------------------------------------------------------------- budget
+  function renderBudget(budget) {
+    var host = document.getElementById("budget");
+    host.textContent = "";
+    function stat(k, v) {
+      var row = el("div", "stat");
+      row.appendChild(el("span", "k", k));
+      row.appendChild(el("span", "v", v));
+      host.appendChild(row);
+    }
+    stat("Space", budget.unitsUsed + " / " + budget.unitsTotal + "U used");
+    stat("Weight", fmt(budget.weightLb, " lb") +
+      (budget.grossWeightLb != null ? "  (" + fmt(budget.grossWeightLb, " lb") + " with case)" : ""));
+    stat("Deepest unit", budget.maxRequiredDepthMm == null ? "—" :
+      budget.maxRequiredDepthMm + " / " + budget.usableDepthMm + " mm");
+    stat("Draw", fmt(budget.totalTypicalW, " W") + " typical");
+    stat("Heat", fmt(budget.heatWPerRu, " W/U") + (budget.hasForcedAir ? "  · fan" : ""));
+
+    if (budget.cogFraction != null) {
+      var row = el("div", "stat");
+      row.appendChild(el("span", "k", "Centre of gravity"));
+      row.appendChild(el("span", "v", Math.round(budget.cogFraction * 100) + "% of height"));
+      host.appendChild(row);
+      var bar = el("div", "bar");
+      var i = el("i");
+      i.style.width = Math.min(100, budget.cogFraction * 100) + "%";
+      if (budget.cogFraction > 0.55) i.className = "warm";
+      bar.appendChild(i);
+      var mark = el("u");
+      mark.style.left = "55%";
+      mark.title = "55% — above this a case on casters wants to tip on a ramp";
+      bar.appendChild(mark);
+      host.appendChild(bar);
+    }
+
+    if (budget.circuits.length) {
+      host.appendChild(el("div", "legend", "Circuits"));
+      budget.circuits.forEach(function (load) {
+        var box = el("div", "circ");
+        var row2 = el("div", "row");
+        row2.appendChild(el("span", "k", load.circuit.label + "  " + load.circuit.amps + "A / " + load.circuit.volts + "V"));
+        row2.appendChild(el("span", "v", fmt(load.typicalW, " W") + " / " + fmt(load.capacityW, " W")));
+        box.appendChild(row2);
+        var bar2 = el("div", "bar");
+        var fill = el("i");
+        fill.style.width = Math.min(100, load.peakCapacityW > 0 ? (load.typicalW / load.peakCapacityW) * 100 : 0) + "%";
+        if (load.typicalW > load.capacityW) fill.className = "hot";
+        else if (load.utilization > 0.85) fill.className = "warm";
+        bar2.appendChild(fill);
+        var derate = el("u");
+        derate.style.left = "80%";
+        derate.title = "80% continuous derate";
+        bar2.appendChild(derate);
+        box.appendChild(bar2);
+        box.appendChild(el("div", "note",
+          "inrush " + fmt(load.inrushW, " W") + " against a " + fmt(load.peakCapacityW, " W") + " breaker"));
+        host.appendChild(box);
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------- ledger
+  function renderLedger() {
+    var table = document.getElementById("ledger");
+    table.textContent = "";
+    var usable = currentCase().usableDepthMm;
+    var thead = el("thead"), hr = el("tr");
+    ["Unit", "Chassis", "Conn", "Bend", "Needs", ""].forEach(function (h) { hr.appendChild(el("th", null, h)); });
+    thead.appendChild(hr); table.appendChild(thead);
+    var tbody = el("tbody"), seen = {};
+    state.placements.forEach(function (p) {
+      var d = BY_ID.get(p.deviceId);
+      if (!d || seen[d.id]) return;
+      seen[d.id] = true;
+      var b = E.requiredDepth(d);
+      var tr = el("tr");
+      tr.appendChild(el("td", null, d.model));
+      tr.appendChild(el("td", null, b.chassisMm == null ? "—" : String(b.chassisMm)));
+      tr.appendChild(el("td", null, String(b.connectorMm)));
+      tr.appendChild(el("td", null, String(b.bendMm)));
+      tr.appendChild(el("td", null, b.requiredMm == null ? "—" : String(b.requiredMm)));
+      var ok = b.requiredMm == null || b.requiredMm <= usable;
+      tr.appendChild(el("td", ok ? "good" : "bad",
+        b.requiredMm == null ? "?" : ok ? "fits" : "short " + (b.requiredMm - usable)));
+      tbody.appendChild(tr);
+    });
+    if (!Object.keys(seen).length) {
+      var tr0 = el("tr"), td0 = el("td", null, "Nothing placed yet.");
+      td0.colSpan = 6; tr0.appendChild(td0); tbody.appendChild(tr0);
+    }
+    table.appendChild(tbody);
+  }
+
+  // -------------------------------------------------------------- findings
+  function renderFindings(report) {
+    var tally = document.getElementById("tally");
+    tally.textContent = "";
+    var infos = report.results.filter(function (r) { return r.severity === "info"; }).length;
+    if (report.errors) tally.appendChild(el("span", "pill e", report.errors + (report.errors === 1 ? " error" : " errors")));
+    if (report.warnings) tally.appendChild(el("span", "pill w", report.warnings + (report.warnings === 1 ? " warning" : " warnings")));
+    if (infos) tally.appendChild(el("span", "pill i", infos + " note" + (infos === 1 ? "" : "s")));
+    if (!report.results.length) tally.appendChild(el("span", "pill o", "clear"));
+
+    var host = document.getElementById("findings");
+    host.textContent = "";
+    if (!report.results.length) {
+      var clean = el("div", "clean");
+      clean.appendChild(el("b", null, state.placements.length ? "This one builds" : "Empty rack"));
+      clean.appendChild(el("span", null, state.placements.length
+        ? "Everything fits with its connectors mated, the circuits hold at power-up as well as steady state, and the weight sits low."
+        : "Drag something in from the catalog, or load one of the three demo racks."));
+      host.appendChild(clean);
+      return;
+    }
+    var order = { error: 0, warning: 1, info: 2 };
+    report.results.slice().sort(function (a, b) { return order[a.severity] - order[b.severity]; })
+      .forEach(function (r) {
+        var box = el("div", "finding " + r.severity);
+        var hd = el("div", "hd");
+        hd.appendChild(el("span", "sev", r.severity === "info" ? "note" : r.severity));
+        hd.appendChild(el("span", "ti", r.title));
+        box.appendChild(hd);
+        box.appendChild(el("p", "de", r.detail));
+        host.appendChild(box);
+      });
+  }
+
+  // ------------------------------------------------------------- the keys
+  function renderKeys() {
+    var dir = document.getElementById("dirKey");
+    dir.textContent = "";
+    dir.appendChild(el("span", "legend", "Direction"));
+    [["in", "Input"], ["out", "Output"], ["bi", "Both ways"]].forEach(function (d) {
+      var k = el("span", "k");
+      k.appendChild(el("span", "dirdot " + d[0]));
+      k.appendChild(document.createTextNode(d[1]));
+      dir.appendChild(k);
+    });
+
+    var shape = document.getElementById("shapeKey");
+    shape.textContent = "";
+    shape.appendChild(el("span", "legend", "Connector"));
+    ["XLR3", "TRS", "DB25", "BNC", "Dante RJ45", "IEC C14", "USB-C", "Edison"].forEach(function (c) {
+      var k = el("span", "k");
+      var g = el("span");
+      g.innerHTML = glyphSvg(c);
+      g.style.color = "var(--ink-2)";
+      g.style.display = "inline-flex";
+      k.appendChild(g);
+      k.appendChild(document.createTextNode(c));
+      shape.appendChild(k);
+    });
+  }
+
+  // ---------------------------------------------------------------- detail
+  function panelView(device, face, half) {
+    var box = el("div", "panelview");
+    var head = el("div", "pv-head");
+    head.appendChild(el("b", null, face === "rear" ? "Rear panel" : "Front panel"));
+    head.appendChild(el("span", null,
+      face === "rear" ? "as you see it standing behind the rack" : "as you see it standing in front"));
+    box.appendChild(head);
+    var art = el("div", "panelart");
+    art.innerHTML = PANEL.draw(device, face, E.occupiedUnits(device), { half: half });
+    box.appendChild(art);
+    var strip = el("div", "ports");
+    var ports = device.ports.filter(function (p) { return p.face === face; });
+    var ordered = face === "rear" ? ports.slice().reverse() : ports.slice();
+    if (!ordered.length) strip.appendChild(el("span", "noports", "Nothing on this face."));
+    else ordered.forEach(function (p) { strip.appendChild(chip(p)); });
+    box.appendChild(strip);
+    return box;
+  }
+
+  function renderDetail() {
+    var card = document.getElementById("detailCard");
+    var host = document.getElementById("detail");
+    var placement = state.selected
+      ? state.placements.filter(function (p) { return p.uid === state.selected; })[0]
+      : null;
+    var d = placement ? BY_ID.get(placement.deviceId) : null;
+    if (!d) { card.hidden = true; host.textContent = ""; return; }
+    card.hidden = false;
+    host.textContent = "";
+
+    var head = el("div", "dtl-head");
+    var who = el("div", "who");
+    who.appendChild(el("b", null, d.brand + " " + d.model));
+    who.appendChild(el("span", null, d.category + " · " + E.occupiedUnits(d) + "U" +
+      (E.isHalfWidth(d) ? " · half-rack, " + (placement.slot === "right" ? "right" : "left") + " side" : "") +
+      (d.status === "discontinued" ? " · discontinued" : "")));
+    head.appendChild(who);
+    var close = el("button", "ghost", "Close");
+    close.type = "button";
+    close.addEventListener("click", function () { state.selected = null; render(); });
+    head.appendChild(close);
+    host.appendChild(head);
+
+    if (d.statusNote) {
+      var note = el("p", null, d.statusNote);
+      note.style.fontSize = ".78rem";
+      note.style.color = "var(--ink-muted)";
+      host.appendChild(note);
+    }
+    if (d.description) host.appendChild(el("p", null, d.description));
+
+    var half = E.isHalfWidth(d) ? (placement.slot === "right" ? "right" : "left") : null;
+    host.appendChild(panelView(d, "front", half));
+    host.appendChild(panelView(d, "rear", half));
+
+    var b = E.requiredDepth(d);
+    var usable = currentCase().usableDepthMm;
+    if (b.requiredMm != null) {
+      var line = el("p", "depthline",
+        b.chassisMm + " mm chassis + " + b.connectorMm + " mm for the " + (b.drivenBy || "rear") +
+        " + " + b.bendMm + " mm bend = " + b.requiredMm + " mm, against " + usable + " mm usable" +
+        (b.requiredMm <= usable ? " — fits." : " — short by " + (b.requiredMm - usable) + " mm."));
+      line.style.color = b.requiredMm <= usable ? "var(--ok)" : "var(--crit)";
+      host.appendChild(line);
+    }
+
+    var wrap = el("div", "scroll");
+    var t = el("table", "porttable");
+    var thead = el("thead"), hr = el("tr");
+    ["Silkscreen", "Connector", "Signal", "Ch", "Off", "Face"].forEach(function (h) { hr.appendChild(el("th", null, h)); });
+    thead.appendChild(hr); t.appendChild(thead);
+    var tb = el("tbody");
+    if (!d.ports.length) {
+      var tr0 = el("tr"), td0 = el("td", null, "No connectors — this is a panel, not a device.");
+      td0.colSpan = 6; tr0.appendChild(td0); tb.appendChild(tr0);
+    }
+    d.ports.forEach(function (p) {
+      var tr = el("tr"), first = el("td");
+      var dot = el("span", "dirdot " + (DIR_CLASS[p.direction] || "bi"));
+      dot.title = p.direction;
+      dot.style.marginRight = "5px";
+      first.appendChild(dot);
+      first.appendChild(document.createTextNode(p.label));
+      tr.appendChild(first);
+      tr.appendChild(el("td", "mono", p.connector));
+      tr.appendChild(el("td", null, p.signal));
+      tr.appendChild(el("td", "mono", p.channels == null ? "—" : String(p.channels)));
+      tr.appendChild(el("td", "mono", String(p.count)));
+      tr.appendChild(el("td", "mono", p.face));
+      tb.appendChild(tr);
+    });
+    t.appendChild(tb); wrap.appendChild(t); host.appendChild(wrap);
+
+    if (d.provenance && d.provenance.length) {
+      host.appendChild(el("div", "legend", "Where these numbers came from"));
+      d.provenance.forEach(function (pr) {
+        var c = el("div", "cite");
+        c.appendChild(el("div", "f", pr.field + "  ·  confidence " + pr.confidence.toFixed(2)));
+        c.appendChild(el("div", "q", "“" + pr.quote + "”"));
+        var s = el("div", "s");
+        var a = document.createElement("a");
+        a.href = pr.sourceUrl; a.target = "_blank"; a.rel = "noopener noreferrer";
+        try { a.textContent = new URL(pr.sourceUrl).hostname.replace(/^www\./, ""); }
+        catch (e) { a.textContent = pr.sourceUrl; }
+        s.appendChild(a);
+        if (pr.derivation) {
+          s.appendChild(document.createTextNode(" — "));
+          s.appendChild(el("b", null, pr.derivation));
+        }
+        c.appendChild(s);
+        host.appendChild(c);
+      });
+    }
+    if (d.unresolved && d.unresolved.length) {
+      host.appendChild(el("div", "legend", "Not established"));
+      var ul = el("ul");
+      ul.style.margin = "0"; ul.style.paddingLeft = "18px";
+      d.unresolved.forEach(function (u) {
+        var li = el("li", null, u);
+        li.style.fontSize = ".77rem"; li.style.color = "var(--ink-2)";
+        ul.appendChild(li);
+      });
+      host.appendChild(ul);
+    }
+  }
+
+  function render() {
+    viewFront.setAttribute("aria-pressed", String(state.view === "front"));
+    viewRear.setAttribute("aria-pressed", String(state.view === "rear"));
+    if (state.selected && !state.placements.some(function (p) { return p.uid === state.selected; })) {
+      state.selected = null;
+    }
+    var report = E.checkRack(rackSpec(), BY_ID);
+    sheetBtn.disabled = state.placements.length === 0;
+    sheetBtn.title = sheetBtn.disabled
+      ? "Put something in the rack first"
+      : "Print the full patch sheet — elevations, schedules and sources";
+    renderRack(report);
+    renderBudget(report.budget);
+    renderLedger();
+    renderFindings(report);
+    renderDetail();
+    persist();
+  }
+
+  renderPalette();
+  renderKeys();
+  render();
+
+  if (typeof ResizeObserver === "function") {
+    var raf = 0;
+    new ResizeObserver(function () {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(render);
+    }).observe(document.getElementById("rack").parentElement);
+  } else {
+    window.addEventListener("resize", render);
+  }
+})();
+</script>

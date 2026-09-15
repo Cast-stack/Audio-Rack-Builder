@@ -1,0 +1,1063 @@
+<title>Rack Feasibility Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ground:#EDECE9; --surface:#FAFAF8; --surface-2:#E2E2DD; --sunken:#D9D9D3;
+  --ink:#14171A; --ink-2:#3C4348; --ink-muted:#6C7479;
+  --rule:#D2D1CB; --rule-strong:#B2B1A9;
+  --accent:#0F7C82; --accent-soft:#D3E7E7;
+  --crit:#B3291E; --crit-soft:#F5DEDB;
+  --warn:#8A5A06; --warn-soft:#F6EBD4;
+  --ok:#1F6B45; --ok-soft:#DCEDE3;
+  --panel:#23282D; --panel-ink:#DFE3E6;
+  /* Direction, the one question you ask while patching. Three categorical
+     slots, validated all-pairs in both themes. Connector type is carried by
+     glyph shape and the silkscreen label, never by hue. */
+  --dir-in:#2a78d6; --dir-out:#eb6834; --dir-bi:#1baf7a;
+  --display:'Barlow Condensed',Haettenschweiler,'Arial Narrow',sans-serif;
+  --body:'IBM Plex Sans',system-ui,-apple-system,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#0D0F12; --surface:#15191D; --surface-2:#1D2328; --sunken:#0A0C0E;
+    --ink:#E5E8EA; --ink-2:#BAC1C6; --ink-muted:#868F95;
+    --rule:#262D33; --rule-strong:#39424A;
+    --accent:#35B3B8; --accent-soft:#12302F;
+    --crit:#E28275; --crit-soft:#3A1B17;
+    --warn:#D2A44E; --warn-soft:#332714;
+    --ok:#79B893; --ok-soft:#14301F;
+    --panel:#1A1F24; --panel-ink:#DFE3E6;
+    --dir-in:#3987e5; --dir-out:#d95926; --dir-bi:#199e70;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0D0F12; --surface:#15191D; --surface-2:#1D2328; --sunken:#0A0C0E;
+  --ink:#E5E8EA; --ink-2:#BAC1C6; --ink-muted:#868F95;
+  --rule:#262D33; --rule-strong:#39424A;
+  --accent:#35B3B8; --accent-soft:#12302F;
+  --crit:#E28275; --crit-soft:#3A1B17;
+  --warn:#D2A44E; --warn-soft:#332714;
+  --ok:#79B893; --ok-soft:#14301F;
+  --panel:#1A1F24; --panel-ink:#DFE3E6;
+  --dir-in:#3987e5; --dir-out:#d95926; --dir-bi:#199e70;
+}
+
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;margin:0;padding-inline:16px;padding-block:0;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1420px;margin:0 auto}
+h1,h2,h3{font-family:var(--display);margin:0;line-height:1.1;text-wrap:balance}
+h1{font-size:clamp(1.8rem,4vw,2.5rem);font-weight:700;text-transform:uppercase;letter-spacing:.01em}
+p{margin:0}
+.legend{font-family:var(--mono);font-size:.66rem;font-weight:500;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-muted)}
+
+header{padding-block:22px 14px;border-bottom:2px solid var(--ink);display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;justify-content:space-between}
+.lede{max-width:54ch;color:var(--ink-2);font-size:.92rem;margin-top:6px}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.ctl{display:flex;flex-direction:column;gap:3px}
+.ctl > span,.ctl > .legend{font-family:var(--mono);font-size:.62rem;text-transform:uppercase;letter-spacing:.11em;color:var(--ink-muted)}
+select,button{font-family:var(--body);font-size:.85rem;color:var(--ink);background:var(--surface);border:1px solid var(--rule-strong);padding:6px 10px;border-radius:0;cursor:pointer}
+select:focus-visible,button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button:hover{border-color:var(--accent);color:var(--accent)}
+button.ghost{background:transparent}
+button:disabled{opacity:.45;cursor:not-allowed;border-color:var(--rule);color:var(--ink-muted)}
+button:disabled:hover{border-color:var(--rule);color:var(--ink-muted)}
+.seg{display:inline-flex;border:1px solid var(--rule-strong)}
+.seg button{border:0;border-right:1px solid var(--rule-strong);padding:6px 13px;background:var(--surface)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+.seg button[aria-pressed="true"]:hover{color:#fff}
+
+/* catalog | rack (key below) | budget, ledger, findings */
+.cols{display:grid;grid-template-columns:250px minmax(340px,1fr) minmax(300px,360px);gap:18px;align-items:start;padding-block:18px 40px}
+.col{display:flex;flex-direction:column;gap:18px;min-width:0}
+@media (max-width:1180px){
+  .cols{grid-template-columns:230px minmax(320px,1fr)}
+  .col-side{grid-column:1 / -1;flex-direction:row;flex-wrap:wrap}
+  .col-side > *{flex:1 1 280px}
+}
+@media (max-width:840px){
+  .cols{grid-template-columns:1fr}
+  .col-rack{order:1}.col-side{order:2;flex-direction:column}.col-catalog{order:3}
+}
+
+.card{background:var(--surface);border:1px solid var(--rule)}
+.card > h3{font-size:1.02rem;text-transform:uppercase;letter-spacing:.03em;padding:9px 12px;border-bottom:1px solid var(--rule);background:var(--surface-2);display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.card > h3 em{font-style:normal;font-family:var(--mono);font-size:.62rem;letter-spacing:.08em;color:var(--ink-muted);text-transform:none}
+.card-body{padding:11px 12px;display:flex;flex-direction:column;gap:9px}
+
+.catsearch{width:100%;font-family:var(--body);font-size:.84rem;padding:6px 8px;border:1px solid var(--rule-strong);background:var(--surface-2);color:var(--ink)}
+.pal-group{display:flex;flex-direction:column;gap:5px}
+.pal-item{display:flex;align-items:center;gap:8px;border:1px solid var(--rule);background:var(--surface-2);padding:6px 8px;cursor:grab;font-size:.82rem}
+.pal-item:active{cursor:grabbing}
+.pal-item:hover{border-color:var(--accent)}
+.pal-item .nm{flex:1;min-width:0;line-height:1.25}
+.pal-item .nm b{display:block;font-weight:600}
+.pal-item .nm em{font-style:normal;font-family:var(--mono);font-size:.67rem;color:var(--ink-muted)}
+.tag{display:inline-block;font-family:var(--mono);font-size:.58rem;font-weight:600;letter-spacing:.07em;text-transform:uppercase;padding:1px 4px;border:1px solid currentColor;margin-left:5px}
+.tag.half{color:var(--accent)}
+.tag.disc{color:var(--warn)}
+.pal-item .add{flex:none;border:1px solid var(--rule-strong);background:var(--surface);width:24px;height:24px;line-height:1;padding:0;font-family:var(--mono);font-size:.9rem}
+
+.rack-shell{background:var(--panel);border:1px solid var(--rule-strong);padding:10px;
+  --pf-face:#2C3239;--pf-ear:#22272C;--pf-edge:#171B1F;--pf-hole:#0E1114;
+  --pf-pin:#8A949B;--pf-silk:#C8D0D6;--pf-knob:#454D55;--pf-btn:#3A424A;
+  --pf-lcd:#0B1E1C;--pf-lcd-ink:#3FE0B0;--pf-led-on:#39D98A;--pf-led-dim:#1B4C34;--pf-led-off:#2A3138}
+.case{background:linear-gradient(180deg,#20252A,#171B1F);border:1px solid #3A424A;padding:0 13px;position:relative}
+.case-rail{height:24px;background:repeating-linear-gradient(90deg,#3A424A 0 5px,#1B2025 5px 15px);margin-inline:-13px;position:relative}
+.case-rail::before,.case-rail::after{content:"";position:absolute;top:3px;width:50px;height:18px;border:2px solid #4C555E;border-radius:3px;background:#242A30}
+.case-rail::before{left:16%}.case-rail::after{right:16%}
+.case-inner{background:#0B0D10;border:1px solid #3A424A;padding:7px;margin-block:9px}
+.casters{display:flex;justify-content:space-between;padding:0 32px;margin-top:-2px}
+.caster{width:24px;height:24px;border:3px solid #4C555E;border-radius:50%;background:#1B2025}
+.caster::before{content:"";display:block;width:8px;height:9px;margin:-8px auto 0;background:#4C555E}
+
+.rack{display:grid;grid-template-columns:1fr 1fr;gap:2px;position:relative}
+svg.panel{display:block;width:100%;height:100%}
+svg.panel text{font-family:var(--mono);fill:var(--pf-silk)}
+svg.panel .silk-brand{font-size:44px;font-weight:600;letter-spacing:3px}
+svg.panel .silk-model{font-size:34px;opacity:.72}
+svg.panel .silk-sm{font-size:26px;opacity:.68;letter-spacing:.5px}
+
+.slot{background:rgba(255,255,255,.035);border:1px dashed rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center;min-width:0}
+.slot.over{background:var(--accent-soft);border-color:var(--accent);border-style:solid}
+.slot .u{font-family:var(--mono);font-size:.6rem;color:rgba(255,255,255,.3);letter-spacing:.05em}
+.unit{position:relative;overflow:hidden;cursor:grab;min-width:0;display:block;background:transparent;border:0;padding:0}
+.unit:active{cursor:grabbing}
+.unit::before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:transparent;z-index:2}
+.unit.err::before{background:var(--crit)}
+.unit.warn::before{background:var(--warn)}
+.unit.info::before{background:var(--accent)}
+.unit.err{outline:2px solid var(--crit);outline-offset:-2px}
+.unit.warn{outline:2px solid var(--warn);outline-offset:-2px}
+.unit.sel{outline:2px solid var(--accent);outline-offset:-2px}
+.unit .ctl{position:absolute;top:2px;right:3px;display:flex;gap:3px;align-items:center;opacity:0;transition:opacity .12s;background:rgba(8,10,12,.85);padding:2px 3px;border:1px solid #4C555E;z-index:3}
+.unit:hover .ctl,.unit:focus-within .ctl,.unit.sel .ctl{opacity:1}
+@media (hover:none){.unit .ctl{opacity:1}}
+.unit .ctl .u{font-family:var(--mono);font-size:.6rem;color:rgba(255,255,255,.55)}
+.unit select{background:#1B2025;border:1px solid #454D55;color:var(--panel-ink);font-family:var(--mono);font-size:.66rem;padding:1px 3px}
+.unit .rm{background:transparent;border:1px solid #4A525A;color:rgba(255,255,255,.6);width:20px;height:20px;padding:0;line-height:1;font-family:var(--mono)}
+.unit .rm:hover{border-color:var(--crit);color:var(--crit)}
+.rack-meta{display:flex;flex-wrap:wrap;gap:4px 15px;font-family:var(--mono);font-size:.65rem;color:rgba(255,255,255,.45);padding-top:6px;border-top:1px solid rgba(255,255,255,.1);margin-top:7px}
+
+.ports{display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-width:0}
+.chip{display:inline-flex;align-items:center;gap:4px;border:1px solid currentColor;padding:1px 4px 1px 2px;line-height:1;background:var(--surface-2)}
+.chip.in{color:var(--dir-in)} .chip.out{color:var(--dir-out)} .chip.bi{color:var(--dir-bi)}
+.chip svg{display:block;width:14px;height:14px;flex:none}
+.chip .cl{font-family:var(--mono);font-size:.6rem;color:var(--ink);white-space:nowrap}
+.chip .ct{font-family:var(--mono);font-size:.56rem;color:var(--ink-muted)}
+.noports{font-family:var(--mono);font-size:.66rem;color:var(--ink-muted)}
+.keyrow{display:flex;flex-wrap:wrap;gap:9px 16px;align-items:center}
+.keyrow .k{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:.63rem;color:var(--ink-2)}
+.keyrow .k svg{width:14px;height:14px}
+.dirdot{display:inline-block;width:8px;height:8px;border:1.5px solid currentColor}
+.dirdot.in{color:var(--dir-in);border-radius:50%}
+.dirdot.out{color:var(--dir-out)}
+.dirdot.bi{color:var(--dir-bi);transform:rotate(45deg)}
+
+.panelview{background:#0B0D10;border:1px solid #171B1F;padding:8px 9px;display:flex;flex-direction:column;gap:6px;
+  --pf-face:#2C3239;--pf-ear:#22272C;--pf-edge:#171B1F;--pf-hole:#0E1114;
+  --pf-pin:#8A949B;--pf-silk:#C8D0D6;--pf-knob:#454D55;--pf-btn:#3A424A;
+  --pf-lcd:#0B1E1C;--pf-lcd-ink:#3FE0B0;--pf-led-on:#39D98A;--pf-led-dim:#1B4C34;--pf-led-off:#2A3138}
+.panelview .pv-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.panelview .pv-head b{font-family:var(--display);font-size:.92rem;text-transform:uppercase;letter-spacing:.05em;color:var(--panel-ink)}
+.panelview .pv-head span{font-family:var(--mono);font-size:.59rem;color:rgba(255,255,255,.4)}
+.panelart svg{width:100%;height:auto}
+.dtl-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.dtl-head .who b{font-family:var(--display);font-size:1.2rem;text-transform:uppercase;letter-spacing:.03em;display:block}
+.dtl-head .who span{font-family:var(--mono);font-size:.64rem;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.09em}
+.porttable{width:100%;border-collapse:collapse;font-size:.76rem}
+.porttable th,.porttable td{text-align:left;padding:4px 7px;border-bottom:1px solid var(--rule);white-space:nowrap}
+.porttable th{font-family:var(--mono);font-size:.58rem;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-muted);font-weight:500}
+.porttable td.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.porttable tbody tr:last-child td{border-bottom:0}
+.cite{border-left:3px solid var(--accent);padding:5px 0 5px 9px;display:flex;flex-direction:column;gap:2px}
+.cite .f{font-family:var(--mono);font-size:.63rem;font-weight:600;color:var(--accent)}
+.cite .q{font-size:.76rem;color:var(--ink-2);line-height:1.4}
+.cite .s{font-family:var(--mono);font-size:.61rem;color:var(--ink-muted);overflow-wrap:anywhere}
+.cite .s b{font-weight:600;color:var(--ink-2)}
+.depthline{font-family:var(--mono);font-size:.72rem;line-height:1.45}
+
+.stat{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:.84rem;padding-block:3px;border-bottom:1px solid var(--rule)}
+.stat:last-of-type{border-bottom:0}
+.stat .k{color:var(--ink-muted)}
+.stat .v{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:500}
+.bar{height:8px;background:var(--surface-2);border:1px solid var(--rule);position:relative;overflow:hidden}
+.bar i{position:absolute;inset:0 auto 0 0;background:var(--accent);display:block}
+.bar i.hot{background:var(--crit)} .bar i.warm{background:var(--warn)}
+.bar u{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--ink);opacity:.55}
+.circ{display:flex;flex-direction:column;gap:4px;padding-block:7px;border-bottom:1px solid var(--rule)}
+.circ:last-child{border-bottom:0}
+.circ .row{display:flex;justify-content:space-between;gap:10px;font-size:.79rem}
+.circ .row .k{font-family:var(--mono);font-weight:600}
+.circ .row .v{font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--ink-2)}
+.circ .note{font-family:var(--mono);font-size:.64rem;color:var(--ink-muted)}
+
+.scroll{overflow-x:auto}
+.ledger{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:.69rem}
+.ledger th,.ledger td{padding:4px 5px;text-align:right;border-bottom:1px solid var(--rule);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ledger th{font-size:.58rem;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-muted);font-weight:500}
+.ledger td:first-child,.ledger th:first-child{text-align:left}
+.ledger tbody tr:last-child td{border-bottom:0}
+.ledger .bad{color:var(--crit);font-weight:600}
+.ledger .good{color:var(--ok)}
+.finding{border:1px solid var(--rule);border-left-width:4px;padding:8px 10px;display:flex;flex-direction:column;gap:3px;background:var(--surface-2)}
+.finding.error{border-left-color:var(--crit);background:var(--crit-soft)}
+.finding.warning{border-left-color:var(--warn);background:var(--warn-soft)}
+.finding.info{border-left-color:var(--accent)}
+.finding .hd{display:flex;gap:8px;align-items:baseline}
+.finding .sev{font-family:var(--mono);font-size:.58rem;font-weight:600;text-transform:uppercase;letter-spacing:.1em;flex:none}
+.finding.error .sev{color:var(--crit)} .finding.warning .sev{color:var(--warn)} .finding.info .sev{color:var(--accent)}
+.finding .ti{font-weight:600;font-size:.85rem;line-height:1.3}
+.finding .de{font-size:.79rem;color:var(--ink-2);line-height:1.45}
+.clean{display:flex;flex-direction:column;gap:4px;padding:13px 11px;border:1px solid var(--ok);background:var(--ok-soft);color:var(--ok)}
+.clean b{font-family:var(--display);font-size:1.1rem;text-transform:uppercase;letter-spacing:.03em}
+.clean span{color:var(--ink-2);font-size:.8rem}
+.tally{display:flex;gap:6px;flex-wrap:wrap}
+.pill{font-family:var(--mono);font-size:.62rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;padding:3px 7px;border:1px solid currentColor}
+.pill.e{color:var(--crit)} .pill.w{color:var(--warn)} .pill.i{color:var(--accent)} .pill.o{color:var(--ok)}
+
+footer{padding-block:18px 42px;border-top:1px solid var(--rule);font-family:var(--mono);font-size:.67rem;color:var(--ink-muted);display:flex;flex-wrap:wrap;gap:5px 20px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="wrap">
+
+<header>
+  <div>
+    <div class="legend">Audio Rack Builder · live engine</div>
+    <h1>Rack feasibility planner</h1>
+    <p class="lede">Drag gear into the rack. Half-rack units drop into either side of a U. Every change re-runs the checker — depth with the connectors counted, circuit load against the 80% derate plus inrush, weight, heat.</p>
+  </div>
+  <div class="controls">
+    <label class="ctl"><span>Case</span><select id="caseSel"></select></label>
+    <label class="ctl"><span>Load</span><select id="presetSel"></select></label>
+    <div class="ctl">
+      <span class="legend">View</span>
+      <div class="seg" role="group" aria-label="Rack face">
+        <button id="viewFront" type="button" aria-pressed="true">Front</button>
+        <button id="viewRear" type="button" aria-pressed="false">Rear</button>
+      </div>
+    </div>
+    <button id="sheetBtn" type="button">Patch sheet</button>
+    <button id="clearBtn" class="ghost" type="button">Empty</button>
+  </div>
+</header>
+
+<div class="cols">
+
+  <div class="col col-catalog">
+    <section class="card" aria-label="Gear catalog">
+      <h3>Catalog <em id="catCount"></em></h3>
+      <div class="card-body">
+        <input id="catSearch" class="catsearch" type="search" placeholder="Filter — model, brand, category" aria-label="Filter the catalog">
+        <div id="palette" style="display:flex;flex-direction:column;gap:9px"></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="col col-rack">
+    <section aria-label="Rack elevation">
+      <div class="rack-shell">
+        <div class="case">
+          <div class="case-rail" aria-hidden="true"></div>
+          <div class="case-inner"><div class="rack" id="rack"></div></div>
+          <div class="case-rail" aria-hidden="true"></div>
+        </div>
+        <div class="casters" aria-hidden="true"><span class="caster"></span><span class="caster"></span></div>
+        <div class="rack-meta" id="rackMeta"></div>
+      </div>
+    </section>
+
+    <section class="card" id="detailCard" aria-label="Device detail" hidden>
+      <h3>Device</h3>
+      <div class="card-body" id="detail"></div>
+    </section>
+
+    <section class="card" aria-label="Key">
+      <h3>Key</h3>
+      <div class="card-body">
+        <div class="keyrow" id="dirKey"></div>
+        <div class="keyrow" id="shapeKey"></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="col col-side">
+    <section class="card" aria-label="Findings">
+      <h3>Findings</h3>
+      <div class="card-body">
+        <div class="tally" id="tally"></div>
+        <div id="findings" style="display:flex;flex-direction:column;gap:8px"></div>
+      </div>
+    </section>
+
+    <section class="card" aria-label="Budget">
+      <h3>Budget</h3>
+      <div class="card-body" id="budget"></div>
+    </section>
+
+    <section class="card" aria-label="Depth ledger">
+      <h3>Depth ledger <em>chassis + connector + bend</em></h3>
+      <div class="card-body"><div class="scroll"><table class="ledger" id="ledger"></table></div></div>
+    </section>
+  </div>
+</div>
+
+<footer>
+  <span>Running the repo's own engine — same code as <b>src/lib/rack</b></span>
+  <span>20/20 assertions green</span>
+  <span>Layout saved in this browser only</span>
+</footer>
+
+</div>
+
+<script>
+__ENGINE__
+</script>
+<script>
+__PANELS__
+</script>
+<script>
+(function () {
+  "use strict";
+  var E = RACK;
+  // The panel renderer used to be a second inline script; it ships inside the
+  // bundle now so the planner and the printed sheet draw from one copy.
+  var PANEL = E.PANEL;
+  var DEVICES = E.SEED_DEVICES;
+  var BY_ID = new Map(DEVICES.map(function (d) { return [d.id, d]; }));
+  var CASES = E.SEED_CASES;
+  var PRESETS = E.DEMO_RACKS;
+  var STORE = "arb.planner.v2";
+  var uidSeq = 0;
+
+  function uid() { return "p" + (++uidSeq); }
+
+  function fromPreset(i) {
+    var preset = PRESETS[i];
+    return {
+      caseSlug: preset.case.slug,
+      view: "front",
+      selected: null,
+      filter: "",
+      circuits: preset.circuits.map(function (c) { return { label: c.label, volts: c.volts, amps: c.amps }; }),
+      placements: preset.placements.map(function (p) {
+        return { uid: uid(), deviceId: p.deviceId, position: p.position, slot: p.slot || "full", circuit: p.circuit };
+      })
+    };
+  }
+
+  var state = fromPreset(2);
+  try {
+    var saved = JSON.parse(localStorage.getItem(STORE) || "null");
+    if (saved && Array.isArray(saved.placements) && CASES.some(function (c) { return c.slug === saved.caseSlug; })) {
+      saved.placements.forEach(function (p) { if (!p.uid) p.uid = uid(); });
+      saved.filter = saved.filter || "";
+      state = saved;
+    }
+  } catch (e) { /* blocked storage — the planner still works */ }
+  function persist() { try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) {} }
+
+  // -------------------------------------------------------------- helpers
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+  function fmt(v, suffix) {
+    if (v == null) return "—";
+    return (Math.round(v * 10) / 10) + (suffix || "");
+  }
+  function currentCase() {
+    return CASES.filter(function (c) { return c.slug === state.caseSlug; })[0] || CASES[0];
+  }
+  function rackSpec() {
+    return {
+      name: "Planner",
+      case: currentCase(),
+      circuits: state.circuits,
+      placements: state.placements.map(function (p) {
+        return { deviceId: p.deviceId, position: p.position, slot: p.slot, circuit: p.circuit };
+      })
+    };
+  }
+  function halvesOf(device, slot) {
+    return E.isHalfWidth(device) ? [slot === "right" ? "right" : "left"] : ["left", "right"];
+  }
+  /** Cells a placement occupies, as "U|half". */
+  function cellsOf(p) {
+    var d = BY_ID.get(p.deviceId);
+    if (!d) return [];
+    var n = E.occupiedUnits(d), out = [];
+    var halves = halvesOf(d, p.slot);
+    for (var i = 0; i < n; i++) {
+      for (var j = 0; j < halves.length; j++) out.push((p.position + i) + "|" + halves[j]);
+    }
+    return out;
+  }
+  function occupancy(ignoreUid) {
+    var taken = {};
+    state.placements.forEach(function (p) {
+      if (ignoreUid && p.uid === ignoreUid) return;
+      cellsOf(p).forEach(function (c) { taken[c] = true; });
+    });
+    return taken;
+  }
+  function fits(device, position, half, ignoreUid) {
+    var total = currentCase().rackUnits;
+    var n = E.occupiedUnits(device);
+    if (position < 1 || position + n - 1 > total) return false;
+    var taken = occupancy(ignoreUid);
+    var halves = E.isHalfWidth(device) ? [half || "left"] : ["left", "right"];
+    for (var i = 0; i < n; i++) {
+      for (var j = 0; j < halves.length; j++) {
+        if (taken[(position + i) + "|" + halves[j]]) return false;
+      }
+    }
+    return true;
+  }
+  function firstFree(device) {
+    var total = currentCase().rackUnits;
+    var halves = E.isHalfWidth(device) ? ["left", "right"] : ["left"];
+    for (var u = 1; u <= total; u++) {
+      for (var k = 0; k < halves.length; k++) {
+        if (fits(device, u, halves[k], null)) return { position: u, half: halves[k] };
+      }
+    }
+    return null;
+  }
+  /**
+   * Rear view is a mirror: the unit on the rack's left is on your right when
+   * you walk around the back. Column 1 on screen is therefore the RIGHT half
+   * of the rack whenever the rear face is showing.
+   */
+  function columnFor(half) {
+    if (state.view === "rear") return half === "left" ? 2 : 1;
+    return half === "left" ? 1 : 2;
+  }
+  function halfForColumn(col) {
+    if (state.view === "rear") return col === 1 ? "right" : "left";
+    return col === 1 ? "left" : "right";
+  }
+
+  // --------------------------------------------------------------- glyphs
+  var SHAPES = {
+    xlr:    '<circle cx="10" cy="10" r="8"/><circle cx="7" cy="8.5" r="1.3" fill="currentColor"/><circle cx="13" cy="8.5" r="1.3" fill="currentColor"/><circle cx="10" cy="13" r="1.3" fill="currentColor"/>',
+    combo:  '<circle cx="10" cy="10" r="8"/><rect x="6.5" y="6.5" width="7" height="7"/>',
+    jack:   '<circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="2.6" fill="currentColor"/>',
+    dsub:   '<path d="M3 7h14l-1.6 6H4.6z"/><circle cx="7" cy="10" r="1" fill="currentColor"/><circle cx="10" cy="10" r="1" fill="currentColor"/><circle cx="13" cy="10" r="1" fill="currentColor"/>',
+    bnc:    '<circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="1.6" fill="currentColor"/><path d="M3.6 7.4 L5.6 6M16.4 7.4 L14.4 6"/>',
+    rj:     '<path d="M4 5.5h12v7.5H4z"/><path d="M8 13v2.5h4V13"/>',
+    iec:    '<rect x="3.5" y="6" width="13" height="8" rx="2.5"/><circle cx="7" cy="10" r="1.1" fill="currentColor"/><circle cx="10" cy="10" r="1.1" fill="currentColor"/><circle cx="13" cy="10" r="1.1" fill="currentColor"/>',
+    outlet: '<rect x="4" y="3.5" width="12" height="13" rx="6"/><rect x="7" y="6" width="1.6" height="3.4" fill="currentColor"/><rect x="11.4" y="6" width="1.6" height="3.4" fill="currentColor"/><circle cx="10" cy="12.6" r="1.1" fill="currentColor"/>',
+    twist:  '<circle cx="10" cy="10" r="7.4"/><path d="M10 4.5a5.5 5.5 0 1 1-5.5 5.5"/>',
+    usb:    '<rect x="4" y="7" width="12" height="6"/><rect x="6.5" y="9" width="7" height="2" fill="currentColor"/>',
+    usbc:   '<rect x="3.5" y="7.5" width="13" height="5" rx="2.5"/>',
+    hdmi:   '<path d="M4 7.5h12v3.5l-2 1.5H6l-2-1.5z"/>',
+    din:    '<circle cx="10" cy="10" r="7.5"/><path d="M4.5 13a7.5 7.5 0 0 1 11 0"/><circle cx="6.4" cy="9.6" r=".9" fill="currentColor"/><circle cx="10" cy="8.4" r=".9" fill="currentColor"/><circle cx="13.6" cy="9.6" r=".9" fill="currentColor"/>',
+    speakon:'<circle cx="10" cy="10" r="7.5"/><path d="M6.5 13.5 A5 5 0 0 1 13.5 6.5"/>',
+    block:  '<rect x="3.5" y="6.5" width="13" height="7"/><path d="M7 6.5v7M13 6.5v7"/>',
+    sfp:    '<rect x="3.5" y="6.5" width="13" height="7"/><path d="M6 6.5v7"/>'
+  };
+  var DIR_CLASS = { input: "in", output: "out", bidirectional: "bi" };
+  function glyphSvg(connector) {
+    var key = PANEL.shapeFor(connector);
+    if (!SHAPES[key]) key = "block";
+    return '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" aria-hidden="true">' + SHAPES[key] + "</svg>";
+  }
+  function chip(port) {
+    var node = el("span", "chip " + (DIR_CLASS[port.direction] || "bi"));
+    node.innerHTML = glyphSvg(port.connector);
+    node.appendChild(el("span", "cl", port.label));
+    var tail = [];
+    if (port.count > 1) tail.push("×" + port.count);
+    if (port.channels) tail.push(port.channels + "ch");
+    if (tail.length) node.appendChild(el("span", "ct", tail.join(" ")));
+    node.title = port.label + " — " + port.connector + ", " + port.direction + ", " + port.signal;
+    return node;
+  }
+
+  // ------------------------------------------------------------- controls
+  var caseSel = document.getElementById("caseSel");
+  CASES.forEach(function (c) {
+    var o = el("option", null, c.name + "  ·  " + c.usableDepthMm + " mm usable");
+    o.value = c.slug;
+    caseSel.appendChild(o);
+  });
+  caseSel.value = state.caseSlug;
+  caseSel.addEventListener("change", function () {
+    state.caseSlug = caseSel.value;
+    var total = currentCase().rackUnits;
+    state.placements = state.placements.filter(function (p) {
+      var d = BY_ID.get(p.deviceId);
+      return d && p.position + E.occupiedUnits(d) - 1 <= total;
+    });
+    render();
+  });
+
+  var presetSel = document.getElementById("presetSel");
+  presetSel.appendChild(el("option", null, "—"));
+  PRESETS.forEach(function (r, i) {
+    var o = el("option", null, r.name);
+    o.value = String(i);
+    presetSel.appendChild(o);
+  });
+  presetSel.addEventListener("change", function () {
+    var i = Number(presetSel.value);
+    if (!PRESETS[i]) return;
+    var view = state.view, filter = state.filter;
+    state = fromPreset(i);
+    state.view = view;
+    state.filter = filter;
+    caseSel.value = state.caseSlug;
+    presetSel.value = "—";
+    render();
+  });
+
+  // The patch sheet is rendered by the same module the server export uses, so
+  // what prints here and what the API returns are the same document.
+  var sheetBtn = document.getElementById("sheetBtn");
+  sheetBtn.addEventListener("click", function () {
+    E.printPatchSheet(rackSpec(), BY_ID);
+  });
+
+  document.getElementById("clearBtn").addEventListener("click", function () {
+    state.placements = [];
+    state.selected = null;
+    render();
+  });
+
+  var viewFront = document.getElementById("viewFront");
+  var viewRear = document.getElementById("viewRear");
+  viewFront.addEventListener("click", function () { state.view = "front"; render(); });
+  viewRear.addEventListener("click", function () { state.view = "rear"; render(); });
+
+  var catSearch = document.getElementById("catSearch");
+  catSearch.value = state.filter;
+  catSearch.addEventListener("input", function () {
+    state.filter = catSearch.value;
+    renderPalette();
+    persist();
+  });
+
+  // --------------------------------------------------------------- catalog
+  function renderPalette() {
+    var host = document.getElementById("palette");
+    host.textContent = "";
+    var q = state.filter.trim().toLowerCase();
+    var list = DEVICES.filter(function (d) {
+      if (!q) return true;
+      return (d.brand + " " + d.model + " " + d.category).toLowerCase().indexOf(q) >= 0;
+    });
+    document.getElementById("catCount").textContent =
+      list.length + (list.length === DEVICES.length ? " devices" : " of " + DEVICES.length);
+
+    var groups = new Map();
+    list.forEach(function (d) {
+      if (!groups.has(d.category)) groups.set(d.category, []);
+      groups.get(d.category).push(d);
+    });
+    if (!groups.size) {
+      host.appendChild(el("p", "noports", "Nothing matches “" + state.filter + "”."));
+      return;
+    }
+    groups.forEach(function (items, category) {
+      var g = el("div", "pal-group");
+      g.appendChild(el("div", "legend", category));
+      items.forEach(function (d) {
+        var item = el("div", "pal-item");
+        item.draggable = true;
+        item.addEventListener("dragstart", function (ev) {
+          ev.dataTransfer.setData("text/plain", JSON.stringify({ kind: "new", deviceId: d.id }));
+          ev.dataTransfer.effectAllowed = "copy";
+        });
+
+        var nm = el("div", "nm");
+        var b = el("b", null, d.brand + " " + d.model);
+        if (E.isHalfWidth(d)) b.appendChild(el("span", "tag half", "½ rack"));
+        if (d.status === "discontinued") b.appendChild(el("span", "tag disc", "disc"));
+        nm.appendChild(b);
+        var req = E.requiredDepth(d).requiredMm;
+        nm.appendChild(el("em", null,
+          E.occupiedUnits(d) + "U · " + (req == null ? "?" : req + " mm") + " · " + fmt(d.weightLb, " lb")));
+        item.appendChild(nm);
+
+        var add = el("button", "add", "+");
+        add.type = "button";
+        add.title = "Place in the first free slot";
+        add.setAttribute("aria-label", "Place " + d.brand + " " + d.model);
+        add.addEventListener("click", function () {
+          var spot = firstFree(d);
+          if (!spot) { add.textContent = "✕"; setTimeout(function () { add.textContent = "+"; }, 900); return; }
+          state.placements.push({
+            uid: uid(), deviceId: d.id, position: spot.position,
+            slot: E.isHalfWidth(d) ? spot.half : "full",
+            circuit: state.circuits.length ? state.circuits[0].label : null
+          });
+          render();
+        });
+        item.appendChild(add);
+        g.appendChild(item);
+      });
+      host.appendChild(g);
+    });
+  }
+
+  // ------------------------------------------------------------------ rack
+  function wireDrop(node, position, half) {
+    node.addEventListener("dragover", function (ev) { ev.preventDefault(); node.classList.add("over"); });
+    node.addEventListener("dragleave", function () { node.classList.remove("over"); });
+    node.addEventListener("drop", function (ev) {
+      ev.preventDefault();
+      node.classList.remove("over");
+      var payload;
+      try { payload = JSON.parse(ev.dataTransfer.getData("text/plain")); } catch (e) { return; }
+
+      if (payload.kind === "move") {
+        var existing = state.placements.filter(function (x) { return x.uid === payload.uid; })[0];
+        if (!existing) return;
+        var dev = BY_ID.get(existing.deviceId);
+        if (!dev || !fits(dev, position, half, existing.uid)) return;
+        existing.position = position;
+        existing.slot = E.isHalfWidth(dev) ? half : "full";
+      } else {
+        var d = BY_ID.get(payload.deviceId);
+        if (!d || !fits(d, position, half, null)) return;
+        state.placements.push({
+          uid: uid(), deviceId: d.id, position: position,
+          slot: E.isHalfWidth(d) ? half : "full",
+          circuit: state.circuits.length ? state.circuits[0].label : null
+        });
+      }
+      render();
+    });
+  }
+
+  function renderRack(report) {
+    var host = document.getElementById("rack");
+    host.textContent = "";
+    var rackCase = currentCase();
+    var total = rackCase.rackUnits;
+
+    // A rack unit is 1.75 in against a 19 in panel, so the row height follows
+    // the container width or the drawings come out squashed.
+    var avail = host.clientWidth || host.parentElement.clientWidth || 620;
+    var uH = Math.max(24, Math.round((avail * PANEL.U) / PANEL.W));
+    host.style.gridTemplateRows = "repeat(" + total + ", " + uH + "px)";
+
+    var sev = new Map();
+    report.results.forEach(function (r) {
+      var rank = { error: 3, warning: 2, info: 1 }[r.severity] || 0;
+      (r.deviceIds || []).forEach(function (id) {
+        if ((sev.get(id) || 0) < rank) sev.set(id, rank);
+      });
+    });
+    var SEV_CLASS = { 3: "err", 2: "warn", 1: "info" };
+
+    var filled = {};
+    state.placements.forEach(function (p) {
+      var d = BY_ID.get(p.deviceId);
+      if (!d) return;
+      var units = E.occupiedUnits(d);
+      var topRow = total - (p.position + units - 1) + 1;
+      if (topRow < 1) return;
+
+      var half = E.isHalfWidth(d) ? (p.slot === "right" ? "right" : "left") : null;
+      var node = el("div", "unit" + (sev.has(d.id) ? " " + SEV_CLASS[sev.get(d.id)] : "") +
+        (state.selected === p.uid ? " sel" : ""));
+      node.style.gridRow = topRow + " / span " + units;
+      node.style.gridColumn = half ? String(columnFor(half)) : "1 / span 2";
+      node.draggable = true;
+      node.tabIndex = 0;
+      node.innerHTML = PANEL.draw(d, state.view, units, { half: half });
+      node.title = d.brand + " " + d.model + " — U" + p.position +
+        (half ? " (" + half + " half)" : "") + (state.view === "rear" ? ", rear" : ", front");
+
+      node.addEventListener("dragstart", function (ev) {
+        ev.dataTransfer.setData("text/plain", JSON.stringify({ kind: "move", uid: p.uid }));
+        ev.dataTransfer.effectAllowed = "move";
+      });
+      node.addEventListener("click", function (ev) {
+        if (ev.target.closest("select,button")) return;
+        state.selected = state.selected === p.uid ? null : p.uid;
+        render();
+      });
+      node.addEventListener("keydown", function (ev) {
+        if (ev.key === "Enter" || ev.key === " ") {
+          ev.preventDefault();
+          state.selected = state.selected === p.uid ? null : p.uid;
+          render();
+        }
+      });
+
+      var ctl = el("span", "ctl");
+      ctl.appendChild(el("span", "u", "U" + p.position + (half ? (half === "left" ? " L" : " R") : "")));
+      if (!d.passive && !d.poePowered && state.circuits.length) {
+        var sel = el("select");
+        sel.setAttribute("aria-label", "Circuit for " + d.model);
+        var none = el("option", null, "—"); none.value = "";
+        sel.appendChild(none);
+        state.circuits.forEach(function (c) {
+          var o = el("option", null, c.label); o.value = c.label; sel.appendChild(o);
+        });
+        sel.value = p.circuit || "";
+        sel.addEventListener("change", function () { p.circuit = sel.value || null; render(); });
+        ctl.appendChild(sel);
+      }
+      var rm = el("button", "rm", "×");
+      rm.type = "button";
+      rm.setAttribute("aria-label", "Remove " + d.model);
+      rm.addEventListener("click", function () {
+        state.placements = state.placements.filter(function (x) { return x.uid !== p.uid; });
+        if (state.selected === p.uid) state.selected = null;
+        render();
+      });
+      ctl.appendChild(rm);
+      node.appendChild(ctl);
+
+      host.appendChild(node);
+      cellsOf(p).forEach(function (c) { filled[c] = true; });
+    });
+
+    // Every empty half is a drop target.
+    for (var u = total; u >= 1; u--) {
+      for (var col = 1; col <= 2; col++) {
+        var half = halfForColumn(col);
+        if (filled[u + "|" + half]) continue;
+        var slot = el("div", "slot");
+        slot.style.gridRow = (total - u + 1) + " / span 1";
+        slot.style.gridColumn = String(col);
+        slot.appendChild(el("span", "u", "U" + u + (half === "left" ? " L" : " R")));
+        wireDrop(slot, u, half);
+        host.appendChild(slot);
+      }
+    }
+
+    var meta = document.getElementById("rackMeta");
+    meta.textContent = "";
+    meta.appendChild(el("span", null, rackCase.name));
+    meta.appendChild(el("span", null, rackCase.usableDepthMm + " mm usable"));
+    meta.appendChild(el("span", null, rackCase.hasRearRails ? "front + rear rails" : "front rails only"));
+    meta.appendChild(el("span", null, state.view === "rear" ? "rear view — left/right mirrored" : "front view"));
+    meta.appendChild(el("span", null, state.circuits.map(function (c) { return c.label + ": " + c.amps + "A"; }).join("  ")));
+  }
+
+  // ---------------------------------------------------------------- budget
+  function renderBudget(budget) {
+    var host = document.getElementById("budget");
+    host.textContent = "";
+    function stat(k, v) {
+      var row = el("div", "stat");
+      row.appendChild(el("span", "k", k));
+      row.appendChild(el("span", "v", v));
+      host.appendChild(row);
+    }
+    stat("Space", budget.unitsUsed + " / " + budget.unitsTotal + "U used");
+    stat("Weight", fmt(budget.weightLb, " lb") +
+      (budget.grossWeightLb != null ? "  (" + fmt(budget.grossWeightLb, " lb") + " with case)" : ""));
+    stat("Deepest unit", budget.maxRequiredDepthMm == null ? "—" :
+      budget.maxRequiredDepthMm + " / " + budget.usableDepthMm + " mm");
+    stat("Draw", fmt(budget.totalTypicalW, " W") + " typical");
+    stat("Heat", fmt(budget.heatWPerRu, " W/U") + (budget.hasForcedAir ? "  · fan" : ""));
+
+    if (budget.cogFraction != null) {
+      var row = el("div", "stat");
+      row.appendChild(el("span", "k", "Centre of gravity"));
+      row.appendChild(el("span", "v", Math.round(budget.cogFraction * 100) + "% of height"));
+      host.appendChild(row);
+      var bar = el("div", "bar");
+      var i = el("i");
+      i.style.width = Math.min(100, budget.cogFraction * 100) + "%";
+      if (budget.cogFraction > 0.55) i.className = "warm";
+      bar.appendChild(i);
+      var mark = el("u");
+      mark.style.left = "55%";
+      mark.title = "55% — above this a case on casters wants to tip on a ramp";
+      bar.appendChild(mark);
+      host.appendChild(bar);
+    }
+
+    if (budget.circuits.length) {
+      host.appendChild(el("div", "legend", "Circuits"));
+      budget.circuits.forEach(function (load) {
+        var box = el("div", "circ");
+        var row2 = el("div", "row");
+        row2.appendChild(el("span", "k", load.circuit.label + "  " + load.circuit.amps + "A / " + load.circuit.volts + "V"));
+        row2.appendChild(el("span", "v", fmt(load.typicalW, " W") + " / " + fmt(load.capacityW, " W")));
+        box.appendChild(row2);
+        var bar2 = el("div", "bar");
+        var fill = el("i");
+        fill.style.width = Math.min(100, load.peakCapacityW > 0 ? (load.typicalW / load.peakCapacityW) * 100 : 0) + "%";
+        if (load.typicalW > load.capacityW) fill.className = "hot";
+        else if (load.utilization > 0.85) fill.className = "warm";
+        bar2.appendChild(fill);
+        var derate = el("u");
+        derate.style.left = "80%";
+        derate.title = "80% continuous derate";
+        bar2.appendChild(derate);
+        box.appendChild(bar2);
+        box.appendChild(el("div", "note",
+          "inrush " + fmt(load.inrushW, " W") + " against a " + fmt(load.peakCapacityW, " W") + " breaker"));
+        host.appendChild(box);
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------- ledger
+  function renderLedger() {
+    var table = document.getElementById("ledger");
+    table.textContent = "";
+    var usable = currentCase().usableDepthMm;
+    var thead = el("thead"), hr = el("tr");
+    ["Unit", "Chassis", "Conn", "Bend", "Needs", ""].forEach(function (h) { hr.appendChild(el("th", null, h)); });
+    thead.appendChild(hr); table.appendChild(thead);
+    var tbody = el("tbody"), seen = {};
+    state.placements.forEach(function (p) {
+      var d = BY_ID.get(p.deviceId);
+      if (!d || seen[d.id]) return;
+      seen[d.id] = true;
+      var b = E.requiredDepth(d);
+      var tr = el("tr");
+      tr.appendChild(el("td", null, d.model));
+      tr.appendChild(el("td", null, b.chassisMm == null ? "—" : String(b.chassisMm)));
+      tr.appendChild(el("td", null, String(b.connectorMm)));
+      tr.appendChild(el("td", null, String(b.bendMm)));
+      tr.appendChild(el("td", null, b.requiredMm == null ? "—" : String(b.requiredMm)));
+      var ok = b.requiredMm == null || b.requiredMm <= usable;
+      tr.appendChild(el("td", ok ? "good" : "bad",
+        b.requiredMm == null ? "?" : ok ? "fits" : "short " + (b.requiredMm - usable)));
+      tbody.appendChild(tr);
+    });
+    if (!Object.keys(seen).length) {
+      var tr0 = el("tr"), td0 = el("td", null, "Nothing placed yet.");
+      td0.colSpan = 6; tr0.appendChild(td0); tbody.appendChild(tr0);
+    }
+    table.appendChild(tbody);
+  }
+
+  // -------------------------------------------------------------- findings
+  function renderFindings(report) {
+    var tally = document.getElementById("tally");
+    tally.textContent = "";
+    var infos = report.results.filter(function (r) { return r.severity === "info"; }).length;
+    if (report.errors) tally.appendChild(el("span", "pill e", report.errors + (report.errors === 1 ? " error" : " errors")));
+    if (report.warnings) tally.appendChild(el("span", "pill w", report.warnings + (report.warnings === 1 ? " warning" : " warnings")));
+    if (infos) tally.appendChild(el("span", "pill i", infos + " note" + (infos === 1 ? "" : "s")));
+    if (!report.results.length) tally.appendChild(el("span", "pill o", "clear"));
+
+    var host = document.getElementById("findings");
+    host.textContent = "";
+    if (!report.results.length) {
+      var clean = el("div", "clean");
+      clean.appendChild(el("b", null, state.placements.length ? "This one builds" : "Empty rack"));
+      clean.appendChild(el("span", null, state.placements.length
+        ? "Everything fits with its connectors mated, the circuits hold at power-up as well as steady state, and the weight sits low."
+        : "Drag something in from the catalog, or load one of the three demo racks."));
+      host.appendChild(clean);
+      return;
+    }
+    var order = { error: 0, warning: 1, info: 2 };
+    report.results.slice().sort(function (a, b) { return order[a.severity] - order[b.severity]; })
+      .forEach(function (r) {
+        var box = el("div", "finding " + r.severity);
+        var hd = el("div", "hd");
+        hd.appendChild(el("span", "sev", r.severity === "info" ? "note" : r.severity));
+        hd.appendChild(el("span", "ti", r.title));
+        box.appendChild(hd);
+        box.appendChild(el("p", "de", r.detail));
+        host.appendChild(box);
+      });
+  }
+
+  // ------------------------------------------------------------- the keys
+  function renderKeys() {
+    var dir = document.getElementById("dirKey");
+    dir.textContent = "";
+    dir.appendChild(el("span", "legend", "Direction"));
+    [["in", "Input"], ["out", "Output"], ["bi", "Both ways"]].forEach(function (d) {
+      var k = el("span", "k");
+      k.appendChild(el("span", "dirdot " + d[0]));
+      k.appendChild(document.createTextNode(d[1]));
+      dir.appendChild(k);
+    });
+
+    var shape = document.getElementById("shapeKey");
+    shape.textContent = "";
+    shape.appendChild(el("span", "legend", "Connector"));
+    ["XLR3", "TRS", "DB25", "BNC", "Dante RJ45", "IEC C14", "USB-C", "Edison"].forEach(function (c) {
+      var k = el("span", "k");
+      var g = el("span");
+      g.innerHTML = glyphSvg(c);
+      g.style.color = "var(--ink-2)";
+      g.style.display = "inline-flex";
+      k.appendChild(g);
+      k.appendChild(document.createTextNode(c));
+      shape.appendChild(k);
+    });
+  }
+
+  // ---------------------------------------------------------------- detail
+  function panelView(device, face, half) {
+    var box = el("div", "panelview");
+    var head = el("div", "pv-head");
+    head.appendChild(el("b", null, face === "rear" ? "Rear panel" : "Front panel"));
+    head.appendChild(el("span", null,
+      face === "rear" ? "as you see it standing behind the rack" : "as you see it standing in front"));
+    box.appendChild(head);
+    var art = el("div", "panelart");
+    art.innerHTML = PANEL.draw(device, face, E.occupiedUnits(device), { half: half });
+    box.appendChild(art);
+    var strip = el("div", "ports");
+    var ports = device.ports.filter(function (p) { return p.face === face; });
+    var ordered = face === "rear" ? ports.slice().reverse() : ports.slice();
+    if (!ordered.length) strip.appendChild(el("span", "noports", "Nothing on this face."));
+    else ordered.forEach(function (p) { strip.appendChild(chip(p)); });
+    box.appendChild(strip);
+    return box;
+  }
+
+  function renderDetail() {
+    var card = document.getElementById("detailCard");
+    var host = document.getElementById("detail");
+    var placement = state.selected
+      ? state.placements.filter(function (p) { return p.uid === state.selected; })[0]
+      : null;
+    var d = placement ? BY_ID.get(placement.deviceId) : null;
+    if (!d) { card.hidden = true; host.textContent = ""; return; }
+    card.hidden = false;
+    host.textContent = "";
+
+    var head = el("div", "dtl-head");
+    var who = el("div", "who");
+    who.appendChild(el("b", null, d.brand + " " + d.model));
+    who.appendChild(el("span", null, d.category + " · " + E.occupiedUnits(d) + "U" +
+      (E.isHalfWidth(d) ? " · half-rack, " + (placement.slot === "right" ? "right" : "left") + " side" : "") +
+      (d.status === "discontinued" ? " · discontinued" : "")));
+    head.appendChild(who);
+    var close = el("button", "ghost", "Close");
+    close.type = "button";
+    close.addEventListener("click", function () { state.selected = null; render(); });
+    head.appendChild(close);
+    host.appendChild(head);
+
+    if (d.statusNote) {
+      var note = el("p", null, d.statusNote);
+      note.style.fontSize = ".78rem";
+      note.style.color = "var(--ink-muted)";
+      host.appendChild(note);
+    }
+    if (d.description) host.appendChild(el("p", null, d.description));
+
+    var half = E.isHalfWidth(d) ? (placement.slot === "right" ? "right" : "left") : null;
+    host.appendChild(panelView(d, "front", half));
+    host.appendChild(panelView(d, "rear", half));
+
+    var b = E.requiredDepth(d);
+    var usable = currentCase().usableDepthMm;
+    if (b.requiredMm != null) {
+      var line = el("p", "depthline",
+        b.chassisMm + " mm chassis + " + b.connectorMm + " mm for the " + (b.drivenBy || "rear") +
+        " + " + b.bendMm + " mm bend = " + b.requiredMm + " mm, against " + usable + " mm usable" +
+        (b.requiredMm <= usable ? " — fits." : " — short by " + (b.requiredMm - usable) + " mm."));
+      line.style.color = b.requiredMm <= usable ? "var(--ok)" : "var(--crit)";
+      host.appendChild(line);
+    }
+
+    var wrap = el("div", "scroll");
+    var t = el("table", "porttable");
+    var thead = el("thead"), hr = el("tr");
+    ["Silkscreen", "Connector", "Signal", "Ch", "Off", "Face"].forEach(function (h) { hr.appendChild(el("th", null, h)); });
+    thead.appendChild(hr); t.appendChild(thead);
+    var tb = el("tbody");
+    if (!d.ports.length) {
+      var tr0 = el("tr"), td0 = el("td", null, "No connectors — this is a panel, not a device.");
+      td0.colSpan = 6; tr0.appendChild(td0); tb.appendChild(tr0);
+    }
+    d.ports.forEach(function (p) {
+      var tr = el("tr"), first = el("td");
+      var dot = el("span", "dirdot " + (DIR_CLASS[p.direction] || "bi"));
+      dot.title = p.direction;
+      dot.style.marginRight = "5px";
+      first.appendChild(dot);
+      first.appendChild(document.createTextNode(p.label));
+      tr.appendChild(first);
+      tr.appendChild(el("td", "mono", p.connector));
+      tr.appendChild(el("td", null, p.signal));
+      tr.appendChild(el("td", "mono", p.channels == null ? "—" : String(p.channels)));
+      tr.appendChild(el("td", "mono", String(p.count)));
+      tr.appendChild(el("td", "mono", p.face));
+      tb.appendChild(tr);
+    });
+    t.appendChild(tb); wrap.appendChild(t); host.appendChild(wrap);
+
+    if (d.provenance && d.provenance.length) {
+      host.appendChild(el("div", "legend", "Where these numbers came from"));
+      d.provenance.forEach(function (pr) {
+        var c = el("div", "cite");
+        c.appendChild(el("div", "f", pr.field + "  ·  confidence " + pr.confidence.toFixed(2)));
+        c.appendChild(el("div", "q", "“" + pr.quote + "”"));
+        var s = el("div", "s");
+        var a = document.createElement("a");
+        a.href = pr.sourceUrl; a.target = "_blank"; a.rel = "noopener noreferrer";
+        try { a.textContent = new URL(pr.sourceUrl).hostname.replace(/^www\./, ""); }
+        catch (e) { a.textContent = pr.sourceUrl; }
+        s.appendChild(a);
+        if (pr.derivation) {
+          s.appendChild(document.createTextNode(" — "));
+          s.appendChild(el("b", null, pr.derivation));
+        }
+        c.appendChild(s);
+        host.appendChild(c);
+      });
+    }
+    if (d.unresolved && d.unresolved.length) {
+      host.appendChild(el("div", "legend", "Not established"));
+      var ul = el("ul");
+      ul.style.margin = "0"; ul.style.paddingLeft = "18px";
+      d.unresolved.forEach(function (u) {
+        var li = el("li", null, u);
+        li.style.fontSize = ".77rem"; li.style.color = "var(--ink-2)";
+        ul.appendChild(li);
+      });
+      host.appendChild(ul);
+    }
+  }
+
+  function render() {
+    viewFront.setAttribute("aria-pressed", String(state.view === "front"));
+    viewRear.setAttribute("aria-pressed", String(state.view === "rear"));
+    if (state.selected && !state.placements.some(function (p) { return p.uid === state.selected; })) {
+      state.selected = null;
+    }
+    var report = E.checkRack(rackSpec(), BY_ID);
+    sheetBtn.disabled = state.placements.length === 0;
+    sheetBtn.title = sheetBtn.disabled
+      ? "Put something in the rack first"
+      : "Print the full patch sheet — elevations, schedules and sources";
+    renderRack(report);
+    renderBudget(report.budget);
+    renderLedger();
+    renderFindings(report);
+    renderDetail();
+    persist();
+  }
+
+  renderPalette();
+  renderKeys();
+  render();
+
+  if (typeof ResizeObserver === "function") {
+    var raf = 0;
+    new ResizeObserver(function () {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(render);
+    }).observe(document.getElementById("rack").parentElement);
+  } else {
+    window.addEventListener("resize", render);
+  }
+})();
+</script>
