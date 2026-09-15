@@ -7,40 +7,12 @@
  */
 
 import { NextResponse } from "next/server";
-import { z } from "zod";
 
 import { checkRack } from "@/lib/rack/checks";
+import { RackSchema, toRackSpecFromWire } from "@/lib/rack/schema";
 import { prisma } from "@/lib/db/client";
 import { toDeviceSpec } from "@/lib/db/mappers";
-import type { DeviceSpec, RackSpec } from "@/lib/rack/types";
-
-const CircuitSchema = z.object({
-  label: z.string(),
-  volts: z.number().positive(),
-  amps: z.number().positive(),
-});
-
-const RackSchema = z.object({
-  name: z.string(),
-  case: z.object({
-    slug: z.string(),
-    name: z.string(),
-    rackUnits: z.number().int().positive(),
-    usableDepthMm: z.number().int().positive(),
-    hasRearRails: z.boolean(),
-    maxLoadLb: z.number().positive().nullable(),
-    emptyWeightLb: z.number().positive().nullable(),
-  }),
-  circuits: z.array(CircuitSchema),
-  placements: z.array(
-    z.object({
-      deviceId: z.string(),
-      position: z.number().int(),
-      circuit: z.string().nullable(),
-      label: z.string().nullable().optional(),
-    }),
-  ),
-});
+import type { DeviceSpec } from "@/lib/rack/types";
 
 export async function POST(request: Request) {
   const parsed = RackSchema.safeParse(await request.json().catch(() => null));
@@ -50,7 +22,7 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
-  const rack = parsed.data as RackSpec;
+  const rack = toRackSpecFromWire(parsed.data);
 
   const ids = [...new Set(rack.placements.map((p) => p.deviceId))];
   const rows = await prisma.device.findMany({
