@@ -12,7 +12,9 @@
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
-    "gear:research": "tsx scripts/research.ts"
+    "gear:research": "tsx scripts/research.ts",
+    "planner:build": "node scripts/build-planner.mjs",
+    "sheet:demo": "tsx scripts/patch-sheet-demo.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
