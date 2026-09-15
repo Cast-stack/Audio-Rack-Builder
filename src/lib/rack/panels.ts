@@ -446,3 +446,23 @@ export function draw(
     parts.join("") + "</svg>";
 }
 
+/**
+ * The same panel without its own <svg> wrapper, in the same 0..panelWidth by
+ * 0..units*U coordinate space, so a rack elevation can place it with a plain
+ * translate instead of nesting viewports.
+ */
+export function drawInner(
+  device: PanelDevice,
+  face: "front" | "rear",
+  units: number,
+  opts?: { half?: "left" | "right" | null },
+): string {
+  const svg = draw(device, face, units, opts);
+  return svg.slice(svg.indexOf(">") + 1, svg.lastIndexOf("</svg>"));
+}
+
+/** Drawn width of one panel, in the same units as {@link W}. */
+export function panelWidth(half: "left" | "right" | null | undefined): number {
+  return half === "left" || half === "right" ? W / 2 : W;
+}
+
