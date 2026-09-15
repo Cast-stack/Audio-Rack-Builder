@@ -19,6 +19,14 @@ export * from "@/lib/rack/checks";
 export { renderPatchSheet } from "@/lib/export/patchSheet";
 export { renderElevation } from "@/lib/export/elevation";
 export {
+  CABLE_SWATCHES,
+  SIGNAL_CLASSES,
+  SIGNAL_STYLE,
+  cableTags,
+  resolveCables,
+  signalClassOf,
+} from "@/lib/rack/cables";
+export {
   SEED_DEVICES,
   SEED_CASES,
   DEMO_RACK,

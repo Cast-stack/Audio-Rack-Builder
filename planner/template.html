@@ -163,8 +163,35 @@ svg.panel .silk-sm{font-size:26px;opacity:.68;letter-spacing:.5px}
   --pf-lcd:#0B1E1C;--pf-lcd-ink:#3FE0B0;--pf-led-on:#39D98A;--pf-led-dim:#1B4C34;--pf-led-off:#2A3138}
 .panelview .pv-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
 .panelview .pv-head b{font-family:var(--display);font-size:.92rem;text-transform:uppercase;letter-spacing:.05em;color:var(--panel-ink)}
+.portname{font-family:var(--display);font-size:1.05rem;text-transform:uppercase;letter-spacing:.03em;line-height:1.15}
 .panelview .pv-head span{font-family:var(--mono);font-size:.59rem;color:rgba(255,255,255,.4)}
 .panelart svg{width:100%;height:auto}
+
+/* Connector hit targets. Invisible until the pointer is near one, so the
+   drawing stays a drawing and only becomes a patch bay when you reach for it. */
+circle.porthit{fill:transparent;stroke:transparent;stroke-width:3;cursor:crosshair}
+circle.porthit:hover{fill:rgba(255,255,255,.14);stroke:var(--accent)}
+circle.porthit.patched{stroke:var(--run,var(--accent));stroke-opacity:.55}
+circle.porthit.sel{fill:rgba(255,255,255,.1);stroke:var(--accent);stroke-width:5}
+circle.porthit.arm{fill:rgba(255,255,255,.16);stroke:var(--accent);stroke-width:6;stroke-dasharray:8 6}
+svg.cablelayer{position:absolute;inset:0;pointer-events:none;overflow:visible}
+svg.cablelayer .cbl{fill:none;stroke-width:2.5;stroke-linecap:round}
+svg.cablelayer .cbl.halo{stroke:#0B0D10;stroke-width:6;opacity:.85}
+svg.cablelayer .cbl.hot{stroke-width:4}
+
+.portrow{display:flex;justify-content:space-between;gap:10px;font-size:.8rem;padding-block:3px;border-bottom:1px solid var(--rule)}
+.portrow:last-of-type{border-bottom:0}
+.portrow .k{color:var(--ink-muted);font-family:var(--mono);font-size:.64rem;text-transform:uppercase;letter-spacing:.09em}
+.portrow .v{font-family:var(--mono);text-align:right}
+.linkrow{display:flex;align-items:center;gap:7px;border:1px solid var(--rule);background:var(--surface-2);padding:6px 8px;font-size:.78rem}
+.linkrow .arrow{color:var(--ink-muted);font-family:var(--mono)}
+.linkrow b{font-weight:600}
+.swatches{display:flex;flex-wrap:wrap;gap:5px}
+.swatches button{width:22px;height:22px;padding:0;border:1px solid var(--rule-strong);border-radius:50%}
+.swatches button.on{outline:2px solid var(--ink);outline-offset:2px}
+.swatches button.auto{background:repeating-linear-gradient(45deg,var(--surface),var(--surface) 3px,var(--rule-strong) 3px,var(--rule-strong) 6px)}
+.hint{font-family:var(--mono);font-size:.64rem;color:var(--ink-muted);line-height:1.5}
+.tapein{width:100%;font-family:var(--mono);font-size:.76rem;padding:5px 7px;border:1px solid var(--rule-strong);background:var(--surface-2);color:var(--ink)}
 .dtl-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .dtl-head .who b{font-family:var(--display);font-size:1.2rem;text-transform:uppercase;letter-spacing:.03em;display:block}
 .dtl-head .who span{font-family:var(--mono);font-size:.64rem;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.09em}
@@ -286,6 +313,11 @@ footer{padding-block:18px 42px;border-top:1px solid var(--rule);font-family:var(
   </div>
 
   <div class="col col-side">
+    <section class="card" id="portCard" aria-label="Port inspector" hidden>
+      <h3>Port <em id="portWhere"></em></h3>
+      <div class="card-body" id="portBody"></div>
+    </section>
+
     <section class="card" aria-label="Findings">
       <h3>Findings</h3>
       <div class="card-body">
@@ -331,7 +363,8 @@ __PANELS__
   var BY_ID = new Map(DEVICES.map(function (d) { return [d.id, d]; }));
   var CASES = E.SEED_CASES;
   var PRESETS = E.DEMO_RACKS;
-  var STORE = "arb.planner.v2";
+  var STORE = "arb.planner.v3";
+  var cableSeq = 0;
   var uidSeq = 0;
 
   function uid() { return "p" + (++uidSeq); }
@@ -344,18 +377,26 @@ __PANELS__
       selected: null,
       filter: "",
       circuits: preset.circuits.map(function (c) { return { label: c.label, volts: c.volts, amps: c.amps }; }),
+      cables: (preset.cables || []).map(function (c) { return JSON.parse(JSON.stringify(c)); }),
+      patching: null,
+      selectedPort: null,
       placements: preset.placements.map(function (p) {
         return { uid: uid(), deviceId: p.deviceId, position: p.position, slot: p.slot || "full", circuit: p.circuit };
       })
     };
   }
 
-  var state = fromPreset(2);
+  // The monitor rack ships with a patch, so the planner opens on something
+  // that shows what the cable layer is for.
+  var state = fromPreset(3);
   try {
     var saved = JSON.parse(localStorage.getItem(STORE) || "null");
     if (saved && Array.isArray(saved.placements) && CASES.some(function (c) { return c.slug === saved.caseSlug; })) {
       saved.placements.forEach(function (p) { if (!p.uid) p.uid = uid(); });
       saved.filter = saved.filter || "";
+      saved.cables = saved.cables || [];
+      saved.patching = null;
+      saved.selectedPort = null;
       state = saved;
     }
   } catch (e) { /* blocked storage — the planner still works */ }
@@ -382,8 +423,64 @@ __PANELS__
       circuits: state.circuits,
       placements: state.placements.map(function (p) {
         return { deviceId: p.deviceId, position: p.position, slot: p.slot, circuit: p.circuit };
-      })
+      }),
+      cables: state.cables || []
     };
+  }
+
+  // ------------------------------------------------------------- patching
+  /** A port, as the cable model names it. */
+  function endOf(p, portLabel, index) {
+    return { kind: "port", deviceId: p.deviceId, position: p.position, slot: p.slot || "full",
+             port: portLabel, index: index };
+  }
+  function keyOf(end) {
+    if (!end || end.kind === "external") return "ext|" + (end && end.name);
+    return end.deviceId + "|" + end.position + "|" + (end.slot || "full") + "|" + end.port + "|" + (end.index || 0);
+  }
+  function cableAt(key) {
+    var list = state.cables || [];
+    for (var i = 0; i < list.length; i++) {
+      if (keyOf(list[i].from) === key || keyOf(list[i].to) === key) return list[i];
+    }
+    return null;
+  }
+  function portOf(end) {
+    var d = BY_ID.get(end.deviceId);
+    if (!d) return null;
+    for (var i = 0; i < d.ports.length; i++) if (d.ports[i].label === end.port) return d.ports[i];
+    return null;
+  }
+  function endLabel(end) {
+    if (end.kind === "external") return end.name;
+    var d = BY_ID.get(end.deviceId);
+    return d ? d.brand + " " + d.model + " \u00b7 " + end.port : end.port;
+  }
+  /** Patch two ends together, replacing whatever was on either of them. */
+  function patch(a, b) {
+    var ka = keyOf(a), kb = keyOf(b);
+    if (ka === kb) return;
+    state.cables = (state.cables || []).filter(function (c) {
+      var k1 = keyOf(c.from), k2 = keyOf(c.to);
+      return k1 !== ka && k2 !== ka && k1 !== kb && k2 !== kb;
+    });
+    var port = portOf(a) || portOf(b);
+    // Point the run the way the signal flows, so the schedule reads from
+    // source to destination rather than in click order.
+    var flip = port && portOf(a) && portOf(a).direction === "input" &&
+      portOf(b) && portOf(b).direction === "output";
+    state.cables.push({
+      id: "c" + (++cableSeq) + "-" + Date.now().toString(36),
+      from: flip ? b : a,
+      to: flip ? a : b,
+      colour: null,
+      label: null
+    });
+  }
+  function unpatch(key) {
+    state.cables = (state.cables || []).filter(function (c) {
+      return keyOf(c.from) !== key && keyOf(c.to) !== key;
+    });
   }
   function halvesOf(device, slot) {
     return E.isHalfWidth(device) ? [slot === "right" ? "right" : "left"] : ["left", "right"];
@@ -658,7 +755,39 @@ __PANELS__
     });
     var SEV_CLASS = { 3: "err", 2: "warn", 1: "info" };
 
+    var portNodes = [];
     var filled = {};
+
+    /**
+     * Transparent hit targets over the connectors the renderer just drew.
+     *
+     * The circles live inside the panel's own SVG, so they sit exactly on the
+     * connector whatever the layout does — there is no second copy of the
+     * positions to fall out of step.
+     */
+    function addPortTargets(node, anchors, placement) {
+      var svg = node.querySelector("svg.panel");
+      if (!svg) return;
+      anchors.forEach(function (a) {
+        var key = keyOf(endOf(placement, a.portLabel, a.index));
+        var run = cableAt(key);
+        var hit = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        hit.setAttribute("cx", a.x);
+        hit.setAttribute("cy", a.y);
+        hit.setAttribute("r", Math.max(a.size * 0.68, 40));
+        hit.setAttribute("class", "porthit" + (run ? " patched" : "") +
+          (state.selectedPort === key ? " sel" : "") +
+          (state.patching === key ? " arm" : ""));
+        if (run) hit.setAttribute("style", "--run:" + runColour(run));
+        svg.appendChild(hit);
+        portNodes.push({ key: key, node: hit });
+        hit.addEventListener("click", function (ev) {
+          ev.stopPropagation();
+          onPortClick(key, placement, a);
+        });
+      });
+    }
+
     state.placements.forEach(function (p) {
       var d = BY_ID.get(p.deviceId);
       if (!d) return;
@@ -673,7 +802,9 @@ __PANELS__
       node.style.gridColumn = half ? String(columnFor(half)) : "1 / span 2";
       node.draggable = true;
       node.tabIndex = 0;
-      node.innerHTML = PANEL.draw(d, state.view, units, { half: half });
+      var anchors = [];
+      node.innerHTML = PANEL.draw(d, state.view, units, { half: half, anchors: anchors });
+      addPortTargets(node, anchors, p);
       node.title = d.brand + " " + d.model + " — U" + p.position +
         (half ? " (" + half + " half)" : "") + (state.view === "rear" ? ", rear" : ", front");
 
@@ -744,6 +875,199 @@ __PANELS__
     meta.appendChild(el("span", null, rackCase.hasRearRails ? "front + rear rails" : "front rails only"));
     meta.appendChild(el("span", null, state.view === "rear" ? "rear view — left/right mirrored" : "front view"));
     meta.appendChild(el("span", null, state.circuits.map(function (c) { return c.label + ": " + c.amps + "A"; }).join("  ")));
+
+    drawCableOverlay(host, portNodes);
+  }
+
+  // ---------------------------------------------------------------- cables
+  function runColour(run) {
+    if (run.colour) return run.colour;
+    var port = portOf(run.from.kind === "port" ? run.from : run.to);
+    var cls = run.signal || (port ? E.signalClassOf(port) : "analog audio");
+    return (E.SIGNAL_STYLE[cls] || E.SIGNAL_STYLE["analog audio"]).colour;
+  }
+  function runStyle(run) {
+    var port = portOf(run.from.kind === "port" ? run.from : run.to);
+    var cls = run.signal || (port ? E.signalClassOf(port) : "analog audio");
+    return E.SIGNAL_STYLE[cls] || E.SIGNAL_STYLE["analog audio"];
+  }
+
+  /**
+   * Runs are drawn on an overlay above the rack rather than inside any one
+   * panel, because a cable spans units and each panel is its own SVG. Pixel
+   * positions are read back off the hit targets after layout, so the line
+   * lands on the connector wherever the grid put it.
+   */
+  function drawCableOverlay(host, portNodes) {
+    var old = host.parentElement.querySelector(".cablelayer");
+    if (old) old.remove();
+    var runs = state.cables || [];
+    if (!runs.length) return;
+
+    var box = host.getBoundingClientRect();
+    var at = {};
+    portNodes.forEach(function (pn) {
+      var rect = pn.node.getBoundingClientRect();
+      at[pn.key] = { x: rect.left + rect.width / 2 - box.left, y: rect.top + rect.height / 2 - box.top };
+    });
+
+    var NS = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("class", "cablelayer");
+    svg.setAttribute("viewBox", "0 0 " + Math.max(1, box.width) + " " + Math.max(1, box.height));
+    svg.style.width = box.width + "px";
+    svg.style.height = box.height + "px";
+
+    var floor = box.height - 4;
+    runs.forEach(function (run, i) {
+      var a = at[keyOf(run.from)], b = at[keyOf(run.to)];
+      var st = runStyle(run);
+      var colour = runColour(run);
+      var d;
+      if (a && b) {
+        var dx = b.x - a.x, dy = b.y - a.y;
+        var span = Math.sqrt(dx * dx + dy * dy);
+        var room = Math.max(0, floor - Math.max(a.y, b.y));
+        var sag = Math.min(46, 10 + span * 0.16, room * 0.9) * (0.7 + (i % 3) * 0.25);
+        d = "M" + a.x + " " + a.y + "C" + (a.x + dx * 0.25) + " " + (a.y + dy * 0.15 + sag) +
+          " " + (a.x + dx * 0.75) + " " + (b.y - dy * 0.15 + sag) + " " + b.x + " " + b.y;
+      } else {
+        // One end is outside the rack: a short stub towards the right edge,
+        // so it is visible that the connector is spoken for.
+        var inside = a || b;
+        if (!inside) return;
+        d = "M" + inside.x + " " + inside.y + "L" + Math.min(box.width - 6, inside.x + 26) + " " + inside.y;
+      }
+      var halo = document.createElementNS(NS, "path");
+      halo.setAttribute("d", d); halo.setAttribute("class", "cbl halo");
+      svg.appendChild(halo);
+      var path = document.createElementNS(NS, "path");
+      path.setAttribute("d", d);
+      path.setAttribute("class", "cbl" + (state.selectedPort &&
+        (keyOf(run.from) === state.selectedPort || keyOf(run.to) === state.selectedPort) ? " hot" : ""));
+      path.setAttribute("stroke", colour);
+      if (st.dash) path.setAttribute("stroke-dasharray", scaleDash(st.dash));
+      svg.appendChild(path);
+    });
+
+    host.parentElement.style.position = "relative";
+    host.parentElement.appendChild(svg);
+  }
+
+  /** The print dash patterns are in panel units; on screen they are pixels. */
+  function scaleDash(dash) {
+    return dash.split(" ").map(function (n) { return Math.max(1, Math.round(Number(n) / 4)); }).join(" ");
+  }
+
+  function onPortClick(key, placement, anchor) {
+    var existing = cableAt(key);
+    if (state.patching && state.patching !== key) {
+      patch(fromKey(state.patching), endOf(placement, anchor.portLabel, anchor.index));
+      state.patching = null;
+      state.selectedPort = key;
+      render();
+      return;
+    }
+    if (state.patching === key) { state.patching = null; render(); return; }
+    state.selectedPort = state.selectedPort === key ? null : key;
+    if (!existing && state.selectedPort) state.patching = key;
+    render();
+  }
+
+  /** Rebuild an end from its key, so a click only has to carry the string. */
+  function fromKey(key) {
+    var bits = key.split("|");
+    return { kind: "port", deviceId: bits[0], position: Number(bits[1]), slot: bits[2],
+             port: bits[3], index: Number(bits[4]) };
+  }
+
+  // ------------------------------------------------------- port inspector
+  function renderPort() {
+    var card = document.getElementById("portCard");
+    var body = document.getElementById("portBody");
+    var where = document.getElementById("portWhere");
+    body.textContent = "";
+
+    var key = state.selectedPort;
+    if (!key) { card.hidden = true; return; }
+    card.hidden = false;
+
+    var end = fromKey(key);
+    var d = BY_ID.get(end.deviceId);
+    var port = portOf(end);
+    if (!d || !port) { card.hidden = true; return; }
+
+    where.textContent = "U" + end.position + (end.slot !== "full" ? " " + end.slot.charAt(0).toUpperCase() : "");
+
+    var head = el("div");
+    head.appendChild(el("div", "portname", port.label + (port.count > 1 ? " #" + (end.index + 1) : "")));
+    head.appendChild(el("div", "hint", d.brand + " " + d.model));
+    body.appendChild(head);
+
+    function row(k, v) {
+      var n = el("div", "portrow");
+      n.appendChild(el("span", "k", k));
+      n.appendChild(el("span", "v", v));
+      body.appendChild(n);
+    }
+    row("Connector", port.connector);
+    row("Direction", port.direction);
+    row("Signal", port.signal + (port.channels ? " \u00b7 " + port.channels + " ch" : ""));
+    row("Face", port.face);
+
+    var run = cableAt(key);
+    if (run) {
+      var other = keyOf(run.from) === key ? run.to : run.from;
+      var link = el("div", "linkrow");
+      var b = el("b", null, endLabel(other));
+      link.appendChild(el("span", "arrow", keyOf(run.from) === key ? "\u2192" : "\u2190"));
+      link.appendChild(b);
+      body.appendChild(link);
+
+      var tape = el("input", "tapein");
+      tape.type = "text";
+      tape.maxLength = 12;
+      tape.placeholder = "Tape marking";
+      tape.value = run.label || "";
+      tape.addEventListener("change", function () {
+        run.label = tape.value.trim() || null;
+        render();
+      });
+      body.appendChild(tape);
+
+      body.appendChild(el("div", "hint", "Cable colour"));
+      var sw = el("div", "swatches");
+      var auto = el("button", "auto" + (run.colour ? "" : " on"));
+      auto.type = "button";
+      auto.title = "By signal class";
+      auto.addEventListener("click", function () { run.colour = null; render(); });
+      sw.appendChild(auto);
+      E.CABLE_SWATCHES.forEach(function (c) {
+        var b2 = el("button", run.colour === c ? "on" : "");
+        b2.type = "button";
+        b2.style.background = c;
+        b2.title = c;
+        b2.addEventListener("click", function () { run.colour = c; render(); });
+        sw.appendChild(b2);
+      });
+      body.appendChild(sw);
+
+      var cut = el("button", "ghost", "Disconnect");
+      cut.type = "button";
+      cut.addEventListener("click", function () { unpatch(key); state.patching = null; render(); });
+      body.appendChild(cut);
+    } else if (state.patching === key) {
+      body.appendChild(el("div", "hint",
+        "Now click the connector at the other end. Click this one again to cancel."));
+    } else {
+      var start = el("button", null, "Patch from here");
+      start.type = "button";
+      start.addEventListener("click", function () { state.patching = key; render(); });
+      body.appendChild(start);
+    }
+
+    body.appendChild(el("div", "hint",
+      "Runs are drawn on the rear view, where the connectors are."));
   }
 
   // ---------------------------------------------------------------- budget
@@ -1043,6 +1367,7 @@ __PANELS__
     renderLedger();
     renderFindings(report);
     renderDetail();
+    renderPort();
     persist();
   }
 
