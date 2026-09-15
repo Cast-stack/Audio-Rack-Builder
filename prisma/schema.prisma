@@ -1,0 +1,328 @@
+// Audio Rack Builder — data model.
+//
+// Two ideas drive the shape of this schema:
+//
+//  1. Every published spec value points at the document it came from. That is
+//     FieldProvenance: one row per field, with a verbatim quote. It is what
+//     lets a gear page show "286 mm" as a link to the line of the Shure manual
+//     that says so, instead of asking people to trust the catalog.
+//
+//  2. A device row is never edited in place by an automated job. Research
+//     writes a DeviceRevision; a human promotes a revision to current. The diff
+//     between revisions is the review UI.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------- catalog
+
+enum DeviceStatus {
+  CURRENT
+  DISCONTINUED
+  ANNOUNCED
+}
+
+enum FormFactor {
+  FULL_RACK
+  HALF_RACK
+  THIRD_RACK
+  QUARTER_RACK
+  DESKTOP
+  ACCESSORY
+}
+
+/// Broad domain, so the catalog can grow past audio without recutting
+/// categories. StageRack covers lighting/video/network; IEM Rig does not.
+enum Domain {
+  AUDIO
+  LIGHTING
+  VIDEO
+  NETWORK
+  POWER
+  COMMS
+  INFRASTRUCTURE
+}
+
+model Manufacturer {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  slug      String   @unique
+  /// Domains the researcher is allowed to read for this brand. Restricting
+  /// search to these is the single biggest quality lever in the pipeline.
+  domains   String[]
+  devices   Device[]
+  createdAt DateTime @default(now())
+}
+
+model Category {
+  id       String   @id @default(cuid())
+  name     String   @unique
+  slug     String   @unique
+  domain   Domain
+  /// Devices in a passive category must have no power draw.
+  passive  Boolean  @default(false)
+  sortKey  Int      @default(0)
+  devices  Device[]
+}
+
+model Device {
+  id             String       @id @default(cuid())
+  slug           String       @unique
+  manufacturer   Manufacturer @relation(fields: [manufacturerId], references: [id])
+  manufacturerId String
+  category       Category     @relation(fields: [categoryId], references: [id])
+  categoryId     String
+
+  model       String
+  description String
+
+  // ---- geometry
+  formFactor FormFactor
+  /// Vertical rack space. Half-U accessories are allowed, hence Float.
+  rackUnits  Float
+  /// Chassis depth as published by the manufacturer, millimetres.
+  depthMm    Int?
+  /// True when depthMm is the overall figure including knobs and connectors,
+  /// which is what datasheets almost always print. The fit checker adds
+  /// clearance differently depending on this flag.
+  depthIsOverall Boolean @default(true)
+  weightLb   Float?
+
+  // ---- electrical
+  /// Steady-state consumption in normal use, watts.
+  powerTypicalW Float?
+  /// Manufacturer maximum or nameplate rating, watts.
+  powerMaxW     Float?
+  /// Inrush multiplier over typical draw. Amps and big switchers trip breakers
+  /// on startup long before they trouble a circuit in steady state.
+  inrushFactor  Float?  @default(1.0)
+  powerInput    String?
+  voltage       String?
+  poePowered    Boolean @default(false)
+
+  ports Port[]
+
+  // ---- commercial
+  status     DeviceStatus @default(CURRENT)
+  statusNote String?
+
+  productUrl   String?
+  datasheetUrl String?
+
+  // ---- provenance and freshness
+  currentRevision   DeviceRevision?  @relation("CurrentRevision", fields: [currentRevisionId], references: [id])
+  currentRevisionId String?          @unique
+  revisions         DeviceRevision[] @relation("DeviceRevisions")
+  verifiedAt        DateTime?
+  /// Fraction of publish-required fields carrying a manufacturer citation.
+  /// Rendered on the gear page as the honesty score.
+  sourceGrade       Float?
+
+  priceQuotes PriceQuote[]
+  placements  Placement[]
+  jobs        ResearchJob[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([manufacturerId, model])
+  @@index([categoryId])
+  @@index([status])
+  @@index([verifiedAt])
+}
+
+model Port {
+  id        String  @id @default(cuid())
+  device    Device  @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  deviceId  String
+  /// Silkscreen label exactly as printed on the chassis.
+  label     String
+  connector String
+  direction String
+  signal    String
+  /// Audio channels carried by one physical connector. A DB25 is 8.
+  channels  Int?
+  count     Int     @default(1)
+  face      String  @default("rear")
+  /// How far this connector plus its mated plug sticks out behind the chassis,
+  /// millimetres. Drives the real-depth check.
+  projectionMm Int?
+  sortKey   Int     @default(0)
+
+  @@index([deviceId])
+}
+
+// ------------------------------------------------------- research + evidence
+
+enum Disposition {
+  AUTO_PUBLISH
+  REVIEW
+  REJECT
+  FAILED
+}
+
+enum JobKind {
+  ENRICH
+  LOOKUP
+  VERIFY
+  PRICING
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  DONE
+  ERROR
+}
+
+/// Immutable snapshot of what a research run produced. Never edited.
+model DeviceRevision {
+  id       String  @id @default(cuid())
+  device   Device? @relation("DeviceRevisions", fields: [deviceId], references: [id], onDelete: Cascade)
+  deviceId String?
+
+  /// Full device payload as emitted, validated against the zod schema.
+  payload     Json
+  disposition Disposition
+  /// Guardrail output: [{field, severity, message}]
+  issues      Json?
+  /// Fields the researcher could not establish.
+  unresolved  String[]
+  notes       String?
+
+  createdBy String // "research" | a user id
+  createdAt DateTime @default(now())
+
+  provenance FieldProvenance[]
+  job        ResearchJob?      @relation(fields: [jobId], references: [id])
+  jobId      String?
+
+  currentFor Device? @relation("CurrentRevision")
+
+  @@index([deviceId, createdAt])
+}
+
+/// One row per extracted value. This is the differentiator — not a JSON blob
+/// on the device, because "where did this depth come from" must be a query.
+model FieldProvenance {
+  id         String         @id @default(cuid())
+  revision   DeviceRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  revisionId String
+
+  /// Dotted path into the payload: "depthMm", "ports[3].connector".
+  field      String
+  sourceUrl  String
+  /// Verbatim text from the source. Never a paraphrase.
+  quote      String
+  confidence Float
+  /// Set when the value was computed rather than read (unit conversion, sum).
+  derivation String?
+  /// manufacturer | dealer | other — set from the URL host at write time.
+  sourceKind String         @default("other")
+
+  @@index([revisionId])
+  @@index([field])
+}
+
+model ResearchJob {
+  id       String    @id @default(cuid())
+  kind     JobKind
+  status   JobStatus @default(QUEUED)
+  query    String
+  device   Device?   @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  deviceId String?
+
+  // cost ledger
+  inputTokens  Int @default(0)
+  outputTokens Int @default(0)
+  searches     Int @default(0)
+  fetches      Int @default(0)
+
+  requestedBy String?
+  error       String?
+  revisions   DeviceRevision[]
+
+  createdAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  @@index([status, createdAt])
+  @@index([kind, createdAt])
+}
+
+/// Written by its own cron on its own cadence. A price refresh must never
+/// touch a reviewed spec record.
+model PriceQuote {
+  id       String @id @default(cuid())
+  device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  deviceId String
+
+  vendor       String
+  url          String
+  priceUsd     Float?
+  /// Verbatim price text as printed, so a parse error is visible.
+  quotedAs     String
+  availability String
+  observedAt   DateTime @default(now())
+
+  @@index([deviceId, observedAt])
+}
+
+// ------------------------------------------------------------ rack planning
+
+/// A physical case. Depth here is usable depth between the rails, which is
+/// what actually constrains a build — not the outside dimension on the sticker.
+model RackCase {
+  id             String  @id @default(cuid())
+  slug           String  @unique
+  name           String
+  rackUnits      Int
+  usableDepthMm  Int
+  /// Rear rail set present? Shallow shock cases often have front rails only,
+  /// which changes what can be mounted.
+  hasRearRails   Boolean @default(true)
+  maxLoadLb      Float?
+  emptyWeightLb  Float?
+  racks          Rack[]
+}
+
+model Rack {
+  id     String @id @default(cuid())
+  name   String
+  slug   String @unique
+
+  case   RackCase @relation(fields: [caseId], references: [id])
+  caseId String
+
+  /// Branch circuits available to this rack. Each is {label, volts, amps}.
+  circuits   Json @default("[]")
+  placements Placement[]
+
+  ownerId   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Placement {
+  id       String @id @default(cuid())
+  rack     Rack   @relation(fields: [rackId], references: [id], onDelete: Cascade)
+  rackId   String
+  device   Device @relation(fields: [deviceId], references: [id])
+  deviceId String
+
+  /// Rack position, 1 = bottom U. Bottom-origin because that is how weight
+  /// distribution and centre of gravity are reasoned about.
+  position Int
+  /// Which branch circuit this unit is plugged into, by circuit label.
+  circuit  String?
+  label    String?
+  notes    String?
+
+  @@unique([rackId, position])
+  @@index([rackId])
+}

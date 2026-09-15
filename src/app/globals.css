@@ -1,0 +1,237 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* --------------------------------------------------------------------------
+   Palette. Black anodised panel, bare rail, silkscreen legend.
+   Neutrals carry a slight blue bias so they read as metal, not as paper.
+
+   Anodise  #0E1013   Rail  #2A2F36   Silkscreen #E6E8EB
+   Patchbay teal  #0F7C82 (light) / #35B3B8 (dark)  — accent, never semantic
+   Trip red #B3291E   Derate amber #8A5A06   Clear green #1F6B45  — semantic
+   -------------------------------------------------------------------------- */
+
+:root {
+  color-scheme: light;
+
+  --bg: #e4e6e9;
+  --surface: #f2f3f5;
+  --surface-2: #fafafb;
+  --sunken: #d3d7dc;
+
+  --fg: #15171b;
+  --fg-muted: #565d66;
+  --fg-faint: #828a94;
+
+  --line: #c3c8cf;
+  --line-strong: #98a0aa;
+
+  --accent: #0f7c82;
+  --accent-fg: #ffffff;
+
+  --err: #b3291e;
+  --err-wash: #f6ddda;
+  --warn: #8a5a06;
+  --warn-wash: #f5e8cb;
+  --ok: #1f6b45;
+  --ok-wash: #d8ece1;
+
+  --rail: #b9bfc7;
+  --screw: #9aa2ac;
+  --focus: #0f7c82;
+
+  /* One rack unit in the elevation — 44px, near enough 1 px per mm. */
+  --u: 2.75rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --bg: #0e1013;
+    --surface: #16191e;
+    --surface-2: #1d2127;
+    --sunken: #08090b;
+
+    --fg: #e6e8eb;
+    --fg-muted: #99a0aa;
+    --fg-faint: #6c737d;
+
+    --line: #2a2f36;
+    --line-strong: #414953;
+
+    --accent: #35b3b8;
+    --accent-fg: #06181a;
+
+    --err: #ef7b6d;
+    --err-wash: #3a1a17;
+    --warn: #dda43e;
+    --warn-wash: #33260f;
+    --ok: #5fc08c;
+    --ok-wash: #11301f;
+
+    --rail: #2f353d;
+    --screw: #4a525c;
+    --focus: #35b3b8;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0e1013;
+  --surface: #16191e;
+  --surface-2: #1d2127;
+  --sunken: #08090b;
+
+  --fg: #e6e8eb;
+  --fg-muted: #99a0aa;
+  --fg-faint: #6c737d;
+
+  --line: #2a2f36;
+  --line-strong: #414953;
+
+  --accent: #35b3b8;
+  --accent-fg: #06181a;
+
+  --err: #ef7b6d;
+  --err-wash: #3a1a17;
+  --warn: #dda43e;
+  --warn-wash: #33260f;
+  --ok: #5fc08c;
+  --ok-wash: #11301f;
+
+  --rail: #2f353d;
+  --screw: #4a525c;
+  --focus: #35b3b8;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+    overflow-x: hidden;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+
+  /* Every figure is read as a figure. */
+  .num,
+  code,
+  kbd,
+  table td,
+  table th {
+    font-variant-numeric: tabular-nums;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  a {
+    color: inherit;
+  }
+
+  ::selection {
+    background: var(--accent);
+    color: var(--accent-fg);
+  }
+}
+
+@layer components {
+  /* A bolted-on panel: square corners, hairline, faint top highlight. */
+  .panel {
+    background-color: var(--surface);
+    border: 1px solid var(--line);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04);
+  }
+
+  /* Silkscreen legend: the small stencilled text on a rack panel. */
+  .legend {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-size: 0.625rem;
+    line-height: 1;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    /* Muted, not faint: these carry content (U numbers, brands, units). */
+    color: var(--fg-muted);
+  }
+
+  /* Rack rail: punched holes down both edges of the elevation. */
+  .rail-strip {
+    background-color: var(--rail);
+    background-image: radial-gradient(
+      circle at 50% 6px,
+      var(--screw) 0 2px,
+      transparent 2.5px
+    );
+    background-size: 100% var(--u);
+    background-repeat: repeat-y;
+  }
+
+  /* Punched vent holes, used sparingly on empty rack spaces. */
+  .vented {
+    background-image: radial-gradient(
+      circle at center,
+      var(--line) 0 1.5px,
+      transparent 2px
+    );
+    background-size: 10px 10px;
+  }
+
+  .hairline {
+    border-color: var(--line);
+  }
+
+  /* Horizontally scrollable wrapper so wide tables never scroll the page. */
+  .table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Provenance reveal: collapsed by default, opened by hover or keyboard focus
+     anywhere in the row. Uses grid-template-rows so nothing is display:none. */
+  .prov-reveal {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 140ms ease-out;
+  }
+  .prov-reveal > * {
+    overflow: hidden;
+  }
+  .prov-row:hover .prov-reveal,
+  .prov-row:focus-within .prov-reveal,
+  .prov-reveal:hover {
+    grid-template-rows: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (max-width: 520px) {
+  :root {
+    --u: 2.5rem;
+  }
+}
