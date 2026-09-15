@@ -10,13 +10,20 @@
 import { writeFile } from "node:fs/promises";
 import { renderPatchSheet, type SourceRow } from "@/lib/export/patchSheet";
 import { htmlToPdf } from "@/lib/export/pdf";
-import { DEMO_RACK, DEMO_RACK_FIXED, DEMO_RACK_WIRELESS, SEED_DEVICES } from "@/lib/seed-data";
+import {
+  DEMO_RACK,
+  DEMO_RACK_FIXED,
+  DEMO_RACK_MONITOR,
+  DEMO_RACK_WIRELESS,
+  SEED_DEVICES,
+} from "@/lib/seed-data";
 import type { DeviceSpec, RackSpec } from "@/lib/rack/types";
 
 const RACKS: Record<string, RackSpec> = {
   flypack: DEMO_RACK,
   fixed: DEMO_RACK_FIXED,
   wireless: DEMO_RACK_WIRELESS,
+  monitor: DEMO_RACK_MONITOR,
 };
 
 async function main() {

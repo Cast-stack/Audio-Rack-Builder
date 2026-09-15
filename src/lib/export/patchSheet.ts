@@ -31,6 +31,8 @@ import { escapeXml as esc, renderElevation } from "./elevation";
 export interface SourceRow {
   field: string;
   sourceUrl: string;
+  /** The document, when the URL alone does not identify it. */
+  sourceTitle?: string | null;
   quote: string;
   confidence: number;
   derivation: string | null;
@@ -417,6 +419,7 @@ function sourcesAppendix(input: PatchSheetInput): string {
         <div class="srcfield"><code>${esc(r.field)}</code> <span class="pill conf-${conf}">${conf} confidence</span></div>
         <blockquote>${esc(r.quote)}</blockquote>
         ${r.derivation ? `<div class="deriv"><b>Derived:</b> ${esc(r.derivation)}</div>` : ""}
+        ${r.sourceTitle ? `<div class="srctitle">${esc(r.sourceTitle)}</div>` : ""}
         <div class="srcurl">${esc(host)} — <span class="url">${esc(r.sourceUrl)}</span></div>
       </li>`;
       })
@@ -578,6 +581,7 @@ svg.panel .silk-sm { font-size:26px; opacity:.7; letter-spacing:.5px; }
 .srcfield code { font-family:var(--mono); font-size:8pt; background:#F1F4F6; padding:1px 4px; }
 blockquote { margin:4px 0; font-size:8.2pt; color:var(--ink-2); font-style:italic; }
 .deriv { font-size:7.8pt; color:var(--ink-2); }
+.srctitle { font-size:7.8pt; color:var(--ink-2); margin-top:2px; font-style:italic; }
 .srcurl { font-size:7.4pt; color:var(--ink-3); margin-top:2px; }
 .srcurl .url { font-family:var(--mono); word-break:break-all; }
 `;

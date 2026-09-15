@@ -18,6 +18,14 @@ import type { CaseSpec, DeviceSpec, RackSpec } from "@/lib/rack/types";
 export interface SeedProvenance {
   field: string;
   sourceUrl: string;
+  /**
+   * The document the quote was read from, when the URL alone does not identify
+   * it. Manuals get withdrawn and PDFs move; a citation that names the
+   * document stays checkable against a copy from anywhere, which a bare link
+   * does not. Pointing a link at a page that does not contain the quoted text
+   * would be worse than admitting the file is no longer hosted.
+   */
+  sourceTitle?: string | null;
   quote: string;
   confidence: number;
   derivation: string | null;
@@ -46,6 +54,31 @@ const RME_PRODUCT = "https://rme-audio.de/digiface-dante.html";
  * guide, recorded as the source because pointing at a manufacturer URL that
  * does not resolve would be worse than naming where the text actually is.
  */
+const SHURE_PSM300 = 'Shure, "PSM300 \u2014 Stereo Personal Monitor System", user guide, Version 2.5 (2024-H)';
+const SHURE_SLX = 'Shure, "SLX Wireless System", user guide, 27A15631 Rev. 2 (2012)';
+const SHURE_ULX_2024 = 'Shure, "ULX \u2014 Shure ULX Wireless", user guide, Version 3.1 (2024-C)';
+const PSM300_GUIDE = "https://pubs.shure.com/view/guide/PSM300/en-US.pdf";
+const SLX_GUIDE = "https://pubs.shure.com/view/guide/SLX/en-US.pdf";
+/**
+ * The current Shure-hosted ULX guide. It is the 2024 rewrite and carries no
+ * panel callout lists at all, so it confirms the specifications but cannot
+ * replace ULX_GUIDE as the source for the panel layouts.
+ */
+const ULX_2024 = "https://pubs.shure.com/view/guide/ULX/en-US.pdf";
+const EW_IEM_G4_MANUAL =
+  'Sennheiser, "ew IEM G4 \u2014 EK IEM G4, SR IEM G4", Instruction manual v3.3, 05/2026';
+
+const G3_PRODUCT =
+  "https://www.sennheiser.com/en-us/catalog/uncategorized/sr-300-iem-g3/sr-300-iem-g3-503650";
+/**
+ * Sennheiser has withdrawn the hosted PDF of this manual, so the link above is
+ * the product page and the quotes are cited against the document by name. A
+ * link that resolves to a page not containing the quoted text would read as a
+ * source while proving nothing.
+ */
+const G3_MANUAL =
+  'Sennheiser, "evolution wireless G3 \u2014 300 IEM Series", Instruction manual (operator-supplied copy)';
+
 const ULX_GUIDE =
   "https://fccid.io/m/58c1a25dd8a54f719e8d34cc8cee1d57bb25a981c730424dbd2417e9c978d279.pdf";
 
@@ -411,6 +444,18 @@ export const SEED_DEVICES: SeedDevice[] = [
           { kind: "button", label: "STANDBY", callouts: [9] },
         ],
       },
+      rear: {
+        elements: [
+          { kind: "handle", label: null, size: "sm", callouts: [1] },
+          { kind: "jack", label: null, port: "DC IN", callouts: [2] },
+          { kind: "jack", label: null, port: "ETHERNET RJ45", callouts: [3] },
+          { kind: "jack", label: null, port: "LOOP OUT BAL L(I)", callouts: [4] },
+          { kind: "jack", label: null, port: "LOOP OUT BAL R(II)", callouts: [5] },
+          { kind: "jack", label: null, port: "BAL AF IN L(I)", callouts: [6] },
+          { kind: "jack", label: null, port: "BAL AF IN R(II)", callouts: [7] },
+          { kind: "jack", label: null, port: "RF OUT", callouts: [8] },
+        ],
+      },
     },
     ports: [
       { label: "Headphone output", connector: "TRS", direction: "output", signal: "analog audio", channels: 2, count: 1, face: "front", projectionMm: null },
@@ -428,6 +473,8 @@ export const SEED_DEVICES: SeedDevice[] = [
       "whether 212 mm is chassis-only or overall",
     ],
     provenance: [
+      { field: "panel.rear", sourceUrl: "https://www.sennheiser.com/en-us/catalog/products/wireless-systems/sr-iem-g4/sr-iem-g4-a-509618", sourceTitle: EW_IEM_G4_MANUAL, quote: "Back: 1 Strain relief for the cable of the power supply unit | 2 DC IN socket | 3 LAN connection socket (ETHERNET RJ45) | 4 6.3 mm jack socket LOOP OUT BAL L(I), Audio output, left | 5 6.3 mm jack socket LOOP OUT BAL R(II), Audio output, right | 6 XLR-3/6.3 mm jack combo socket BAL AF IN L(I), Audio input, left | 7 XLR-3/6.3 mm jack combo socket BAL AF IN R(II), Audio input, right | 8 RF OUT BNC socket, Antenna output with remote power supply input", confidence: 0.95, derivation: "Product overview, Back list 1-8, page 60. Order is the manufacturer's: the callouts run left to right beneath the figure. Callout 1 is a moulded cable grip rather than a connector." },
+      { field: "powerMaxW", sourceUrl: "https://www.sennheiser.com/en-us/catalog/products/wireless-systems/sr-iem-g4/sr-iem-g4-a-509618", sourceTitle: EW_IEM_G4_MANUAL, quote: "Power supply 12 V DC | Power consumption max. 350 mA | Rear panel silkscreen: DC IN 12V/350mA", confidence: 0.9, derivation: "CONFIRMED against the full instruction manual, page 116. 12 V x 0.35 A = 4.2 W, a nameplate ceiling. The manual prints no typical figure, and the same rating is silkscreened on the rear panel." },
       { field: "ports", sourceUrl: "https://docs.cloud.sennheiser.com/en-us/ew-iem-g4/ew-iem-g4/ew-iem-g4-sr-connections-back.html", quote: "Front: Headphone socket | Volume control for the headphone socket", confidence: 0.9, derivation: "ADDED: the front headphone socket is callout 1 of the manual's Front list and was missing from this device's port table. It sits on the front face, so it does not consume case depth." },
       { field: "panel.front", sourceUrl: "https://docs.cloud.sennheiser.com/en-us/ew-iem-g4/ew-iem-g4/ew-iem-g4-sr-connections-back.html", quote: "Headphone socket | Volume control for the headphone socket | Infrared interface with a blue LED | Red LED for warnings | Display | Jog dial for navigating through the menu | SYNC button | ESC button | STANDBY button", confidence: 0.9, derivation: "Product overview, Front list 1-9. The AF audio level meter is drawn on the display, not as a discrete bargraph, so it is a readout. Left-to-right order taken from list order." },
       {"field": "formFactor", "sourceUrl": "https://www.sennheiser.com/en-us/catalog/products/wireless-systems/sr-iem-g4/sr-iem-g4-a-509618", "quote": "Half-rack stereo transmitter in a full-metal housing with OLED display for full control", "confidence": 0.95, "derivation": "Manufacturer product page states half-rack directly."},
@@ -617,6 +664,9 @@ export const SEED_DEVICES: SeedDevice[] = [
       "antenna count of 2 is inferred from the diversity architecture, not read",
     ],
     provenance: [
+      { field: "depthMm", sourceUrl: ULX_2024, sourceTitle: SHURE_ULX_2024, quote: "43 x 214 x 172 mm (1.72 x 8.56 x 6.88 in.), H x W x D", confidence: 0.95, derivation: "CONFIRMED, and now axis-labelled. The earlier record came from the archived printed guide, which prints the same three numbers without saying which is which; this guide labels them H x W x D, so the depth figure is the manufacturer's own rather than an inference." },
+      { field: "weightLb", sourceUrl: ULX_2024, sourceTitle: SHURE_ULX_2024, quote: "1105 g (2 lbs, 7 oz.)", confidence: 0.95, derivation: "CONFIRMED against the current Shure-hosted guide. 1105 g x 2.20462 / 1000 = 2.436 lb." },
+      { field: "powerMaxW", sourceUrl: ULX_2024, sourceTitle: SHURE_ULX_2024, quote: "Power Requirements 14-18 V DC (negative ground), 550 mA", confidence: 0.8, derivation: "CONFIRMED. 18 V x 0.55 A = 9.9 W at the top of the accepted range - a supply ceiling, not a measured draw." },
       { field: "panel.front", sourceUrl: ULX_GUIDE, quote: "Receiving Antenna Indicators. One of these amber LEDs will glow | RF Level Indicators. Indicate received RF signal strength. | TX Audio Level Indicators. Green indicates normal operation. Amber indicates approaching overload condition. Red indicates excessive audio levels. | MODE Button | SET Button | Display Control Knob | Level Control | Power On/Off Switch", confidence: 0.75, derivation: "ULXP4 PROFESSIONAL RECEIVER FEATURES AND CONTROLS, callouts 1-18. Callouts 2-7 and 10-13 are fields of the LCD, not parts, and collapse into one display element; the LCD window itself carries no callout in the guide. Left-to-right order taken from callout order." },
       {"field": "depthMm", "sourceUrl": "https://content-files.shure.com/Pubs/ULX2/58/ULX_Spec_Sheet.pdf", "quote": "43 mm H x 214 mm W x 172 mm D (1.72 in. x 8.56 in. x 6.88 in.)", "confidence": 0.9, "derivation": "Printed in millimetres, no conversion needed. OVERALL depth; rack-ear and connector protrusion are not broken out."},
       {"field": "weightLb", "sourceUrl": "https://content-files.shure.com/Pubs/ULX2/58/ULX_Spec_Sheet.pdf", "quote": "ULXP4: 1105 g (2 lbs, 7 oz.)", "confidence": 0.95, "derivation": "2 lb 7 oz = 2.4375 lb. Cross-check: 1105 g / 453.592 = 2.436 lb."},
@@ -681,6 +731,9 @@ export const SEED_DEVICES: SeedDevice[] = [
       "which PS41 regional variant ships with this model",
     ],
     provenance: [
+      { field: "depthMm", sourceUrl: ULX_2024, sourceTitle: SHURE_ULX_2024, quote: "43 x 214 x 163 mm (1.72 x 8.56 x 6.52 in.), H x W x D", confidence: 0.95, derivation: "CONFIRMED, and now axis-labelled. The earlier record came from the archived printed guide, which prints the same three numbers without saying which is which; this guide labels them H x W x D, so the depth figure is the manufacturer's own rather than an inference." },
+      { field: "weightLb", sourceUrl: ULX_2024, sourceTitle: SHURE_ULX_2024, quote: "1049 g (2 lbs, 5 oz.)", confidence: 0.95, derivation: "CONFIRMED against the current Shure-hosted guide. 1049 g x 2.20462 / 1000 = 2.313 lb." },
+      { field: "powerMaxW", sourceUrl: ULX_2024, sourceTitle: SHURE_ULX_2024, quote: "Power Requirements 14-18 V DC (negative ground), 550 mA", confidence: 0.8, derivation: "CONFIRMED. 18 V x 0.55 A = 9.9 W at the top of the accepted range - a supply ceiling, not a measured draw." },
       { field: "panel.front", sourceUrl: ULX_GUIDE, quote: "RF Indicator. Glows green to indicate presence of received Radio Frequency (RF) signal. | TX Audio Level Indicators. | MODE Button. Press this button to step through the display menu. | SET Button. Saves the altered setting. | Button. Press this button to increase or decrease the Volume level | Power On/Off Switch. Turns the receiver on and off.", confidence: 0.78, derivation: "ULXS4 Standard Receiver Front Panel, callouts 1-12. Callouts 3-8 are fields of the one LCD (antenna indicator, GROUP, CHANNEL, battery, SCAN, TV/volume) and collapse into the display element. Left-to-right order taken from callout order." },
       {"field": "status", "sourceUrl": "https://www.shure.com/en-US/products/wireless-systems/ulx_s/ulxs4", "quote": "Discontinued", "confidence": 0.95, "derivation": "Shure's own product page flags it. The page carries no spec table and no replacement recommendation."},
       {"field": "depthMm", "sourceUrl": "https://content-files.shure.com/Pubs/ULX2/58/ULX_Spec_Sheet.pdf", "quote": "43 mm H x 214 mm W x 163 mm D (1.72 in. x 8.56 in. x 6.52 in.)", "confidence": 0.95, "derivation": "Taken as printed. OVERALL dimensions, so may include rear-panel protrusions. Confirmed identically in the archived ULX user guide."},
@@ -701,7 +754,7 @@ export const SEED_DEVICES: SeedDevice[] = [
       "Half-rack stereo UHF transmitter from the ew 300 IEM G3 system: combo inputs with balanced loop outs, BNC antenna output with remote powering, Ethernet for remote control, front headphone monitor.",
     formFactor: "half-rack",
     rackUnits: 1,
-    depthMm: 202,
+    depthMm: 212,
     depthIsOverall: true,
     weightLb: 2.16,
     powerTypicalW: null,
@@ -712,6 +765,44 @@ export const SEED_DEVICES: SeedDevice[] = [
     statusNote: "Sennheiser's page states the product is no longer available to purchase. The G4 generation is the current equivalent, but no manufacturer source states G4 supersedes G3.",
     productUrl: "https://www.sennheiser.com/en-us/catalog/uncategorized/sr-300-iem-g3/sr-300-iem-g3-503650",
     datasheetUrl: null,
+    // Product overviews, manual page 5. The figure carries numbered leader
+    // lines in true left-to-right order across both faces - 1-7 on the front,
+    // 8-17 on the rear - so this layout's ORDER is the manufacturer's, not an
+    // inference from a list. The audio level meter is drawn on the display
+    // panel (displays overview, page 6), so there is no discrete bargraph.
+    panel: {
+      front: {
+        elements: [
+          { kind: "jack", label: null, port: "Headphone output", callouts: [1] },
+          { kind: "knob", label: null, callouts: [2] },
+          { kind: "button", label: "SYNC", callouts: [3] },
+          { kind: "window", label: "IR", callouts: [4] },
+          {
+            kind: "display",
+            label: null,
+            size: "lg",
+            readouts: ["AF level", "B.Ch / frequency", "EQ / sensitivity"],
+            callouts: [5],
+          },
+          { kind: "knob", label: null, callouts: [6] },
+          { kind: "button", label: "STANDBY", callouts: [7] },
+        ],
+      },
+      rear: {
+        elements: [
+          { kind: "handle", label: null, size: "sm", callouts: [8] },
+          { kind: "jack", label: null, port: "DC IN", callouts: [9] },
+          { kind: "led", label: null, callouts: [10] },
+          { kind: "jack", label: null, port: "ETHERNET RJ 45", callouts: [11] },
+          { kind: "jack", label: null, port: "LOOP OUT BAL L(I)", callouts: [12] },
+          { kind: "jack", label: null, port: "LOOP OUT BAL R(II)", callouts: [13] },
+          { kind: "labelStrip", label: null, size: "sm", callouts: [14] },
+          { kind: "jack", label: null, port: "BAL AF IN L(I)", callouts: [15] },
+          { kind: "jack", label: null, port: "BAL AF IN R(II)", callouts: [16] },
+          { kind: "jack", label: null, port: "RF OUT", callouts: [17] },
+        ],
+      },
+    },
     ports: [
       {"label": "BAL AF IN L(I)", "connector": "XLR/TRS combo", "direction": "input", "signal": "analog audio", "channels": 1, "count": 1, "face": "rear", "projectionMm": null},
       {"label": "BAL AF IN R(II)", "connector": "XLR/TRS combo", "direction": "input", "signal": "analog audio", "channels": 1, "count": 1, "face": "rear", "projectionMm": null},
@@ -723,13 +814,18 @@ export const SEED_DEVICES: SeedDevice[] = [
       {"label": "Headphone output", "connector": "TRS", "direction": "output", "signal": "analog audio", "channels": 2, "count": 1, "face": "front", "projectionMm": null},
     ],
     unresolved: [
-      "panel.front \u2014 Sennheiser has retired every assets.sennheiser.com copy of the ew 300 IEM G3 manual and the G3 is absent from docs.cloud.sennheiser.com, so no callout list could be sourced; this unit falls back to the generic IEM transmitter panel",
       "powerTypicalW",
       "no surviving manufacturer-hosted datasheet URL",
       "rack-mount depth including the GA 3 ears",
-      "the two sources disagree on which printed figure is width and which is depth",
+      "which of the printed 202 mm and 212 mm figures is depth and which is width \u2014 the manual prints \"Dimensions approx. 202 x 212 x 43 mm\" with no W/D/H labels. The larger figure is recorded as depth deliberately: a depth estimate that is too small strands a build on site, one that is too large costs a slightly bigger case",
     ],
     provenance: [
+      { field: "depthMm", sourceUrl: G3_PRODUCT, sourceTitle: G3_MANUAL, quote: "Dimensions approx. 202 mm x 212 mm x 43 mm", confidence: 0.6, derivation: "CORRECTED from 202 to 212. The manual prints the three figures with no W/D/H labels, and this catalog had recorded 202 here while recording 212 for the SR IEM G4 - the same ew half-rack chassis, printed with the same three numbers. The larger figure is now used for both: consistent, and wrong in the direction that costs a bigger case rather than a build that will not close." },
+      { field: "panel.front", sourceUrl: G3_PRODUCT, sourceTitle: G3_MANUAL, quote: "Operating elements - front panel: 1 Headphone output, 1/4 in (6.3 mm) jack socket | 2 Headphone volume control | 3 sync button, backlit | 4 Infra-red interface | 5 Display panel, backlit in orange | 6 Jog dial | 7 STANDBY button with operation indication (red backlighting), serves as the ESC (cancel) key in the operating menu", confidence: 0.95, derivation: "Product overviews, page 5. The figure numbers the parts with leader lines in left-to-right order, so unlike the rest of this catalog the layout order here is printed by the manufacturer rather than inferred from list order." },
+      { field: "panel.rear", sourceUrl: G3_PRODUCT, sourceTitle: G3_MANUAL, quote: "Operating elements - rear panel: 8 Cable grip for power supply DC cable | 9 DC socket (DC IN) for connection of NT 2-3 mains unit | 10 LED (yellow) for network activity indication | 11 LAN socket (ETHERNET RJ 45) | 12 Audio output left (LOOP OUT BAL L(I)), 1/4 in (6.3 mm) jack socket | 13 Audio output right (LOOP OUT BAL R(II)), 1/4 in (6.3 mm) jack socket | 14 Type plate | 15 Audio input left (BAL AF IN L(I)), 1/4 in (6.3 mm) jack/XLR-3 combo socket | 16 Audio input right (BAL AF IN R(II)), 1/4 in (6.3 mm) jack/XLR-3 combo socket | 17 Antenna output (RF OUT) with remote power supply input, BNC socket", confidence: 0.95, derivation: "Product overviews, page 5. Left-to-right order printed by the manufacturer. Callouts 8, 10 and 14 are not connectors - a cable grip, a network LED and the type plate - and appear on no other rear elevation in this catalog." },
+      { field: "weightLb", sourceUrl: G3_PRODUCT, sourceTitle: G3_MANUAL, quote: "Weight approx. 980 g", confidence: 0.95, derivation: "CONFIRMED against the printed manual, page 31. 980 g x 2.20462 / 1000 = 2.161 lb, matching the figure already recorded." },
+      { field: "powerMaxW", sourceUrl: G3_PRODUCT, sourceTitle: G3_MANUAL, quote: "Power supply 12 V DC | Current consumption max. 350 mA", confidence: 0.9, derivation: "CONFIRMED against the printed manual, page 31. 12 V x 0.35 A = 4.2 W, a nameplate ceiling rather than a measured draw. No typical figure is printed anywhere in the manual." },
+      { field: "ports", sourceUrl: G3_PRODUCT, sourceTitle: G3_MANUAL, quote: "Antenna output BNC socket, 50 ohm with remote power supply input 12 V DC | AF input BAL AF IN L(I)/BAL AF IN R(II) 2 x XLR-3/1/4 in (6.3 mm) jack combo socket, electronically balanced | AF output LOOP OUT BAL L(I)/LOOP OUT BAL R(II) 1/4 in (6.3 mm) stereo jack socket, balanced | Headphone output 1/4 in (6.3 mm) stereo jack socket", confidence: 0.95, derivation: "CONFIRMED against the printed manual, page 31. Every connector already recorded for this device matches the specification table, including the front headphone jack." },
       {"field": "status", "sourceUrl": "https://www.sennheiser.com/en-us/catalog/uncategorized/sr-300-iem-g3/sr-300-iem-g3-503650", "quote": "This product is no longer available to be purchased", "confidence": 0.95, "derivation": "Manufacturer legacy page for this exact SKU (503650)."},
       {"field": "depthMm", "sourceUrl": "https://www.sennheiser.com/en-us/catalog/uncategorized/sr-300-iem-g3/sr-300-iem-g3-503650", "quote": "212 x 202 x 43 mm", "confidence": 0.85, "derivation": "Taking Sennheiser's width x depth x height order gives depth 202 mm. Held at 0.85 because the instruction manual prints the same three numbers in the opposite horizontal order."},
       {"field": "weightLb", "sourceUrl": "https://www.sennheiser.com/en-us/catalog/uncategorized/sr-300-iem-g3/sr-300-iem-g3-503650", "quote": "980", "confidence": 0.9, "derivation": "Product page weight field in grams: 0.980 kg / 0.45359237 = 2.1605 lb. Matches the manual's 980 g."},
@@ -739,6 +835,156 @@ export const SEED_DEVICES: SeedDevice[] = [
   },
 
   // --- generic infrastructure. Dimensions here are the standard, not a product.
+  {
+    id: "shure-p3t",
+    slug: "shure-p3t",
+    brand: "Shure",
+    model: "P3T",
+    category: "IEM Transmitter",
+    passive: false,
+    description:
+      "Half-rack PSM300 stereo personal monitor transmitter: two balanced 1/4-inch TRS inputs with switchable line/aux sensitivity, balanced TRS loop outputs and a BNC antenna. Two fit one rack space with the dual mount kit.",
+    formFactor: "half-rack",
+    rackUnits: 1,
+    depthMm: 172,
+    depthIsOverall: true,
+    weightLb: 1.73,
+    powerTypicalW: null,
+    powerMaxW: 3.9,
+    inrushFactor: 1,
+    poePowered: false,
+    status: "current",
+    statusNote: "JB band models have a permanently fixed antenna.",
+    productUrl: "https://www.shure.com/en-US/products/wireless-systems/psm300",
+    datasheetUrl: PSM300_GUIDE,
+    // One continuous list 1-13 under "P3T Transmitter Front and Rear Panels",
+    // split front 1-7 / rear 8-13 by the two figures. The LCD is callout 4 and
+    // the seven fields inside it are a SEPARATE list, also numbered 1-7, which
+    // is the trap in this document.
+    panel: {
+      front: {
+        elements: [
+          { kind: "knob", label: "LEVEL", callouts: [1] },
+          { kind: "window", label: "IR", callouts: [2] },
+          { kind: "button", label: "SYNC", callouts: [3] },
+          {
+            kind: "display",
+            label: null,
+            size: "lg",
+            readouts: ["audio meter", "group / channel / TV", "MX / mono"],
+            callouts: [4],
+          },
+          { kind: "button", label: "GROUP", callouts: [5] },
+          { kind: "button", label: "CH", callouts: [6] },
+          { kind: "powerSwitch", label: null, callouts: [7] },
+        ],
+      },
+      rear: {
+        elements: [
+          { kind: "jack", label: null, port: "Power Input", callouts: [8] },
+          { kind: "switch", label: "MX/MONO", callouts: [9] },
+          { kind: "switch", label: "LINE/AUX", callouts: [10] },
+          { kind: "jack", label: null, port: "Loop Outputs", callouts: [11] },
+          { kind: "jack", label: null, port: "Audio Inputs", callouts: [12] },
+          { kind: "jack", label: null, port: "Antenna", callouts: [13] },
+        ],
+      },
+    },
+    ports: [
+      { label: "Power Input", connector: "Other", direction: "input", signal: "power", channels: null, count: 1, face: "rear", projectionMm: null },
+      { label: "Loop Outputs", connector: "TRS", direction: "output", signal: "analog audio", channels: 2, count: 2, face: "rear", projectionMm: null },
+      { label: "Audio Inputs", connector: "TRS", direction: "input", signal: "analog audio", channels: 2, count: 2, face: "rear", projectionMm: null },
+      { label: "Antenna", connector: "BNC", direction: "output", signal: "antenna", channels: null, count: 1, face: "rear", projectionMm: null },
+    ],
+    unresolved: [
+      "powerTypicalW \u2014 only the 12-15 V DC, 260 mA maximum requirement is printed, never a typical draw",
+      "the PS24 supply's own input rating is not printed in the guide",
+      "depth behind the rails (the guide prints overall chassis depth)",
+    ],
+    provenance: [
+      { field: "panel.front", sourceUrl: PSM300_GUIDE, sourceTitle: SHURE_PSM300, quote: "1 Input Level Control - Adjusts the level of the incoming audio signal | 2 IR Sync Window - Sends and receives group/channel data to sync receivers with the transmitter | 3 Sync Button - Press to synchronize the transmitter and receiver to the same group and channel | 4 LCD Display - Displays audio, RF, and system information | 5 Group Button - Press to scroll through group settings | 6 Channel Button - Press to scroll through channel settings | 7 Power - Turns power on or off", confidence: 0.92, derivation: "P3T Transmitter Front and Rear Panels, callouts 1-7 of a single continuous 1-13 list; the front/rear split is resolvable only from the two figures. Left-to-right order taken from callout order." },
+      { field: "panel.rear", sourceUrl: PSM300_GUIDE, sourceTitle: SHURE_PSM300, quote: "8 Power Input - Connect the supplied Shure PS24 external power supply | 9 Mono/Stereo-MX Switch | 10 Line/Aux Switch | 11 Loop Outputs (1/4 Inch TRS, Balanced) - Connect outputs to additional PSM systems or other audio devices | 12 Audio Inputs (1/4 Inch TRS, Balanced) - Connect to mixer outputs or other audio sources for monitoring by the performers | 13 BNC Antenna Connector - Connect the supplied 1/4 wave antenna, directional antenna, or a Shure PA411 antenna combiner", confidence: 0.92, derivation: "Callouts 8-13 of the same list. The seven items the guide numbers 1-7 under P3T Transmitter Display are fields inside the LCD, not panel parts, and are recorded as readouts of callout 4." },
+      { field: "depthMm", sourceUrl: PSM300_GUIDE, sourceTitle: SHURE_PSM300, quote: "Dimensions 43 x 198 x 172 mm (1.7 x 7.8 x 6.8 in.), H x W x D", confidence: 0.92, derivation: "Axis-labelled by the manufacturer, so 172 mm is depth and no inference is involved. Height 43 mm is under one rack unit and width 198 mm is half-rack." },
+      { field: "weightLb", sourceUrl: PSM300_GUIDE, sourceTitle: SHURE_PSM300, quote: "Net Weight 783 g(27.6 oz.)", confidence: 0.95, derivation: "783 g x 2.20462 / 1000 = 1.726 lb, which also matches the printed 27.6 oz." },
+      { field: "powerMaxW", sourceUrl: PSM300_GUIDE, sourceTitle: SHURE_PSM300, quote: "Power Requirement 12-15V DC, 260 mA Maximum", confidence: 0.8, derivation: "DERIVED, NOT PRINTED. 15 V x 0.26 A = 3.9 W at the top of the accepted range. A circuit-budgeting ceiling, not a measured draw." },
+      { field: "formFactor", sourceUrl: PSM300_GUIDE, sourceTitle: SHURE_PSM300, quote: "The P3T Transmitter can be mounted in a standard 19-inch rack. Up to two units can be mounted in a single rack space. | All-metal half-rack transmitter | Note: Always use both straddle bars when mounting two units.", confidence: 0.96, derivation: "Stated explicitly, including the two-in-one-U arrangement this planner models." },
+      { field: "ports", sourceUrl: PSM300_GUIDE, sourceTitle: SHURE_PSM300, quote: "Audio Input Connector Type 6.35 mm (1/4in) TRS, Electronically balanced | Audio Output Connector Type 6.35 mm (1/4in) TRS, Electronically balanced, Impedance Connected directly to inputs | BNC Antenna Connector", confidence: 0.9, derivation: "Input and output connector types from the specification tables; the antenna connector type is named only in panel callout 13, as the spec tables omit it." },
+    ],
+  },
+  {
+    id: "shure-slx4",
+    slug: "shure-slx4",
+    brand: "Shure",
+    model: "SLX4",
+    category: "Wireless Mic Receiver",
+    passive: false,
+    description:
+      "Half-rack analog UHF diversity receiver from the SLX system: balanced XLR mic-level and unbalanced 1/4-inch instrument outputs with a recessed rear output level control, and an antenna connector at each end of the rear panel. Discontinued, superseded by SLX-D.",
+    formFactor: "half-rack",
+    rackUnits: 1,
+    depthMm: 134,
+    depthIsOverall: true,
+    weightLb: 1.8,
+    powerTypicalW: null,
+    powerMaxW: 2.9,
+    inrushFactor: 1,
+    poePowered: false,
+    status: "discontinued",
+    statusNote: "Analog SLX line, guide 27A15631 Rev. 2 dated 2012. Superseded by SLX-D.",
+    productUrl: "https://www.shure.com/en-US/products/wireless-systems/slx",
+    datasheetUrl: SLX_GUIDE,
+    // This guide prints NO numbered callout list for either face, so unlike
+    // the rest of the catalog the order here is read off the rear-panel
+    // silkscreen in the figure and off the front-panel figures. Recorded at
+    // lower confidence for exactly that reason.
+    panel: {
+      front: {
+        elements: [
+          { kind: "ledBar", label: "AUDIO" },
+          { kind: "led", label: "READY" },
+          { kind: "display", label: null, size: "lg", readouts: ["GROUP / CHANNEL", "MHz", "ANTENNA A / B"] },
+          { kind: "button", label: "MENU" },
+          { kind: "button", label: "SELECT" },
+          { kind: "button", label: "SYNC" },
+          { kind: "powerSwitch", label: null },
+        ],
+      },
+      rear: {
+        elements: [
+          { kind: "jack", label: null, port: "ANTENNA B" },
+          { kind: "jack", label: null, port: "POWER" },
+          { kind: "jack", label: null, port: "MIC OUT" },
+          { kind: "jack", label: null, port: "INSTRUMENT OUT" },
+          { kind: "knob", label: "VOLUME" },
+          { kind: "labelStrip", label: null, size: "sm" },
+          { kind: "jack", label: null, port: "ANTENNA A" },
+        ],
+      },
+    },
+    ports: [
+      { label: "ANTENNA B", connector: "BNC", direction: "input", signal: "antenna", channels: null, count: 1, face: "rear", projectionMm: null },
+      { label: "POWER", connector: "Other", direction: "input", signal: "power", channels: null, count: 1, face: "rear", projectionMm: null },
+      { label: "MIC OUT", connector: "XLR3", direction: "output", signal: "analog audio", channels: 1, count: 1, face: "rear", projectionMm: null },
+      { label: "INSTRUMENT OUT", connector: "TS", direction: "output", signal: "analog audio", channels: 1, count: 1, face: "rear", projectionMm: null },
+      { label: "ANTENNA A", connector: "BNC", direction: "input", signal: "antenna", channels: null, count: 1, face: "rear", projectionMm: null },
+    ],
+    unresolved: [
+      "the antenna connector type is never named in the guide \u2014 BNC is inferred from the figure and the UA400 quarter-wave antenna range, not printed",
+      "powerTypicalW",
+      "the guide contradicts itself on current draw: the specification table prints 150 mA and the rear-panel silkscreen prints 160 mA",
+      "panel element order \u2014 this guide prints no callout list, so the layout is read off the figures",
+      "depth behind the rails (the guide prints overall chassis depth)",
+    ],
+    provenance: [
+      { field: "panel.rear", sourceUrl: SLX_GUIDE, sourceTitle: SHURE_SLX, quote: "Rear panel silkscreen, left to right: ANTENNA B | 12-18 V, 160 mA, POWER | MIC OUT | INSTRUMENT OUT | VOLUME | SHURE INCORPORATED / NILES, IL 60714 / SLX4 RECEIVER | ANTENNA A", confidence: 0.6, derivation: "NO CALLOUT LIST EXISTS in this guide. The order above is read off the silkscreen printed in the rear-panel figure, which is weaker evidence than a numbered list and is recorded as such. The two circled numbers on that figure are cable-retainer assembly steps, not part callouts." },
+      { field: "panel.front", sourceUrl: SLX_GUIDE, sourceTitle: SHURE_SLX, quote: "front-panel figures label: a five-segment LED ladder silkscreened audio | ready | menu | select | sync | power", confidence: 0.55, derivation: "NO CALLOUT LIST EXISTS. Element identities come from the labelled front-panel figures and running prose; their left-to-right order is inferred from those figures and is the weakest layout in this catalog." },
+      { field: "depthMm", sourceUrl: SLX_GUIDE, sourceTitle: SHURE_SLX, quote: "Dimensions 42mm X 197mm X 134mm (H x W x D)", confidence: 0.92, derivation: "Axis-labelled by the manufacturer, so 134 mm is depth. Width 197 mm is half-rack and height 42 mm is under one rack unit." },
+      { field: "weightLb", sourceUrl: SLX_GUIDE, sourceTitle: SHURE_SLX, quote: "Weight 816 g (1 lb 13oz.)", confidence: 0.95, derivation: "816 g x 2.20462 / 1000 = 1.799 lb, matching the printed 1 lb 13 oz." },
+      { field: "powerMaxW", sourceUrl: SLX_GUIDE, sourceTitle: SHURE_SLX, quote: "Power Requirements 12-18 V DC @ 150 mA, supplied by external power supply (tip positive) | rear-panel silkscreen: 12-18 V, 160 mA", confidence: 0.55, derivation: "DERIVED, NOT PRINTED, and the guide disagrees with itself: the specification table says 150 mA, the rear panel says 160 mA. 18 V x 0.16 A = 2.9 W uses the higher figure at the top of the voltage range, which is the safe direction for a circuit budget." },
+      { field: "formFactor", sourceUrl: SLX_GUIDE, sourceTitle: SHURE_SLX, quote: "Rack-Mounting SLX Receivers | Two Receivers - Required Accessories: 1 x UA440 | Rack Mount Kit for single Receiver - UA506 | Rack Mount Kit for Two Receivers - UA507", confidence: 0.85, derivation: "DERIVED. The guide never uses the words half-rack, but it shows two receivers occupying one rack space and sells a two-receiver kit, and the printed 197 mm width is half-rack." },
+      { field: "ports", sourceUrl: SLX_GUIDE, sourceTitle: SHURE_SLX, quote: "Maximum Audio Output Level XLR connector: -13 dBV (into 600 ohm load); 6.35 mm (1/4in) connector: -2 dBV (into 3 kohm load) | Pin Assignments XLR connector: 1=ground, 2=audio, 3=no audio; 6.35 mm (1/4in) connector: Tip=audio, Ring=no audio, Sleeve=ground | rear panel silkscreen: MIC OUT, INSTRUMENT OUT, ANTENNA A, ANTENNA B", confidence: 0.75, derivation: "The XLR is wired 1=ground, 2=audio, 3=no audio, so it is impedance-balanced rather than a true balanced pair. The antenna connector type is NOT printed anywhere in this guide; BNC is inferred and is listed under unresolved." },
+    ],
+  },
   {
     id: "generic-vent-1u",
     slug: "generic-vent-panel-1u",
@@ -935,7 +1181,38 @@ export const DEMO_RACK_WIRELESS: RackSpec = {
   ],
 };
 
-export const DEMO_RACKS: RackSpec[] = [DEMO_RACK, DEMO_RACK_FIXED, DEMO_RACK_WIRELESS];
+/**
+ * Every unit in this rack is drawn from its own manufacturer's manual, so it
+ * is the one to look at when checking that a panel matches the real thing.
+ */
+export const DEMO_RACK_MONITOR: RackSpec = {
+  name: "Monitor world \u2014 8U, IEM and mics",
+  case: SEED_CASES[1]!,
+  circuits: [
+    { label: "A", volts: 120, amps: 20 },
+    { label: "B", volts: 120, amps: 15 },
+  ],
+  placements: [
+    { deviceId: "shure-p3t", position: 1, slot: "left", circuit: "A", label: "IEM 1-2" },
+    { deviceId: "shure-p3t", position: 1, slot: "right", circuit: "A", label: "IEM 3-4" },
+    { deviceId: "sennheiser-sr-iem-g4", position: 2, slot: "left", circuit: "A", label: "IEM 5" },
+    { deviceId: "sennheiser-sr300-iem-g3", position: 2, slot: "right", circuit: "A", label: "IEM 6 (spare)" },
+    { deviceId: "generic-vent-1u", position: 3, slot: "full", circuit: null },
+    { deviceId: "shure-slx4", position: 4, slot: "left", circuit: "B", label: "Vox 1" },
+    { deviceId: "shure-slx4", position: 4, slot: "right", circuit: "B", label: "Vox 2" },
+    { deviceId: "shure-slxd4", position: 5, slot: "left", circuit: "B", label: "Vox 3" },
+    { deviceId: "shure-glxd4rp", position: 5, slot: "right", circuit: "B", label: "Gtr" },
+    { deviceId: "shure-ad600", position: 6, slot: "full", circuit: "B" },
+    { deviceId: "generic-fan-1u", position: 7, slot: "full", circuit: "A" },
+  ],
+};
+
+export const DEMO_RACKS: RackSpec[] = [
+  DEMO_RACK,
+  DEMO_RACK_FIXED,
+  DEMO_RACK_WIRELESS,
+  DEMO_RACK_MONITOR,
+];
 
 export const DEMO_DEVICES: Map<string, DeviceSpec> = new Map(
   SEED_DEVICES.map((d) => [d.id, d as DeviceSpec]),
