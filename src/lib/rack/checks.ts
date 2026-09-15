@@ -12,7 +12,7 @@
  */
 
 import { computeBudget, PASSIVE_THERMAL_W_PER_RU, type RackBudget } from "./budget";
-import { caseDepthHeadroom, occupiedPositions, occupiedUnits } from "./geometry";
+import { caseDepthHeadroom, isHalfWidth, occupiedCells, occupiedPositions, occupiedUnits } from "./geometry";
 import type { CheckResult, DeviceSpec, RackSpec } from "./types";
 
 /** Above this fraction of rack height, a loaded case wants to tip on a ramp. */
@@ -57,7 +57,7 @@ export function checkRack(rack: RackSpec, devices: Map<string, DeviceSpec>): Che
 
 function checkPlacement(rack: RackSpec, devices: Map<string, DeviceSpec>): CheckResult[] {
   const out: CheckResult[] = [];
-  const occupancy = new Map<number, string[]>();
+  const occupancy = new Map<string, string[]>();
 
   for (const p of rack.placements) {
     const device = devices.get(p.deviceId);
@@ -90,15 +90,19 @@ function checkPlacement(rack: RackSpec, devices: Map<string, DeviceSpec>): Check
       });
     }
 
-    for (const u of positions) {
-      const list = occupancy.get(u) ?? [];
+    // Occupancy is per half-U, so two half-rack receivers can share a U while
+    // a full-width unit still blocks the whole row.
+    for (const cell of occupiedCells(device, p.position, p.slot)) {
+      const list = occupancy.get(cell) ?? [];
       list.push(device.id);
-      occupancy.set(u, list);
+      occupancy.set(cell, list);
     }
   }
 
-  for (const [u, ids] of occupancy) {
+  for (const [cell, ids] of occupancy) {
     if (ids.length > 1) {
+      const [uStr, half] = cell.split("|");
+      const u = Number(uStr);
       const names = ids
         .map((id) => devices.get(id))
         .filter((d): d is DeviceSpec => !!d)
@@ -107,8 +111,44 @@ function checkPlacement(rack: RackSpec, devices: Map<string, DeviceSpec>): Check
         code: "placement.collision",
         severity: "error",
         title: `Two units in U${u}`,
-        detail: `${names.join(" and ")} both occupy U${u}.`,
+        detail: `${names.join(" and ")} both occupy the ${half} side of U${u}.`,
         deviceIds: ids,
+        positions: [u],
+      });
+    }
+  }
+
+  // A lone half-rack unit leaves an open half. That is legal, but it is also
+  // a hole in the airflow path and a place for cables to migrate into.
+  const halfCells = new Map<number, { ids: string[]; halves: Set<string> }>();
+  for (const p of rack.placements) {
+    const device = devices.get(p.deviceId);
+    if (!device || !isHalfWidth(device)) continue;
+    for (const cell of occupiedCells(device, p.position, p.slot)) {
+      const [uStr, half] = cell.split("|");
+      const u = Number(uStr);
+      const entry = halfCells.get(u) ?? { ids: [], halves: new Set<string>() };
+      entry.ids.push(device.id);
+      entry.halves.add(half!);
+      halfCells.set(u, entry);
+    }
+  }
+  for (const [u, entry] of halfCells) {
+    const blockedByFull = rack.placements.some((p) => {
+      const d = devices.get(p.deviceId);
+      if (!d || isHalfWidth(d)) return false;
+      return occupiedPositions(d, p.position).includes(u);
+    });
+    if (!blockedByFull && entry.halves.size === 1) {
+      out.push({
+        code: "placement.half-open",
+        severity: "info",
+        title: `U${u} has one half empty`,
+        detail:
+          `Only the ${[...entry.halves][0]} side of U${u} is filled. Pair it with another ` +
+          `half-rack unit, or fit the blanking plate that came with the mounting kit — an open ` +
+          `half lets air bypass the gear it was meant to cool.`,
+        deviceIds: entry.ids,
         positions: [u],
       });
     }

@@ -17,12 +17,21 @@ export interface PortSpec {
   projectionMm: number | null;
 }
 
+export type FormFactor =
+  | "full-rack" | "half-rack" | "third-rack" | "quarter-rack" | "desktop" | "accessory";
+
 export interface DeviceSpec {
   id: string;
   slug: string;
   brand: string;
   model: string;
   category: string;
+  /**
+   * Width class. A half-rack unit still consumes a whole U of height — two of
+   * them share that U side by side, which is how a rack of wireless receivers
+   * is actually built.
+   */
+  formFactor: FormFactor;
   /** Categories flagged passive must draw no power. */
   passive: boolean;
 
@@ -57,10 +66,15 @@ export interface Circuit {
   amps: number;
 }
 
+/** Which half of the U a unit sits in. Full-width gear takes both. */
+export type Slot = "full" | "left" | "right";
+
 export interface PlacementSpec {
   deviceId: string;
   /** 1 = bottom U. Bottom-origin, because that is how weight is reasoned about. */
   position: number;
+  /** Omitted means "full" for full-width gear, "left" for half-rack. */
+  slot?: Slot;
   circuit: string | null;
   label?: string | null;
 }

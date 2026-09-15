@@ -9,7 +9,7 @@
  * six BNCs with right-angle-averse coax and a locking IEC need another 100 mm.
  */
 
-import type { CaseSpec, DeviceSpec, PortSpec } from "./types";
+import type { CaseSpec, DeviceSpec, PortSpec, Slot } from "./types";
 
 /** EIA-310: one rack unit is 1.75 in. */
 export const MM_PER_RU = 44.45;
@@ -126,6 +126,38 @@ export function requiredDepth(device: DeviceSpec): DepthBreakdown {
   const requiredMm =
     device.depthMm == null ? null : Math.round(device.depthMm + connectorMm + bendMm);
   return { chassisMm: device.depthMm, connectorMm, bendMm, requiredMm, drivenBy };
+}
+
+/**
+ * Half-rack gear shares a U. Third- and quarter-rack chassis are rare enough
+ * that the planner treats them as half-width too — conservative, and it stops
+ * the layout claiming three will fit where the mounting kit only takes two.
+ */
+export function isHalfWidth(device: DeviceSpec): boolean {
+  return device.formFactor === "half-rack" ||
+    device.formFactor === "third-rack" ||
+    device.formFactor === "quarter-rack";
+}
+
+/** The half (or halves) a placement covers. */
+export function slotsFor(device: DeviceSpec, slot: Slot | undefined): ("left" | "right")[] {
+  if (!isHalfWidth(device)) return ["left", "right"];
+  const chosen = slot === "right" ? "right" : "left";
+  return [chosen];
+}
+
+/** Every (U, half) cell a placement occupies, as stable keys. */
+export function occupiedCells(
+  device: DeviceSpec,
+  position: number,
+  slot: Slot | undefined,
+): string[] {
+  const halves = slotsFor(device, slot);
+  const cells: string[] = [];
+  for (const u of occupiedPositions(device, position)) {
+    for (const half of halves) cells.push(`${u}|${half}`);
+  }
+  return cells;
 }
 
 /** Rack units a device occupies, rounded up to a whole U for placement. */

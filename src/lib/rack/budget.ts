@@ -5,7 +5,7 @@
  * numbers in the planner's side rail are never stale.
  */
 
-import { MM_PER_RU, occupiedUnits, requiredDepth } from "./geometry";
+import { MM_PER_RU, occupiedPositions, occupiedUnits, requiredDepth } from "./geometry";
 import type { Circuit, DeviceSpec, RackSpec } from "./types";
 
 /** NEC 210.19(A)/210.20(A): a continuous load may use 80% of the breaker. */
@@ -74,7 +74,9 @@ export function computeBudget(
       x.device !== undefined,
     );
 
-  let unitsUsed = 0;
+  // Space is counted in occupied U rows, not per device: two half-rack
+  // receivers sharing U3 consume one rack unit between them, not two.
+  const rowsUsed = new Set<number>();
   let weightLb = 0;
   let momentLbMm = 0;
   let totalTypicalW = 0;
@@ -85,7 +87,7 @@ export function computeBudget(
 
   for (const { placement, device } of placed) {
     const units = occupiedUnits(device);
-    unitsUsed += units;
+    for (const u of occupiedPositions(device, placement.position)) rowsUsed.add(u);
 
     const missing: string[] = [];
     if (device.weightLb == null) missing.push("weight");
@@ -165,6 +167,8 @@ export function computeBudget(
 
   const rackHeightMm = rack.case.rackUnits * MM_PER_RU;
   const cogMm = weightLb > 0 ? momentLbMm / weightLb : null;
+
+  const unitsUsed = rowsUsed.size;
 
   return {
     unitsUsed,

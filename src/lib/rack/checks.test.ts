@@ -5,6 +5,7 @@ import { checkRack } from "./checks";
 import { computeBudget } from "./budget";
 import { requiredDepth } from "./geometry";
 import type { CaseSpec, DeviceSpec, PortSpec, RackSpec } from "./types";
+import { isHalfWidth, occupiedCells } from "./geometry";
 
 // --------------------------------------------------------------- fixtures
 
@@ -33,6 +34,7 @@ function device(d: Partial<DeviceSpec> & { id: string }): DeviceSpec {
     brand: "Test",
     model: d.id,
     category: "Audio Interface",
+    formFactor: "full-rack",
     passive: false,
     rackUnits: 1,
     depthMm: 200,
@@ -332,4 +334,90 @@ test("a well-built rack produces nothing to report", () => {
   assert.equal(report.budget.unitsUsed, 3);
   assert.equal(report.budget.unitsFree, 1);
   assert.equal(report.budget.totalTypicalW, 115);
+});
+
+// --------------------------------------------------------------- half rack
+
+test("two half-rack units share one U", () => {
+  const a = device({ id: "rxA", formFactor: "half-rack", model: "SLXD4", weightLb: 1.8, powerTypicalW: 9 });
+  const b = device({ id: "rxB", formFactor: "half-rack", model: "SLXD4", weightLb: 1.8, powerTypicalW: 9 });
+
+  assert.ok(isHalfWidth(a));
+  assert.deepEqual(occupiedCells(a, 1, "left"), ["1|left"]);
+  assert.deepEqual(occupiedCells(a, 1, "right"), ["1|right"]);
+
+  const report = checkRack(
+    rack({
+      placements: [
+        { deviceId: "rxA", position: 1, slot: "left", circuit: "A" },
+        { deviceId: "rxB", position: 1, slot: "right", circuit: "A" },
+      ],
+    }),
+    mapOf(a, b),
+  );
+  assert.ok(!codes(report).includes("placement.collision"));
+  assert.equal(report.errors, 0);
+  // Both are counted, even though they share the U.
+  assert.equal(report.budget.totalTypicalW, 18);
+  assert.equal(report.budget.weightLb, 3.6);
+  assert.equal(report.budget.unitsUsed, 1, "a shared U is one rack unit, not two");
+  assert.equal(report.budget.unitsFree, 3);
+});
+
+test("two half-rack units in the SAME half collide", () => {
+  const a = device({ id: "rxA", formFactor: "half-rack" });
+  const b = device({ id: "rxB", formFactor: "half-rack" });
+  const report = checkRack(
+    rack({
+      placements: [
+        { deviceId: "rxA", position: 2, slot: "left", circuit: "A" },
+        { deviceId: "rxB", position: 2, slot: "left", circuit: "A" },
+      ],
+    }),
+    mapOf(a, b),
+  );
+  assert.ok(codes(report).includes("placement.collision"));
+});
+
+test("a full-width unit blocks both halves of its U", () => {
+  const full = device({ id: "full", formFactor: "full-rack" });
+  const half = device({ id: "half", formFactor: "half-rack" });
+  const report = checkRack(
+    rack({
+      placements: [
+        { deviceId: "full", position: 1, circuit: "A" },
+        { deviceId: "half", position: 1, slot: "right", circuit: "A" },
+      ],
+    }),
+    mapOf(full, half),
+  );
+  assert.ok(codes(report).includes("placement.collision"));
+});
+
+test("a lone half-rack unit is flagged as leaving a half open", () => {
+  const half = device({ id: "half", formFactor: "half-rack" });
+  const report = checkRack(
+    rack({ placements: [{ deviceId: "half", position: 3, slot: "left", circuit: "A" }] }),
+    mapOf(half),
+  );
+  const open = report.results.find((r) => r.code === "placement.half-open");
+  assert.ok(open);
+  assert.equal(open!.severity, "info");
+  assert.equal(report.errors, 0);
+  assert.match(open!.detail, /blanking plate/);
+});
+
+test("a filled pair raises no half-open note", () => {
+  const a = device({ id: "a", formFactor: "half-rack" });
+  const b = device({ id: "b", formFactor: "half-rack" });
+  const report = checkRack(
+    rack({
+      placements: [
+        { deviceId: "a", position: 3, slot: "left", circuit: "A" },
+        { deviceId: "b", position: 3, slot: "right", circuit: "A" },
+      ],
+    }),
+    mapOf(a, b),
+  );
+  assert.ok(!codes(report).includes("placement.half-open"));
 });

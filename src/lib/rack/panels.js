@@ -205,14 +205,17 @@ var PANEL = (function () {
     });
   }
 
-  function drawFace(device, face, units) {
+  function drawFace(device, face, units, PW, half) {
+    PW = PW || W;
     var h = units * U;
-    var left = EAR + PAD + (face === "front" && !isBlankFace(device.category) ? LABEL_W : 0);
-    if (face === "front") left += (W - EAR - PAD - left) * 0.5;
+    var b = faceBounds(PW, half);
+    var labelW = half ? LABEL_W * 0.62 : LABEL_W;
+    var left = b.left + (face === "front" && !isBlankFace(device.category) ? labelW : 0);
+    if (face === "front") left += (b.right - left) * 0.5;
     // The rear carries the model name on the right, the way a real panel does,
     // so the connector field stops short of it.
-    var right = W - EAR - PAD - (face === "rear" ? LABEL_W : 0);
-    var inner = { x: left, y: PAD * 0.5, w: right - left, h: h - PAD };
+    var right = b.right - (face === "rear" ? labelW : 0);
+    var inner = { x: left, y: PAD * 0.5, w: Math.max(80, right - left), h: h - PAD };
     var groups = rearGroups(device, face);
     if (!groups.length) return "";
 
@@ -237,7 +240,7 @@ var PANEL = (function () {
       var t = row.reduce(function (s, g) { return s + g.width; }, 0) + GAP * (row.length - 1);
       var x = inner.x + (inner.w - t * scale) / 2;
       var cy = inner.y + rowH * ri + rowH * (rows.length > 1 ? 0.44 : 0.42);
-      var size = Math.min(84, rowH * 0.62) * Math.max(scale, 0.5);
+      var size = Math.min(84, rowH * 0.62) * Math.max(scale, 0.42);
 
       row.forEach(function (g) {
         var colour = DIR_VAR[g.port.direction] || "var(--dir-bi)";
@@ -264,10 +267,23 @@ var PANEL = (function () {
 
   // ----------------------------------------------------------- front faces
   /** Furniture by category, so a receiver looks like a receiver. */
-  function frontFurniture(device, units) {
+  /** Where the silkscreen starts, allowing for which side the ear is on. */
+  function textLeft(PW, half) { return (half === "right" ? EAR : half === "left" ? EAR : EAR) + PAD; }
+
+  function faceBounds(PW, half) {
+    return {
+      left: (half === "right" ? EAR : half === "left" ? EAR : EAR) + PAD,
+      right: PW - (half === "left" ? 0 : half === "right" ? EAR : EAR) - PAD,
+    };
+  }
+
+  function frontFurniture(device, units, PW, half) {
+    PW = PW || W;
     var h = units * U;
-    var x0 = EAR + PAD + (isBlankFace(device.category) ? 0 : LABEL_W);
-    var x1 = W - EAR - PAD, mid = h / 2;
+    var b = faceBounds(PW, half);
+    var labelW = isBlankFace(device.category) ? 0 : (half ? LABEL_W * 0.62 : LABEL_W);
+    var x0 = b.left + labelW;
+    var x1 = b.right, mid = h / 2;
     // A unit with connectors on the front gives them the right-hand half; the
     // furniture takes what is left rather than being drawn underneath them.
     if (device.ports.some(function (p) { return p.face === "front"; })) {
@@ -352,12 +368,19 @@ var PANEL = (function () {
   // -------------------------------------------------------------- the face
   function draw(device, face, units, opts) {
     opts = opts || {};
+    var half = opts.half === "left" || opts.half === "right" ? opts.half : null;
+    // Half-rack panels are drawn at half width with a single outer ear — the
+    // inner edges butt together through the jointing plate, which is how the
+    // mounting kit actually puts two of them in one U.
+    var PW = half ? W / 2 : W;
+    var ears = half
+      ? [half === "left" ? 0 : PW - EAR]
+      : [0, PW - EAR];
     var h = units * U;
     var parts = [];
 
-    parts.push('<rect x="0" y="0" width="' + W + '" height="' + h + '" fill="var(--pf-face)"/>');
-    // rack ears, with the mounting holes at their real spacing
-    [0, W - EAR].forEach(function (ex) {
+    parts.push('<rect x="0" y="0" width="' + PW + '" height="' + h + '" fill="var(--pf-face)"/>');
+    ears.forEach(function (ex) {
       parts.push('<rect x="' + ex + '" y="0" width="' + EAR + '" height="' + h + '" fill="var(--pf-ear)"/>');
       for (var u = 0; u < units; u++) {
         parts.push('<rect x="' + (ex + EAR * 0.32) + '" y="' + (u * U + U * 0.22) + '" width="' + EAR * 0.36 +
@@ -366,31 +389,32 @@ var PANEL = (function () {
           '" height="26" rx="13" fill="var(--pf-hole)"/>');
       }
     });
-    parts.push('<line x1="' + EAR + '" y1="0" x2="' + EAR + '" y2="' + h +
-      '" stroke="var(--pf-edge)" stroke-width="3"/>');
-    parts.push('<line x1="' + (W - EAR) + '" y1="0" x2="' + (W - EAR) + '" y2="' + h +
-      '" stroke="var(--pf-edge)" stroke-width="3"/>');
+    ears.forEach(function (ex) {
+      var lx = ex === 0 ? EAR : ex;
+      parts.push('<line x1="' + lx + '" y1="0" x2="' + lx + '" y2="' + h +
+        '" stroke="var(--pf-edge)" stroke-width="3"/>');
+    });
 
     if (face === "front") {
-      parts.push(frontFurniture(device, units));
-      parts.push(drawFace(device, "front", units));
+      parts.push(frontFurniture(device, units, PW, half));
+      parts.push(drawFace(device, "front", units, PW, half));
       if (!isBlankFace(device.category)) {
-        parts.push('<text x="' + (EAR + PAD) + '" y="' + (units > 1 ? U * 0.44 : h * 0.44) +
-          '" class="silk-brand">' + esc(trim(device.brand.toUpperCase(), 13)) + "</text>");
-        parts.push('<text x="' + (EAR + PAD) + '" y="' + (units > 1 ? U * 0.82 : h * 0.82) +
-          '" class="silk-model">' + esc(trim(device.model, 18)) + "</text>");
+        parts.push('<text x="' + textLeft(PW, half) + '" y="' + (units > 1 ? U * 0.44 : h * 0.44) +
+          '" class="silk-brand">' + esc(trim(device.brand.toUpperCase(), half ? 9 : 13)) + "</text>");
+        parts.push('<text x="' + textLeft(PW, half) + '" y="' + (units > 1 ? U * 0.82 : h * 0.82) +
+          '" class="silk-model">' + esc(trim(device.model, half ? 12 : 18)) + "</text>");
       }
     } else {
-      parts.push(drawFace(device, "rear", units));
-      parts.push('<text x="' + (W - EAR - PAD) + '" y="' + (h - 12) +
+      parts.push(drawFace(device, "rear", units, PW, half));
+      parts.push('<text x="' + (PW - (half === "right" ? EAR : 0) - PAD) + '" y="' + (h - 12) +
         '" class="silk-model" text-anchor="end" opacity=".55">' +
-        esc(device.brand + " " + device.model) + "</text>");
+        esc(trim(device.brand + " " + device.model, half ? 18 : 40)) + "</text>");
     }
 
-    parts.push('<rect x="0" y="0" width="' + W + '" height="' + h +
+    parts.push('<rect x="0" y="0" width="' + PW + '" height="' + h +
       '" fill="none" stroke="var(--pf-edge)" stroke-width="4"/>');
 
-    return '<svg class="panel" viewBox="0 0 ' + W + " " + h +
+    return '<svg class="panel" viewBox="0 0 ' + PW + " " + h +
       '" preserveAspectRatio="xMidYMid meet" role="img" aria-label="' +
       esc(device.brand + " " + device.model + " " + face + " panel") + '">' +
       parts.join("") + "</svg>";

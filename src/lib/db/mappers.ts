@@ -16,6 +16,15 @@ export type RackRow = Prisma.RackGetPayload<{
   include: { case: true; placements: true };
 }>;
 
+const FORM_FACTOR_FROM_DB = {
+  FULL_RACK: "full-rack",
+  HALF_RACK: "half-rack",
+  THIRD_RACK: "third-rack",
+  QUARTER_RACK: "quarter-rack",
+  DESKTOP: "desktop",
+  ACCESSORY: "accessory",
+} as const;
+
 export function toDeviceSpec(row: DeviceRow): DeviceSpec {
   return {
     id: row.id,
@@ -23,6 +32,7 @@ export function toDeviceSpec(row: DeviceRow): DeviceSpec {
     brand: row.manufacturer.name,
     model: row.model,
     category: row.category.name,
+    formFactor: FORM_FACTOR_FROM_DB[row.formFactor],
     passive: row.category.passive,
     rackUnits: row.rackUnits,
     depthMm: row.depthMm,
@@ -87,6 +97,7 @@ export function toRackSpec(row: RackRow): RackSpec {
       (p): PlacementSpec => ({
         deviceId: p.deviceId,
         position: p.position,
+        slot: (p.slot as PlacementSpec["slot"]) ?? undefined,
         circuit: p.circuit,
         label: p.label,
       }),
