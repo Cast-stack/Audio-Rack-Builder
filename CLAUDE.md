@@ -87,6 +87,39 @@ Links to `/planner` are plain `<a>`, never `next/link`: it is outside the
 router, and a client-side navigation would fetch an RSC payload that is not
 there and then hard-navigate anyway.
 
+## The catalog is browsed, not scrolled
+
+`Family` in `src/lib/gear/catalog.ts` is the shelf a person walks to; `Domain`
+is what the research pipeline reasons about. They are not the same cut and
+should not be merged — Dante converters browse next to network switches and
+research as AUDIO.
+
+**A new category needs a family.** `CategoryDef.family` is required, so the
+compiler will tell you. Pick the shelf someone would look on, not the one the
+domain implies.
+
+The planner browses two levels: shelf, then gear, with a Type/Brand toggle at
+the top and a filter that cuts through both. `npm run planner:check` asserts
+that **every device is reachable under both groupings** — a device that lands
+on no shelf is a device nobody finds, and it would otherwise fail silently.
+
+## Adding gear
+
+Every figure needs a manufacturer source quoted verbatim. Two rules that have
+already bitten:
+
+- **Never enter a throughput rating as a draw.** The Furman M-8x2 passes 15 A
+  and Furman prints no consumption figure at all. Entering the 15 A as
+  `powerMaxW` would put a phantom 1800 W on every circuit budget. Power stays
+  null and `unresolved` says why.
+- **Prefer the metric figure where a sheet prints both.** RF Venue's DISTRO4
+  is `45(H) mm / 2(H) in`. 45 mm is 1U; the inch column is a rounding, and
+  reading it as two rack units wastes a U on every DISTRO4 in every rack.
+
+Do not copy specs out of another planner's catalog. A competitor's listing is
+not a manufacturer source, and it can be wrong — the Gator "GRW-DRAWER2U" one
+of them lists is not a part Gator sells. The real model is GRW-DRW2.
+
 ## Colour
 
 Categorical colour in this app is validated, not chosen. The five cable

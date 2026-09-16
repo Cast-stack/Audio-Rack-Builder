@@ -68,8 +68,19 @@ Drawing and export:
   on overlapping text or a section that overflows its page.
 - **`npm run planner:check`** boots the built planner in a browser and drives
   it through every case profile and every preset, front and rear, failing on a
-  console error or a panel that comes back empty. The planner's interaction
-  code is the one part of the product `npm test` cannot see.
+  console error or a panel that comes back empty. It also walks the catalog
+  under both groupings and asserts every device is reachable under each. The
+  planner's interaction code is the one part of the product `npm test` cannot
+  see.
+
+Catalog:
+
+- **Twenty devices**, browsed by family or by brand. `Family` in `catalog.ts`
+  puts all 56 categories on twelve shelves; the planner shows the ones with
+  gear on them and names the ones without, so the taxonomy's reach is visible
+  rather than implied.
+- **Power has its first entry.** A Furman M-8x2, with its power draw
+  deliberately null — see the note below.
 
 Research pipeline — `src/lib/gear`, written and typechecked, **never run
 end to end**. It needs `ANTHROPIC_API_KEY` and a database. Treat it as
@@ -88,7 +99,8 @@ In the order the launch plan put them.
 | Metering on gear lookup | The live "device not found" lookup costs money per call. Unmetered, one user with a script is the whole margin. |
 | Export escape hatch | If people are paying for their data, they have to be able to take it out. JSON of the rack plus the PDF. |
 | Landing and pricing page | `src/app/page.tsx` and `how-it-works` exist and are scaffold-grade. |
-| Catalog backfill | Sixteen devices is a demo. The pipeline exists to make it hundreds. |
+| Catalog backfill | Twenty devices is still a demo. The pipeline exists to make it hundreds, and six of the twelve families are empty: Monitoring, Snakes & Splits, Processing & Amps, Comms, Lighting, Video. |
+| Rack power as a supply | A conditioner or distro is what other gear plugs into, and the engine does not model that. Circuits are still `{label, volts, amps}` on the rack. See note 7. |
 | Legal pages | Terms, privacy. Required before taking money. |
 | Mobile pass | Untested below tablet width. A patch sheet gets read on a phone at load-in. |
 
@@ -127,6 +139,19 @@ Stated plainly because they are easy to forget and expensive to discover.
 6. **Cable length is never computed.** It is a blank column on purpose — the
    drawing does not know how the loom is dressed, and a guess is worse than a
    pen.
+7. **A power conditioner is modelled as a load, not as a supply.** The Furman
+   M-8x2 occupies its U, carries its weight and depth, and has nine outlets in
+   its port list — but nothing plugs into those outlets in the engine's eyes.
+   Devices still draw from the rack's abstract circuits. Its own draw is null,
+   because Furman prints no consumption figure and the 15 A on the datasheet
+   is what it *passes*; entering that as a draw would add a phantom 1800 W to
+   every rack it sits in. The planner says "1 unit missing a figure" and calls
+   the totals a floor, which is honest but is not the same as modelling the
+   chain.
+8. **The research pipeline is still unproven.** There is no `.env` in the
+   working tree, so the four devices added most recently were researched by
+   hand from manufacturer documents. That does not validate the pipeline; it
+   only shows what the pipeline has to produce.
 
 ---
 

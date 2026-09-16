@@ -48,6 +48,15 @@ const RADIAL_MANUAL =
   "https://www.radialeng.com/wp-content/uploads/2018/03/SW8-mkII-Manual-WEB-05-2023.pdf";
 const RME_MANUAL = "https://rme-audio.de/downloads/dface_dante_e.pdf";
 const RME_PRODUCT = "https://rme-audio.de/digiface-dante.html";
+
+const FURMAN_DATASHEET = "https://furmanpower.com/wp-content/uploads/2020/10/m-8x_datasheet.pdf";
+const FURMAN_PRODUCT = "https://furmanpower.com/products/m-8x2";
+const RFVENUE_SPEC = "https://info.rfvenue.com/hubfs/Spec%20Sheets/DISTRO4%20Specifications.pdf";
+const RFVENUE_PRODUCT = "https://www.rfvenue.com/all-products/distro4";
+const SHURE_ULXD = "https://pubs.shure.com/view/guide/ULXD/en-US.pdf";
+const SHURE_ULXD4_PRODUCT =
+  "https://www.shure.com/en-US/products/wireless-systems/ulx-d_digital_wireless/ulxd4";
+const GATOR_DRW2 = "https://gatorco.com/product/standard-2u-drawer-14-2-deep-grw-drw2/";
 /**
  * The ULX guide is no longer hosted by Shure \u2014 the only Shure-hosted ULX PDF
  * is a band supplement with no panel section. This is a scan of the genuine
@@ -1065,7 +1074,232 @@ export const SEED_DEVICES: SeedDevice[] = [
     unresolved: [],
     provenance: [],
   },
+
+  /**
+   * The four units below came from a real rig — a Castmusic Sound IEM rack,
+   * exported from another planner and then re-researched here against the
+   * manufacturers' own documents rather than copied across. Two figures moved
+   * in the process, and both are the kind this app exists to catch: see the
+   * DISTRO4's rackUnits derivation and the Gator's statusNote.
+   */
+  {
+    id: "furman-m-8x2",
+    slug: "furman-m-8x2",
+    brand: "Furman",
+    model: "M-8x2",
+    category: "Power Conditioner",
+    passive: false,
+    description:
+      "1U Merit-series conditioner: eight switched outlets on the rear and one on the front, 15 A capacity, standard surge and RFI/EMI filtration, on a 6 ft captive Edison cord.",
+    formFactor: "full-rack",
+    rackUnits: 1,
+    depthMm: 95,
+    depthIsOverall: true,
+    weightLb: 4.9,
+    powerTypicalW: null,
+    powerMaxW: null,
+    inrushFactor: 1,
+    poePowered: false,
+    status: "current",
+    statusNote: "Furman's datasheet sets the model as M-8x with a superscript two.",
+    productUrl: FURMAN_PRODUCT,
+    datasheetUrl: FURMAN_DATASHEET,
+    ports: [
+      { label: "AC In", connector: "NEMA 5-15P", direction: "input", signal: "power", channels: null, count: 1, face: "rear", projectionMm: null },
+      { label: "Switched outlets", connector: "NEMA 5-15R", direction: "output", signal: "power", channels: null, count: 8, face: "rear", projectionMm: null },
+      { label: "Front outlet", connector: "NEMA 5-15R", direction: "output", signal: "power", channels: null, count: 1, face: "front", projectionMm: null },
+    ],
+    unresolved: [
+      "powerTypicalW and powerMaxW. Furman prints no consumption figure for the conditioner itself. The 15 A on the datasheet is what it will PASS, not what it draws, and entering that as a draw would put a phantom 1800 W on the circuit budget of every rack this sits in.",
+      "panel.front. The datasheet carries no front-panel callout list, so the planner draws the category template rather than a researched layout.",
+      "depth behind rails (manufacturer prints overall depth only)",
+    ],
+    provenance: [
+      { field: "rackUnits", sourceUrl: FURMAN_DATASHEET, quote: "Dimensions 1.75\" H x 19\" W x 3.75\" D (M-8x2)", confidence: 0.9, derivation: "Printed height 1.75 in = 44.45 mm, which is one rack unit exactly. The datasheet prints no RU figure." },
+      { field: "depthMm", sourceUrl: FURMAN_DATASHEET, quote: "Dimensions 1.75\" H x 19\" W x 3.75\" D (M-8x2)", confidence: 0.8, derivation: "3.75 in x 25.4 = 95.25 mm, rounded to 95. Printed OVERALL depth; depth behind the rails is not stated. The M-8Lx and M-8Dx on the same line are 7.5 in deep, so the figure is model-specific and the M-8x2 one is the one taken." },
+      { field: "weightLb", sourceUrl: FURMAN_DATASHEET, quote: "Weight M-8x2: 4.9 lbs. (2.2 kg)", confidence: 0.95, derivation: "Read directly. 2.2 kg x 2.20462 = 4.85 lb, consistent with the printed 4.9." },
+      { field: "ports", sourceUrl: FURMAN_DATASHEET, quote: "Install an M-8x2, M-8Lx, or M-8Dx in to the top slot of your rack, and the eight switched outlets in the rear panel will power up and protect all your equipment up to a 15-amp load. | With a 15A capacity and nine total outlets, it is enough to power your whole home studio. | Line Cords 6 ft. captive, 14 AWG, with 3-conductor Edison Plug", confidence: 0.75, derivation: "Eight switched rear outlets are stated. Nine total minus eight rear puts the ninth on the front, which the Merit X feature list also shows. The captive Edison cord is the AC input; there is no inlet to plug into." },
+      { field: "description", sourceUrl: FURMAN_DATASHEET, quote: "Maximum Output Current 15 Amps | Operating Voltage 120VAC 60Hz | Noise Attenuation (Transverse Mode) M-8x2: Greater than 23db, 200Khz to 10MHz", confidence: 0.9, derivation: "Rating and filtration read from the specification table." },
+    ],
+  },
+
+  {
+    id: "rfvenue-distro4",
+    slug: "rf-venue-distro4",
+    brand: "RF Venue",
+    model: "DISTRO4",
+    category: "Antenna Distro",
+    passive: false,
+    description:
+      "1U four-channel UHF antenna distribution: two antenna inputs split to four receivers each, with cascade outputs, switchable DC over coax to the antennas, and four 12 V DC jacks to power the receivers.",
+    formFactor: "full-rack",
+    rackUnits: 1,
+    depthMm: 250,
+    depthIsOverall: true,
+    weightLb: 4.75,
+    powerTypicalW: null,
+    powerMaxW: 60,
+    inrushFactor: 1.5,
+    poePowered: false,
+    status: "current",
+    statusNote: null,
+    productUrl: RFVENUE_PRODUCT,
+    datasheetUrl: RFVENUE_SPEC,
+    panel: {
+      rear: {
+        elements: [
+          { kind: "powerSwitch", label: null, callouts: [1] },
+          { kind: "jack", label: "AC", port: "AC input", callouts: [2] },
+          { kind: "jack", label: "DC OUT", port: "DC output (to receivers)", count: 4, callouts: [3, 4] },
+          { kind: "jack", label: "ANT A IN", port: "Antenna A input", callouts: [5] },
+          { kind: "jack", label: "CASC A", port: "Cascade output A", callouts: [6] },
+          { kind: "jack", label: "ANT A OUT", port: "Antenna A output", count: 4, callouts: [7] },
+          { kind: "jack", label: "ANT B OUT", port: "Antenna B output", count: 4, callouts: [8] },
+          { kind: "jack", label: "CASC B", port: "Cascade output B", callouts: [9] },
+          { kind: "jack", label: "ANT B IN", port: "Antenna B input", callouts: [10] },
+          { kind: "switch", label: "A&B", callouts: [11] },
+        ],
+      },
+    },
+    ports: [
+      { label: "AC input", connector: "IEC C14", direction: "input", signal: "power", channels: null, count: 1, face: "rear", projectionMm: null },
+      { label: "Antenna A input", connector: "BNC", direction: "input", signal: "antenna", channels: null, count: 1, face: "rear", projectionMm: null },
+      { label: "Antenna B input", connector: "BNC", direction: "input", signal: "antenna", channels: null, count: 1, face: "rear", projectionMm: null },
+      { label: "Antenna A output", connector: "BNC", direction: "output", signal: "antenna", channels: null, count: 4, face: "rear", projectionMm: null },
+      { label: "Antenna B output", connector: "BNC", direction: "output", signal: "antenna", channels: null, count: 4, face: "rear", projectionMm: null },
+      { label: "Cascade output A", connector: "BNC", direction: "output", signal: "antenna", channels: null, count: 1, face: "rear", projectionMm: null },
+      { label: "Cascade output B", connector: "BNC", direction: "output", signal: "antenna", channels: null, count: 1, face: "rear", projectionMm: null },
+      { label: "DC output (to receivers)", connector: "Barrel 5.5/2.1", direction: "output", signal: "power", channels: null, count: 4, face: "rear", projectionMm: null },
+    ],
+    unresolved: [
+      "powerTypicalW. The sheet prints one consumption figure, 60 W, and does not say whether it is typical or worst case; it is recorded as the maximum, which is the safe way round for a circuit budget.",
+      "panel.front. The spec sheet numbers the rear panel only. The front carries a power switch and is drawn from the category template.",
+      "depth behind rails (manufacturer prints overall depth only)",
+    ],
+    provenance: [
+      { field: "rackUnits", sourceUrl: RFVENUE_SPEC, quote: "Dimensions 480(W) X 45(H) X 250(D) mm / 19(W) X 2(H) X 10(D) in", confidence: 0.85, derivation: "TAKEN FROM THE MILLIMETRE FIGURE, NOT THE INCH ONE. 45 mm / 44.45 mm = 1.01, so the chassis is 1RU. The inch column rounds 45 mm to 2 in, and reading that as two rack units would waste a U on every DISTRO4 in a rack." },
+      { field: "depthMm", sourceUrl: RFVENUE_SPEC, quote: "Dimensions 480(W) X 45(H) X 250(D) mm / 19(W) X 2(H) X 10(D) in", confidence: 0.85, derivation: "250 mm read directly. Printed OVERALL depth; depth behind the rails is not stated." },
+      { field: "weightLb", sourceUrl: RFVENUE_SPEC, quote: "Weight 2.15 Kgs / 4.75lbs", confidence: 0.95, derivation: "Read directly. 2.15 kg x 2.20462 = 4.74 lb, matching the printed 4.75." },
+      { field: "powerMaxW", sourceUrl: RFVENUE_SPEC, quote: "Power consumption 60 W | Input AC voltage 100~240 V switching", confidence: 0.8, derivation: "60 W read directly, recorded as the maximum because the sheet does not qualify it." },
+      { field: "panel.rear", sourceUrl: RFVENUE_SPEC, quote: "1. Power Switch | 2. AC input | 3. DC output (to receivers) | 4. DC output (to receivers) | 5. Antenna A input | 6. Cascade output A | 7. Antenna A output | 8. Antenna B output | 9. Cascade output B | 10. Antenna B input | 11. Power switch - Antenna A&B (Internal)", confidence: 0.85, derivation: "Rear panel callouts 1-11. Order left to right is the callout order; the sheet prints no positions. Callouts 3 and 4 are drawn as one group of four DC jacks." },
+      { field: "ports", sourceUrl: RFVENUE_SPEC, quote: "Includes: (1) DISTRO4 Antenna Distribution System (10) 61cm / 22 in BNC jumpers (4) 36cm / 14 in DC jumpers (1) AC power cord | Output DC voltage (to receiver jacks) +12 V | Output DC connectors 5.5mm OD, 2.1mm ID | Frequency range 470-952 MHz", confidence: 0.8, derivation: "Four outputs per antenna group plus one cascade each accounts for the ten supplied BNC jumpers (4 + 4 + 2); the four DC jumpers match the four receiver power jacks." },
+    ],
+  },
+
+  {
+    id: "shure-ulxd4",
+    slug: "shure-ulxd4",
+    brand: "Shure",
+    model: "ULXD4",
+    category: "Wireless Mic Receiver",
+    passive: false,
+    description:
+      "Half-rack single-channel ULX-D digital receiver: diversity BNC antenna inputs, AES-256 encryption, networked control over Ethernet, and both XLR and TRS outputs with a switchable 30 dB pad.",
+    formFactor: "half-rack",
+    rackUnits: 1,
+    depthMm: 171,
+    depthIsOverall: true,
+    weightLb: 2.0,
+    powerTypicalW: null,
+    powerMaxW: 9,
+    inrushFactor: 1.5,
+    poePowered: false,
+    status: "current",
+    statusNote: null,
+    productUrl: SHURE_ULXD4_PRODUCT,
+    datasheetUrl: SHURE_ULXD,
+    panel: {
+      front: {
+        elements: [
+          { kind: "button", label: "sync", callouts: [1] },
+          { kind: "window", label: null, size: "sm", callouts: [2] },
+          { kind: "led", label: null, callouts: [3] },
+          { kind: "led", label: null, callouts: [4] },
+          { kind: "display", label: null, size: "lg", callouts: [5], readouts: ["group", "channel", "gain", "battery"] },
+          { kind: "button", label: "scan", callouts: [6] },
+          { kind: "button", label: null, count: 2, callouts: [7] },
+          { kind: "knob", label: null, callouts: [8] },
+          { kind: "led", label: "RF", count: 2, callouts: [9] },
+          { kind: "ledBar", label: "RF", callouts: [10] },
+          { kind: "ledBar", label: "AUDIO", callouts: [11] },
+          { kind: "button", label: "gain", count: 2, callouts: [12] },
+          { kind: "powerSwitch", label: null, callouts: [13] },
+        ],
+      },
+      rear: {
+        elements: [
+          { kind: "jack", label: "ANT A", port: "Antenna A", callouts: [1] },
+          { kind: "jack", label: "ANT B", port: "Antenna B", callouts: [1] },
+          { kind: "jack", label: "15V DC", port: "Power supply jack", callouts: [2] },
+          { kind: "led", label: null, callouts: [3] },
+          { kind: "jack", label: "NETWORK", port: "Ethernet", callouts: [4] },
+          { kind: "led", label: null, callouts: [5] },
+          { kind: "switch", label: "MIC/LINE", callouts: [6] },
+          { kind: "jack", label: "XLR", port: "Balanced XLR audio output", callouts: [7] },
+          { kind: "jack", label: "TRS", port: "Balanced 1/4 in TRS audio output", callouts: [8] },
+        ],
+      },
+    },
+    ports: [
+      { label: "Antenna A", connector: "BNC", direction: "input", signal: "antenna", channels: null, count: 1, face: "rear", projectionMm: null },
+      { label: "Antenna B", connector: "BNC", direction: "input", signal: "antenna", channels: null, count: 1, face: "rear", projectionMm: null },
+      { label: "Power supply jack", connector: "Barrel DC", direction: "input", signal: "power", channels: null, count: 1, face: "rear", projectionMm: null },
+      { label: "Ethernet", connector: "RJ45", direction: "bidirectional", signal: "network", channels: null, count: 1, face: "rear", projectionMm: null },
+      { label: "Balanced XLR audio output", connector: "XLR3", direction: "output", signal: "analog audio", channels: 1, count: 1, face: "rear", projectionMm: null },
+      { label: "Balanced 1/4 in TRS audio output", connector: "TRS", direction: "output", signal: "analog audio", channels: 1, count: 1, face: "rear", projectionMm: null },
+    ],
+    unresolved: [
+      "powerMaxW is derived from the 15 V DC / 0.6 A input rating, not read from a power table. It is what the receiver pulls from its brick, not what the brick pulls from the wall; the supply's own losses are not printed and are not counted here.",
+      "powerTypicalW",
+      "depth behind rails (manufacturer prints overall depth only, and the figure is taken without antennas)",
+    ],
+    provenance: [
+      { field: "rackUnits", sourceUrl: SHURE_ULXD, quote: "ULXD4 Dimensions 42 mm x 197 mm x 171 mm (1.65 in. x 7.75 in. x 6.75 in.), H x W x D", confidence: 0.9, derivation: "Printed height 42 mm against a 44.45 mm rack unit, so the chassis occupies 1RU. The 197 mm width is under half a 483 mm rail span, which is what makes it a half-rack unit." },
+      { field: "depthMm", sourceUrl: SHURE_ULXD, quote: "ULXD4 Dimensions 42 mm x 197 mm x 171 mm (1.65 in. x 7.75 in. x 6.75 in.), H x W x D", confidence: 0.8, derivation: "171 mm read directly. Printed OVERALL depth, and the weight line notes figures are taken without antennas, so a rear-mounted antenna adds to this." },
+      { field: "weightLb", sourceUrl: SHURE_ULXD, quote: "Weight 913 g (2.0 lbs), without antennas", confidence: 0.9, derivation: "Read directly. 913 g x 0.00220462 = 2.01 lb. Excludes antennas, as printed." },
+      { field: "powerMaxW", sourceUrl: SHURE_ULXD, quote: "Power Requirements 15 V DC @ 0.6 A, supplied by external power supply (tip positive)", confidence: 0.6, derivation: "DERIVED, NOT PRINTED. 15 V x 0.6 A = 9 W at the receiver's DC input. A budgeting ceiling; the external supply's AC-side draw will be higher." },
+      { field: "panel.front", sourceUrl: SHURE_ULXD, quote: "Sync Button | Infrared (IR) Sync Window | Network Icon | Encryption Icon | LCD Panel | Scan Button | Menu Navigation Buttons | Control Wheel | RF Diversity LEDs | RF Signal Strength LEDs | Audio LEDs | Gain Buttons | Power Switch", confidence: 0.8, derivation: "Front Panel list, callouts 1-13. Left-to-right order taken from callout order; the guide prints no positions. The LCD's fields are recorded as readouts of one display, not as parts of their own." },
+      { field: "panel.rear", sourceUrl: SHURE_ULXD, quote: "RF Antenna Diversity Input Jack (2) - For antenna A and antenna B. | Power Supply Jack - Connect the supplied 15 V DC external power supply | Network Speed LED (Amber) | Ethernet Port | Network Status LED (Green) | Mic/Line Switch - Applies a 30 dB pad in mic position (XLR output only) | Balanced XLR Audio Output | Balanced 1/4 in (6.35 mm) TRS Audio Output", confidence: 0.85, derivation: "Back Panel list, callouts 1-8. Callout 1 covers both antenna jacks and is drawn as two." },
+    ],
+  },
+
+  {
+    id: "gator-grw-drw2",
+    slug: "gator-rackworks-grw-drw2",
+    brand: "Gator",
+    model: "GRW-DRW2",
+    category: "Rack Drawer",
+    passive: true,
+    description:
+      "2U lockable rack drawer in 16-gauge steel, 14.25 in deep inside, with smooth-glide slides and two rubber grommets for cabling out of the back.",
+    formFactor: "full-rack",
+    rackUnits: 2,
+    depthMm: 368,
+    depthIsOverall: true,
+    weightLb: 21.0,
+    powerTypicalW: null,
+    powerMaxW: null,
+    inrushFactor: 1,
+    poePowered: false,
+    status: "current",
+    statusNote:
+      "Gator's own model number is GRW-DRW2. Catalogues listing a Gator GRW-DRAWER2U are not naming a part Gator sells.",
+    productUrl: GATOR_DRW2,
+    datasheetUrl: GATOR_DRW2,
+    ports: [],
+    unresolved: [
+      "panel.front. Gator publishes a feature list rather than a numbered callout drawing, so the drawer face is drawn from the category template.",
+      "depth behind rails. The 14.50 in exterior length is the drawer body; the slides and the grommeted rear need clearance beyond it that Gator does not quantify.",
+    ],
+    provenance: [
+      { field: "rackUnits", sourceUrl: GATOR_DRW2, quote: "Exterior Dimensions Length: 14.50\" Width: 19.00\" Height: 3.50\"", confidence: 0.9, derivation: "Exterior height 3.50 in = 88.9 mm, which is two rack units exactly (2 x 44.45 mm). Gator also files it under its 2U drawers." },
+      { field: "depthMm", sourceUrl: GATOR_DRW2, quote: "Exterior Dimensions Length: 14.50\" Width: 19.00\" Height: 3.50\"", confidence: 0.8, derivation: "14.50 in x 25.4 = 368.3 mm, rounded to 368. This is the drawer body; slide travel and rear clearance are not included." },
+      { field: "weightLb", sourceUrl: GATOR_DRW2, quote: "Weight 21.00 lbs", confidence: 0.95, derivation: "Read directly. Empty drawer; whatever goes in it is on top of this." },
+      { field: "description", sourceUrl: GATOR_DRW2, quote: "Cold Rolled 16 Gauge Steel Construction | Black Powder Coated Finish | Fully Enclosed Drawer & Spring-Loaded Latches | Heavy-Duty Smooth Glide Drawer Slides | Two 2 in rubber grommets for rear access | Interior Dimensions Length: 14.25\" Width: 15.75\" Height: 3.00\"", confidence: 0.9, derivation: "Construction and interior dimensions read from the product specification list." },
+    ],
+  },
 ];
+
 
 /**
  * Generic case profiles. Usable depth is the figure that matters and the one
