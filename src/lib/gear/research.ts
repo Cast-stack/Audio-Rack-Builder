@@ -21,6 +21,7 @@ import {
   ResearchResultSchema, ResearchResult, DeviceSchema,
 } from "./schema";
 import { triage, Disposition, Issue } from "./validate";
+import { VettedSources, sourcesPrompt, vetSources } from "./sources";
 
 // Verify these against the current tool-use docs before deploying; Anthropic
 // versions its server tools by date and older versions do get retired.
@@ -41,6 +42,14 @@ export interface ResearchOptions {
   maxSearches?: number;
   /** Cap on web_fetch calls (datasheet PDFs are the expensive ones). */
   maxFetches?: number;
+  /**
+   * URLs the person asking supplied — a product page, a manual PDF.
+   *
+   * Their hosts are opened for this job on top of `allowedDomains`, so a
+   * manufacturer nobody has allowlisted yet can still be read when someone
+   * points at it. Vetting and the trust consequences live in ./sources.
+   */
+  sources?: string[];
   /** Pass the existing record when re-verifying rather than creating. */
   existing?: unknown;
   signal?: AbortSignal;
@@ -52,6 +61,8 @@ export interface ResearchOutcome {
   issues: Issue[];
   /** Raw usage for cost accounting; see the credit model in the plan. */
   usage: { inputTokens: number; outputTokens: number; searches: number; fetches: number };
+  /** What was made of the links the user handed over. Empty when none were. */
+  sources: VettedSources;
   transcript: Anthropic.Beta.BetaMessageParam[];
 }
 
@@ -77,12 +88,14 @@ RULES
 
 Finish by calling emit_device exactly once.`;
 
-function buildUserPrompt(o: ResearchOptions): string {
+function buildUserPrompt(o: ResearchOptions, vetted: VettedSources): string {
   const lines = [
     `Device: ${o.query}`,
     ``,
     `Choose category from exactly this list: ${o.categories.join(", ")}`,
   ];
+  const supplied = sourcesPrompt(vetted);
+  if (supplied) lines.push(supplied);
   if (o.existing) {
     lines.push(
       ``,
@@ -110,24 +123,36 @@ export async function researchDevice(
     }) as Anthropic.Beta.BetaTool.InputSchema,
   };
 
+  const vetted = vetSources(opts.sources ?? []);
+
+  /**
+   * Only widen an allowlist that exists. When allowedDomains is undefined the
+   * job is deliberately unrestricted, and merging the user's hosts in would
+   * narrow it to just those — turning an open search into a job that can read
+   * one dealer page and nothing else.
+   */
+  const allowed = opts.allowedDomains
+    ? Array.from(new Set([...opts.allowedDomains, ...vetted.extraDomains]))
+    : undefined;
+
   const serverTools: unknown[] = [
     {
       type: WEB_SEARCH_TOOL,
       name: "web_search",
       max_uses: opts.maxSearches ?? 6,
-      ...(opts.allowedDomains ? { allowed_domains: opts.allowedDomains } : {}),
+      ...(allowed ? { allowed_domains: allowed } : {}),
     },
     {
       type: WEB_FETCH_TOOL,
       name: "web_fetch",
       max_uses: opts.maxFetches ?? 8,
       max_content_tokens: 30_000,
-      ...(opts.allowedDomains ? { allowed_domains: opts.allowedDomains } : {}),
+      ...(allowed ? { allowed_domains: allowed } : {}),
     },
   ];
 
   const messages: Anthropic.Beta.BetaMessageParam[] = [
-    { role: "user", content: buildUserPrompt(opts) },
+    { role: "user", content: buildUserPrompt(opts, vetted) },
   ];
 
   const usage = { inputTokens: 0, outputTokens: 0, searches: 0, fetches: 0 };
@@ -166,7 +191,7 @@ export async function researchDevice(
     if (!call) {
       if (response.stop_reason === "end_turn") {
         return {
-          result: null, disposition: "failed", usage, transcript: messages,
+          result: null, disposition: "failed", usage, sources: vetted, transcript: messages,
           issues: [{ field: "_", severity: "error", message: "model finished without calling emit_device" }],
         };
       }
@@ -177,7 +202,7 @@ export async function researchDevice(
     if (!parsed.success) {
       if (repairs++ >= 1) {
         return {
-          result: null, disposition: "failed", usage, transcript: messages,
+          result: null, disposition: "failed", usage, sources: vetted, transcript: messages,
           issues: parsed.error.issues.map((i) => ({
             field: i.path.join("."), severity: "error" as const, message: i.message,
           })),
@@ -200,7 +225,7 @@ export async function researchDevice(
     if (!opts.categories.includes(parsed.data.device.category)) {
       if (repairs++ >= 1) {
         return {
-          result: parsed.data, disposition: "failed", usage, transcript: messages,
+          result: parsed.data, disposition: "failed", usage, sources: vetted, transcript: messages,
           issues: [{ field: "category", severity: "error", message: `"${parsed.data.device.category}" is not a known category` }],
         };
       }
@@ -217,11 +242,39 @@ export async function researchDevice(
     }
 
     const { disposition, issues } = triage(parsed.data);
-    return { result: parsed.data, disposition, issues, usage, transcript: messages };
+
+    /**
+     * A record built with help from a source nobody has vetted does not get to
+     * publish itself, however clean it looks. The guardrails in triage() read
+     * the record; they cannot see where the reading came from. This can only
+     * ever hold a job back, never wave one through.
+     */
+    if (disposition === "auto-publish" && !vetted.allTrusted) {
+      return {
+        result: parsed.data,
+        disposition: "review",
+        usage,
+        sources: vetted,
+        transcript: messages,
+        issues: [
+          ...issues,
+          {
+            field: "_",
+            severity: "warn",
+            message: `researched with a user-supplied source outside the manufacturer allowlist (${vetted.accepted
+              .filter((x) => !x.trusted)
+              .map((x) => x.host)
+              .join(", ")}) — needs a person`,
+          },
+        ],
+      };
+    }
+
+    return { result: parsed.data, disposition, issues, usage, sources: vetted, transcript: messages };
   }
 
   return {
-    result: null, disposition: "failed", usage, transcript: messages,
+    result: null, disposition: "failed", usage, sources: vetted, transcript: messages,
     issues: [{ field: "_", severity: "error", message: "exceeded turn budget" }],
   };
 }

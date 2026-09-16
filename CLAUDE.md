@@ -120,6 +120,34 @@ Do not copy specs out of another planner's catalog. A competitor's listing is
 not a manufacturer source, and it can be wrong — the Gator "GRW-DRAWER2U" one
 of them lists is not a part Gator sells. The real model is GRW-DRW2.
 
+## Gear the user asks for
+
+`/api/gear/request` takes a name and a list of links and hands back a
+researched device. Three rules hold it in place, and none of them are
+negotiable:
+
+- **It never publishes.** Not on a clean triage, not from a manufacturer PDF.
+  A device reaches the shared catalog when a person promotes a revision. This
+  is the same rule as "never edit a device in place" and it is the reason the
+  provenance story is worth anything.
+- **A user's link is a strong lead and a weak citation.** `vetSources()` marks
+  every supplied URL as manufacturer or not. One off-allowlist source and
+  `researchDevice` downgrades `auto-publish` to `review` — it can only ever
+  hold a job back, never wave one through. `triage()` reads the record and
+  cannot see where the reading came from, which is why this lives in the
+  researcher rather than in the validator.
+- **Provisional gear is marked everywhere it appears.** Palette badge,
+  findings warning when it is placed, and a "NOT REVIEWED" line at the top of
+  its `unresolved` on the printed sheet. `printPatchSheet` merges provisional
+  provenance into the sources appendix for exactly this reason: a sheet that
+  lists a device with an empty appendix looks like a device nobody had to
+  check.
+
+`toProvisionalDevice()` fills the fields a researcher cannot read — `passive`,
+`inrushFactor`, `depthIsOverall`, `panel`. Every one is an assumption and every
+one is recorded in `unresolved`. **`depthIsOverall` is always true**: erring
+shallow strands a build, which is the same rule as the Sennheiser note above.
+
 ## Colour
 
 Categorical colour in this app is validated, not chosen. The five cable

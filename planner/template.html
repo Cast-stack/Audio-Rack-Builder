@@ -127,6 +127,25 @@ button:disabled:hover{border-color:var(--rule);color:var(--ink-muted)}
 .pal-empty{margin-top:12px;padding-top:10px;border-top:1px solid var(--rule)}
 .pal-empty p{font-family:var(--mono);font-size:.64rem;color:var(--ink-muted);line-height:1.5;margin-top:3px}
 
+/* Add-a-device. Hidden entirely on the file:// copy, where there is no server
+   to ask. */
+.addgear-open{width:100%;border:1px dashed var(--rule-strong);background:transparent;color:var(--ink-muted);padding:7px;font:inherit;font-size:.78rem;cursor:pointer;margin-bottom:9px}
+.addgear-open:hover{border-color:var(--accent);color:var(--accent)}
+.addgear{border:1px solid var(--rule-strong);background:var(--surface-2);padding:10px;margin-bottom:10px;display:flex;flex-direction:column;gap:8px}
+.ag-field{display:flex;flex-direction:column;gap:3px}
+.ag-field input,.ag-field textarea{border:1px solid var(--rule);background:var(--surface);color:var(--ink);padding:6px;font:inherit;font-size:.82rem;width:100%}
+.ag-field textarea{font-family:var(--mono);font-size:.7rem;resize:vertical}
+.ag-note{font-family:var(--mono);font-size:.62rem;line-height:1.5;color:var(--ink-muted)}
+.ag-actions{display:flex;gap:7px}
+.ag-status{border-left:3px solid var(--rule-strong);padding:6px 8px;font-size:.78rem;line-height:1.4}
+.ag-status.busy{border-left-color:var(--accent);background:var(--accent-soft)}
+.ag-status.good{border-left-color:var(--ok);background:var(--ok-soft)}
+.ag-status.bad{border-left-color:var(--crit);background:var(--crit-soft)}
+.ag-sub{font-family:var(--mono);font-size:.64rem;color:var(--ink-2);margin-top:4px;white-space:pre-wrap;line-height:1.5}
+.tag.prov{background:var(--warn-soft);color:var(--warn);border-color:var(--warn)}
+.pal-item .drop{flex:none;border:1px solid var(--rule-strong);background:var(--surface);width:24px;height:24px;line-height:1;padding:0;font-family:var(--mono);font-size:.8rem;color:var(--ink-muted)}
+.pal-item .drop:hover{border-color:var(--crit);color:var(--crit)}
+
 .rack-shell{background:var(--panel);border:1px solid var(--rule-strong);padding:10px;
   --pf-face:#2C3239;--pf-ear:#22272C;--pf-edge:#171B1F;--pf-hole:#0E1114;
   --pf-pin:#8A949B;--pf-silk:#C8D0D6;--pf-knob:#454D55;--pf-btn:#3A424A;
@@ -326,6 +345,19 @@ footer{padding-block:18px 42px;border-top:1px solid var(--rule);font-family:var(
       <h3>Catalog <em id="catCount"></em></h3>
       <div class="card-body">
         <input id="catSearch" class="catsearch" type="search" placeholder="Filter — model, brand, category" aria-label="Filter the catalog">
+        <button id="addGearBtn" class="addgear-open" type="button" aria-expanded="false" aria-controls="addGear" hidden>Not in the catalog? Add it</button>
+        <div id="addGear" class="addgear" hidden>
+          <label class="ag-field"><span class="legend">Make and model</span>
+            <input id="agName" type="text" placeholder="Furman PL-Plus C" autocomplete="off"></label>
+          <label class="ag-field"><span class="legend">Links to its manual or product page</span>
+            <textarea id="agSources" rows="3" placeholder="https://furmanpower.com/products/pl-plus-c&#10;https://…/manual.pdf"></textarea></label>
+          <p class="ag-note">One per line. A link straight to the manufacturer's PDF gives the best result. Researched against the source and added to this browser only, marked unverified — it is not added to the catalog.</p>
+          <div class="ag-actions">
+            <button id="agGo" type="button">Research it</button>
+            <button id="agCancel" class="ghost" type="button">Cancel</button>
+          </div>
+          <div id="agStatus" aria-live="polite"></div>
+        </div>
         <div id="palette" style="display:flex;flex-direction:column;gap:9px"></div>
       </div>
     </section>
@@ -412,8 +444,16 @@ __PANELS__
   // The panel renderer used to be a second inline script; it ships inside the
   // bundle now so the planner and the printed sheet draw from one copy.
   var PANEL = E.PANEL;
+  // Catalog gear plus whatever this browser has had researched on request.
+  // Both reassigned together by refreshDevices(), never separately: a BY_ID
+  // that disagrees with DEVICES is a unit that draws but cannot be found.
+  var PROVISIONAL = [];
   var DEVICES = E.SEED_DEVICES;
   var BY_ID = new Map(DEVICES.map(function (d) { return [d.id, d]; }));
+  function refreshDevices() {
+    DEVICES = E.SEED_DEVICES.concat(PROVISIONAL);
+    BY_ID = new Map(DEVICES.map(function (d) { return [d.id, d]; }));
+  }
   var CASES = E.SEED_CASES;
   var PRESETS = E.DEMO_RACKS;
   var STORE = "arb.planner.v3";
@@ -774,7 +814,9 @@ __PANELS__
   catSearch.value = state.filter;
   catSearch.addEventListener("input", function () {
     state.filter = catSearch.value;
-    renderPalette();
+    PROVISIONAL = loadProvisional();
+  refreshDevices();
+  renderPalette();
     persist();
   });
 
@@ -845,6 +887,7 @@ __PANELS__
     var b = el("b", null, d.brand + " " + d.model);
     if (E.isHalfWidth(d)) b.appendChild(el("span", "tag half", "½ rack"));
     if (d.status === "discontinued") b.appendChild(el("span", "tag disc", "disc"));
+    if (E.isProvisional(d)) b.appendChild(el("span", "tag prov", "unverified"));
     nm.appendChild(b);
     var req = E.requiredDepth(d).requiredMm;
     nm.appendChild(el("em", null,
@@ -867,6 +910,18 @@ __PANELS__
       render();
     });
     item.appendChild(add);
+
+    if (E.isProvisional(d)) {
+      var drop = el("button", "drop", "×");
+      drop.type = "button";
+      drop.title = "Forget this device";
+      drop.setAttribute("aria-label", "Forget " + d.brand + " " + d.model);
+      drop.addEventListener("click", function () {
+        if (!window.confirm("Forget " + d.brand + " " + d.model + "? It will be removed from the rack too.")) return;
+        dropProvisional(d.id);
+      });
+      item.appendChild(drop);
+    }
     return item;
   }
 
@@ -981,6 +1036,158 @@ __PANELS__
       }
     }
   }
+
+  // ------------------------------------------------------- add a device
+  //
+  // The catalog will never be complete. When somebody hits the gap, the most
+  // useful thing they have is not a better search term — it is the manual,
+  // open in another tab. This takes that link, has the device researched
+  // against it, and puts the result in their rack.
+  //
+  // What comes back is NOT catalog gear. It is marked unverified everywhere it
+  // appears, it carries its own citations, it says so on the printed sheet,
+  // and it lives in this browser only. Nothing here publishes anything.
+  //
+  // Needs a server, so the whole feature hides on the file:// copy rather than
+  // offering a button that cannot work.
+
+  var PROV_STORE = "arb.planner.provisional.v1";
+
+  function loadProvisional() {
+    try {
+      var v = JSON.parse(localStorage.getItem(PROV_STORE) || "[]");
+      return Array.isArray(v) ? v.filter(function (d) { return d && d.id && d.brand; }) : [];
+    } catch (e) { return []; }
+  }
+
+  function saveProvisional() {
+    try { localStorage.setItem(PROV_STORE, JSON.stringify(PROVISIONAL)); } catch (e) {}
+  }
+
+  function dropProvisional(id) {
+    PROVISIONAL = PROVISIONAL.filter(function (d) { return d.id !== id; });
+    // Anything already placed from it has to go too, or the rack keeps a
+    // reference to a device that no longer exists and the elevation blanks.
+    state.placements = state.placements.filter(function (p) { return p.deviceId !== id; });
+    state.cables = (state.cables || []).filter(function (c) {
+      return (c.from.kind !== "port" || c.from.deviceId !== id)
+        && (c.to.kind !== "port" || c.to.deviceId !== id);
+    });
+    saveProvisional();
+    refreshDevices();
+    render();
+  }
+
+  var addGearBtn = document.getElementById("addGearBtn");
+  var addGear = document.getElementById("addGear");
+  var agName = document.getElementById("agName");
+  var agSources = document.getElementById("agSources");
+  var agGo = document.getElementById("agGo");
+  var agCancel = document.getElementById("agCancel");
+  var agStatus = document.getElementById("agStatus");
+
+  // Served from somewhere: the endpoint is reachable. Opened off a disk: it is
+  // not, and never will be, so the button stays gone.
+  if (location.protocol !== "file:") addGearBtn.hidden = false;
+
+  addGearBtn.addEventListener("click", function () {
+    addGear.hidden = !addGear.hidden;
+    addGearBtn.setAttribute("aria-expanded", addGear.hidden ? "false" : "true");
+    if (!addGear.hidden) agName.focus();
+  });
+
+  agCancel.addEventListener("click", function () {
+    addGear.hidden = true;
+    addGearBtn.setAttribute("aria-expanded", "false");
+    agStatus.textContent = "";
+  });
+
+  function status(kind, text) {
+    agStatus.textContent = "";
+    var box = el("div", "ag-status " + kind);
+    box.appendChild(el("p", null, text));
+    agStatus.appendChild(box);
+    return box;
+  }
+
+  function requestDevice() {
+    var query = agName.value.trim();
+    if (query.length < 2) { status("bad", "Give it a make and model."); agName.focus(); return; }
+
+    var sources = agSources.value.split(/[\s,]+/).filter(function (t) { return t.length > 4; });
+
+    agGo.disabled = true;
+    var waiting = status("busy", sources.length
+      ? "Reading " + sources.length + (sources.length === 1 ? " source" : " sources") + " and any manufacturer document they lead to. This takes a minute."
+      : "Searching the manufacturers for “" + query + "”. This takes a minute.");
+
+    fetch("api/gear/request", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ query: query, sources: sources }),
+    }).then(function (res) {
+      return res.json().then(function (body) { return { ok: res.ok, status: res.status, body: body }; });
+    }).then(function (r) {
+      agGo.disabled = false;
+      if (!r.ok) {
+        var msg = (r.body && (r.body.error || r.body.message)) || ("Request failed (" + r.status + ").");
+        var box = status("bad", msg);
+        if (r.body && r.body.rejectedSources && r.body.rejectedSources.length) {
+          box.appendChild(el("p", "ag-sub", r.body.rejectedSources.map(function (x) {
+            return x.url + " — " + x.reason;
+          }).join("\n")));
+        }
+        return;
+      }
+
+      var device = E.toProvisionalDevice(r.body.device, {
+        requestedAs: query,
+        provenance: r.body.provenance || [],
+        unresolved: r.body.unresolved || [],
+        notes: r.body.notes || null,
+        taken: DEVICES.map(function (d) { return d.id; }),
+      });
+
+      PROVISIONAL.push(device);
+      saveProvisional();
+      refreshDevices();
+      noteRecent(device.id);
+
+      var ok = status("good", device.brand + " " + device.model + " added, unverified.");
+      var bits = [];
+      bits.push(E.occupiedUnits(device) + "U");
+      if (device.depthMm != null) bits.push(device.depthMm + " mm deep");
+      if (device.weightLb != null) bits.push(device.weightLb + " lb");
+      var pw = device.powerTypicalW != null ? device.powerTypicalW : device.powerMaxW;
+      bits.push(pw != null ? pw + " W" : "no power figure");
+      ok.appendChild(el("p", "ag-sub", bits.join(" · ")));
+
+      var read = (r.body.sources && r.body.sources.read) || [];
+      if (read.length) {
+        ok.appendChild(el("p", "ag-sub", "Read: " + read.map(function (s) {
+          return s.host + (s.trusted ? "" : " (not a known manufacturer)");
+        }).join(", ")));
+      }
+      if (r.body.sources && r.body.sources.allTrusted === false) {
+        ok.appendChild(el("p", "ag-sub", "A source outside the manufacturer list was used, so this can never publish itself."));
+      }
+      if (device.unresolved.length) {
+        ok.appendChild(el("p", "ag-sub", device.unresolved.length + " field(s) unresolved — the patch sheet lists them."));
+      }
+
+      agName.value = "";
+      agSources.value = "";
+      render();
+    }).catch(function (err) {
+      agGo.disabled = false;
+      status("bad", "Could not reach the server. " + (err && err.message ? err.message : ""));
+    });
+
+    return waiting;
+  }
+
+  agGo.addEventListener("click", requestDevice);
+  agName.addEventListener("keydown", function (ev) { if (ev.key === "Enter") requestDevice(); });
 
   // ------------------------------------------------------------------ rack
   function wireDrop(node, position, half, bay) {
@@ -1720,6 +1927,37 @@ __PANELS__
 
   // -------------------------------------------------------------- findings
   function renderFindings(report) {
+    /**
+     * A requested device in the rack is a finding in its own right.
+     *
+     * The checker reasons about the numbers it is given and has no way to know
+     * that nobody has checked them. Every total on this screen silently
+     * includes this unit, so the panel has to say where those totals came
+     * from. Added here rather than in checks.ts because it is a fact about the
+     * catalog, not about the rack.
+     */
+    var unverified = [];
+    state.placements.forEach(function (p) {
+      var d = BY_ID.get(p.deviceId);
+      if (d && E.isProvisional(d) && unverified.indexOf(d) < 0) unverified.push(d);
+    });
+    if (unverified.length) {
+      report = {
+        errors: report.errors,
+        warnings: report.warnings + 1,
+        results: [{
+          code: "provisional-device",
+          severity: "warning",
+          title: unverified.length === 1 ? "One unit has not been checked by a person"
+            : unverified.length + " units have not been checked by a person",
+          detail: unverified.map(function (d) { return d.brand + " " + d.model; }).join(", ")
+            + ". Researched on request from the manufacturer's documents and added to this browser only. "
+            + "Every figure below includes them. The patch sheet prints their sources and what could not be established — read it before you buy a case.",
+          deviceIds: unverified.map(function (d) { return d.id; }),
+        }].concat(report.results),
+      };
+    }
+
     var tally = document.getElementById("tally");
     tally.textContent = "";
     var infos = report.results.filter(function (r) { return r.severity === "info"; }).length;

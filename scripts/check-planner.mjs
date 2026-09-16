@@ -100,6 +100,13 @@ const home = await page.evaluate(() => ({
   plain: document.getElementById("homeText")?.hidden,
 }));
 check(
+  (await page.isVisible("#addGearBtn")) === !isFile,
+  isFile
+    ? "the add-a-device action must stay hidden on file://, where no endpoint exists"
+    : "the add-a-device action should be offered when the planner is served",
+);
+
+check(
   isFile ? home.link === true && home.plain === false : home.link === false && home.plain === true,
   isFile
     ? "the home link should stay hidden on file://, where there is no home"
@@ -188,6 +195,180 @@ const emptied = await snapshot();
 check(emptied.units === 0, "Empty left units in the rack");
 check(emptied.shelves > 0, "Empty took the catalog with it");
 
+
+// ---------------------------------------------------------------------------
+// Served pass: the parts that only exist when there is a server behind the page
+//
+// "Add a device" calls an endpoint, so it is hidden on file:// and there is no
+// way to exercise it from the default run. This serves the built page over
+// http from a throwaway server and stubs the endpoint, which covers the whole
+// UI path — request, badge, findings, removal — without an API key and without
+// spending anything. What it does not cover is the researcher itself; that
+// needs ANTHROPIC_API_KEY and a real run.
+
+/** A plausible emit_device payload, shaped like the route's 200. */
+const STUB_RESPONSE = {
+  status: "provisional",
+  revisionId: null,
+  filedForReview: false,
+  device: {
+    brand: "Furman",
+    model: "PL-PLUS C",
+    category: "Power Conditioner",
+    description: "15 A rack conditioner with voltmeter, pull-out lights and nine outlets.",
+    formFactor: "full-rack",
+    rackUnits: 1,
+    depthMm: 254,
+    weightLb: 12.0,
+    powerTypicalW: null,
+    powerMaxW: 20,
+    powerInput: "Edison",
+    voltage: "120VAC 60Hz",
+    poePowered: false,
+    ports: [
+      { label: "AC In", connector: "Edison", direction: "input", signal: "power", channels: null, count: 1, face: "rear" },
+      { label: "Switched outlets", connector: "Edison", direction: "output", signal: "power", channels: null, count: 8, face: "rear" },
+    ],
+    status: "current",
+    statusNote: null,
+    priceUsd: null,
+    priceKind: null,
+    priceVerifiedAt: null,
+    productUrl: "https://furmanpower.com/products/pl-plus-c",
+    datasheetUrl: null,
+  },
+  provenance: [
+    {
+      field: "rackUnits",
+      sourceUrl: "https://furmanpower.com/products/pl-plus-c",
+      quote: "1 RU",
+      confidence: 0.9,
+      derivation: null,
+    },
+  ],
+  unresolved: ["powerTypicalW"],
+  notes: null,
+  disposition: "review",
+  issues: [],
+  sources: {
+    read: [{ url: "https://furmanpower.com/products/pl-plus-c", host: "furmanpower.com", trusted: true }],
+    rejected: [],
+    allTrusted: true,
+  },
+};
+
+async function servedPass() {
+  const { createServer } = await import("node:http");
+  const { readFile } = await import("node:fs/promises");
+  const html = await readFile(built);
+
+  const server = createServer((req, res) => {
+    // Everything that is not the stubbed endpoint is the page itself.
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+    res.end(html);
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const port = server.address().port;
+  const origin = `http://127.0.0.1:${port}`;
+
+  const page2 = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  page2.on("console", (m) => {
+    if (m.type() === "error") noise.push(`console (served): ${m.text()}`);
+  });
+  page2.on("pageerror", (e) => noise.push(`uncaught (served): ${e.message}`));
+
+  let calls = 0;
+  let sentBody = null;
+  await page2.route("**/api/gear/request", async (route) => {
+    calls++;
+    sentBody = JSON.parse(route.request().postData() ?? "{}");
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(STUB_RESPONSE),
+    });
+  });
+
+  try {
+    await page2.goto(`${origin}/planner`, { waitUntil: "networkidle" });
+
+    // Served, so the action is there. On file:// it must not be.
+    check(
+      await page2.isVisible("#addGearBtn"),
+      "served over http, the add-a-device action should be offered",
+    );
+
+    await page2.click("#addGearBtn");
+    await page2.fill("#agName", "Furman PL-Plus C");
+    await page2.fill("#agSources", "https://furmanpower.com/products/pl-plus-c");
+    await page2.click("#agGo");
+    await page2.waitForSelector(".ag-status.good", { timeout: 15_000 });
+
+    check(calls === 1, `expected one request to the endpoint, saw ${calls}`);
+    check(
+      sentBody?.query === "Furman PL-Plus C",
+      `the typed name should reach the endpoint, got ${JSON.stringify(sentBody?.query)}`,
+    );
+    check(
+      Array.isArray(sentBody?.sources) && sentBody.sources.length === 1,
+      "the supplied link should reach the endpoint",
+    );
+
+    // It has to be findable, and findable as unverified.
+    await page2.fill("#catSearch", "PL-PLUS");
+    const badged = await page2.$$eval("#palette .pal-item .tag.prov", (r) => r.length);
+    check(badged === 1, `the requested device should carry an unverified badge, saw ${badged}`);
+
+    // Placing it must move the numbers AND say the numbers are unchecked.
+    await page2.click("#palette .pal-item .add");
+    await page2.waitForTimeout(400);
+    const findings = await page2.textContent("#findings");
+    check(
+      /not been checked by a person/.test(findings ?? ""),
+      "a placed unverified unit must be called out in the findings",
+    );
+
+    // It survives a reload: this is the browser's catalog now, not a session.
+    await page2.reload({ waitUntil: "networkidle" });
+    await page2.fill("#catSearch", "PL-PLUS");
+    check(
+      (await page2.$$eval("#palette .pal-item", (r) => r.length)) === 1,
+      "a requested device should still be there after a reload",
+    );
+
+    // And it can be taken back out, along with anything placed from it.
+    page2.once("dialog", (d) => d.accept());
+    await page2.click("#palette .pal-item .drop");
+    await page2.waitForTimeout(400);
+    await page2.fill("#catSearch", "PL-PLUS");
+    check(
+      (await page2.$$eval("#palette .pal-item", (r) => r.length)) === 0,
+      "forgetting a requested device should remove it from the catalog",
+    );
+    const after = await page2.textContent("#findings");
+    check(
+      !/not been checked by a person/.test(after ?? ""),
+      "forgetting it should clear its finding too",
+    );
+  } finally {
+    await page2.close();
+    await new Promise((resolve) => server.close(resolve));
+  }
+
+  return true;
+}
+
+let servedRan = false;
+if (isFile) {
+  servedRan = await servedPass();
+} else {
+  // Pointed at a real server: the add action should be offered there too.
+  check(
+    await page.isVisible("#addGearBtn"),
+    "served over http, the add-a-device action should be offered",
+  );
+}
+
 for (const line of noise) failures.push(line);
 
 await browser.close();
@@ -199,5 +380,6 @@ if (failures.length) {
 }
 
 console.log(
-  `planner ok — ${cases.length} case profiles x ${presets.length} presets, front and rear, at ${target}`,
+  `planner ok — ${cases.length} case profiles x ${presets.length} presets, front and rear, at ${target}` +
+    (servedRan ? ", plus the served add-a-device flow against a stubbed endpoint" : ""),
 );

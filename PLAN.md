@@ -83,9 +83,26 @@ Catalog:
   conditioners and a Tripp Lite 2U UPS, covering Power Conditioner and UPS.
   Power Distro and Sequencer are still empty — see note 9.
 
+Asking for gear that is not in the catalog:
+
+- **`/api/gear/request`** takes a name plus links to a product page or a
+  manual PDF, researches the device against them, and returns it marked
+  provisional. Anthropic's `web_fetch` reads PDFs natively, so a link to a
+  manual needs no parsing on our side.
+- **Supplied links are vetted** (`src/lib/gear/sources.ts`): schemes, private
+  addresses and the cloud metadata address are refused, the list is capped, and
+  every host is marked manufacturer or not. One off-allowlist source and the
+  job loses its auto-publish for good.
+- **It never publishes**, and it works with or without Postgres. With a
+  database the result is filed as a revision for review; without one it lives
+  in that browser, badged unverified in the catalog, called out in the findings
+  when placed, and printed with a NOT REVIEWED line on the patch sheet.
+- **In the planner only when served.** The action is hidden on the file://
+  hand-out copy, which can never reach an endpoint.
+
 Research pipeline — `src/lib/gear`, written and typechecked, **never run
-end to end**. It needs `ANTHROPIC_API_KEY` and a database. Treat it as
-unproven until the twenty-device baseline in the README has been done.
+end to end**. It needs `ANTHROPIC_API_KEY`. Treat it as unproven until the
+twenty-device baseline in the README has been done.
 
 ---
 
@@ -97,7 +114,7 @@ In the order the launch plan put them.
 |---|---|
 | Accounts and saved racks | There is nowhere to keep a rack. Everything is in `localStorage` on one browser. |
 | Stripe — subscription primary, perpetual as an option | Three prices: monthly, annual, perpetual-plus-one-year-of-updates. The perpetual one needs an `updatesUntil` date on the licence, checked at download. |
-| Metering on gear lookup | The live "device not found" lookup costs money per call. Unmetered, one user with a script is the whole margin. |
+| Metering on gear lookup | `/api/gear/request` has a crude per-process, per-IP cap of 10/hour — a floor, not the real thing. It resets on redeploy and does not hold across instances. Real metering needs accounts. |
 | Export escape hatch | If people are paying for their data, they have to be able to take it out. JSON of the rack plus the PDF. |
 | Landing and pricing page | `src/app/page.tsx` and `how-it-works` exist and are scaffold-grade. |
 | Catalog backfill | Twenty-three devices is still a demo. The pipeline exists to make it hundreds, and six of the twelve families are empty: Monitoring, Snakes & Splits, Processing & Amps, Comms, Lighting, Video. |
@@ -166,7 +183,15 @@ Stated plainly because they are easy to forget and expensive to discover.
     clearance, because until now nothing in the catalog printed one. If more
     do, the manufacturer's number should win over the estimate. Recorded in
     that device's `unresolved` in the meantime.
-11. **The M-8Dx's power figure is known to understate.** 8 W covers its two
+11. **Nobody has ever run the researcher.** `/api/gear/request` is built,
+    typechecked and driven end to end in `planner:check` against a stubbed
+    endpoint — the request, the badge, the findings warning, persistence across
+    a reload and removal are all covered. What is NOT covered is the one call
+    that costs money: `researchDevice` against the real API. Its prompt, its
+    tool budget and its repair round have never met a live model. **Run it
+    against a device you already own and check every figure by hand before
+    letting anyone else near it.**
+12. **The M-8Dx's power figure is known to understate.** 8 W covers its two
     lamps; the voltmeter that distinguishes it from the M-8Lx draws too and
     Furman do not say how much. Confidence is set to 0.55 to say so. It is the
     only figure in the catalog recorded as a floor rather than a ceiling.

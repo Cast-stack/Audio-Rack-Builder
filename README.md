@@ -82,6 +82,27 @@ happens in venues with no wifi.
 
 `planner/template.html` is the source. Both built files are gitignored.
 
+### Adding gear the catalog does not have
+
+Serve the app (`npm run dev`), open `/planner`, and use **Not in the catalog?
+Add it** in the catalog panel. Give it a make and model, and links to the
+manufacturer's product page or manual PDF — a direct link to the PDF gives the
+best result, and it is read natively, so there is nothing to convert first.
+
+Needs `ANTHROPIC_API_KEY`. It does **not** need a database: with one, the
+result is filed as a revision for a person to review; without one it lives in
+that browser.
+
+What comes back is not catalog gear and is never treated as though it is. It
+carries its own citations, it is badged unverified in the catalog, a rack
+containing one says so in the findings, and the patch sheet prints it with a
+NOT REVIEWED line and the full list of what could not be established. A link to
+somewhere that is not a manufacturer is read, but it permanently costs that
+record any chance of publishing itself.
+
+The action is hidden on the standalone file:// planner, which has no server to
+ask.
+
 ### Everything else
 
 ```bash

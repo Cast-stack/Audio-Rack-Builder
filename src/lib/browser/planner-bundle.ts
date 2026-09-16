@@ -55,8 +55,18 @@ export {
 } from "@/lib/gear/catalog";
 export type { CategoryDef, Family } from "@/lib/gear/catalog";
 
+/**
+ * Turning a researched device into one the engine can place. Bundled because
+ * the planner is where a requested device lands, and the fields this fills in
+ * are assumptions the planner has to be able to show.
+ */
+export { toProvisionalDevice, isProvisional, slugify } from "@/lib/gear/toDeviceSpec";
+export type { ProvisionalDevice } from "@/lib/gear/toDeviceSpec";
+export { vetSources, MAX_SOURCES } from "@/lib/gear/sources";
+
 import { renderPatchSheet } from "@/lib/export/patchSheet";
 import type { SourceRow } from "@/lib/export/patchSheet";
+import { isProvisional } from "@/lib/gear/toDeviceSpec";
 import { SEED_DEVICES } from "@/lib/seed-data";
 import type { DeviceSpec, RackSpec } from "@/lib/rack/types";
 
@@ -80,6 +90,24 @@ export function printPatchSheet(
   const unresolved = new Map<string, string[]>(
     SEED_DEVICES.filter((d) => d.unresolved.length).map((d) => [d.id, d.unresolved]),
   );
+
+  /**
+   * A device the user had researched on request carries its own evidence, and
+   * the printed sheet has to carry it too.
+   *
+   * The seeded maps above are keyed off SEED_DEVICES, so without this a
+   * provisional unit would appear in the elevation and the schedules with an
+   * empty sources appendix — the one shape of sheet this product must never
+   * print, because it looks exactly like a device nobody had to check.
+   */
+  for (const device of devices.values()) {
+    if (!isProvisional(device)) continue;
+    sources.set(device.id, device.provenance as unknown as SourceRow[]);
+    unresolved.set(device.id, [
+      `NOT REVIEWED. Researched on request from "${device.requestedAs}" on ${device.researchedAt.slice(0, 10)} and not checked by a person.`,
+      ...device.unresolved,
+    ]);
+  }
 
   const html = renderPatchSheet({
     rack,
