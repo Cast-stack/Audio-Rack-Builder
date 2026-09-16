@@ -47,20 +47,48 @@ promotes it. The diff is the review UI.
 
 ```bash
 npm install
-cp .env.example .env          # set DATABASE_URL, and ANTHROPIC_API_KEY for research
-npx prisma db push
-npx tsx prisma/seed.ts
+npx prisma generate           # needed before typecheck or dev
 npm run dev
 ```
 
-`/planner` and `/` work against the seeded demo data with no database at all —
-they import `src/lib/seed-data.ts` directly, so you can see the checker working
-before wiring Postgres up.
+That is enough to use it. The planner and the patch sheet read
+`src/lib/seed-data.ts` directly and need no database, no API key and no network
+— so the checker, the drawings and the PDF export all work on a fresh clone.
+
+Postgres is only needed for the catalog and the research pipeline:
 
 ```bash
-npm test          # feasibility engine, 15 assertions, no network
-npm run typecheck # requires `npx prisma generate` first
+cp .env.example .env          # set DATABASE_URL, and ANTHROPIC_API_KEY for research
+npx prisma db push
+npx tsx prisma/seed.ts
 ```
+
+On Windows PowerShell that first line is `copy .env.example .env`.
+
+### The standalone planner
+
+```bash
+npm run planner:build         # -> planner/planner.html
+```
+
+One self-contained HTML file with the whole engine inlined. It opens from the
+filesystem with no server behind it, which is the point: rack planning happens
+in venues with no wifi. `planner/template.html` is the source; the built file is
+generated and gitignored.
+
+### Everything else
+
+```bash
+npm test              # 56 assertions — engine, patch, panels, export. No network.
+npm run typecheck     # needs `npx prisma generate` first
+npm run sheet:demo -- monitor out.pdf    # render a demo rack's patch sheet
+npm run sheet:check   # re-render every sheet and look for colliding text
+```
+
+`sheet:check` drives a real browser, which is why it is not part of `npm test`.
+Page layout is the one part of the sheet the unit tests cannot judge: they check
+what the document says, not where it lands, and the HTML stays perfectly valid
+the whole time a legend is printing through a table.
 
 ### Researching a device from the command line
 
@@ -79,11 +107,21 @@ the accuracy baseline, and it costs about six dollars to get.
 
 ```
 src/lib/rack/      the feasibility engine — pure, tested, no Prisma, no network
-  types.ts         DeviceSpec / RackSpec / CheckResult
-  geometry.ts      RU maths, connector projection, bend allowance, real depth
+  types.ts         DeviceSpec / RackSpec / CableSpec / CheckResult
+  geometry.ts      RU maths, bays, connector projection, bend allowance, depth
   budget.ts        space, weight, centre of gravity, per-circuit load, heat
-  checks.ts        the rules that produce findings
-  checks.test.ts   15 assertions covering each rule
+  checks.ts        the rules that produce findings, including the patch
+  cables.ts        runs, signal classes, the validated cable palette, tags
+  panels.ts        draws a device's real front and rear panel from its layout
+  *.test.ts        56 assertions covering each rule
+
+src/lib/export/    the patch sheet — the thing you print and put in the lid
+  elevation.ts     front and rear elevations, bays, cable routing
+  patchSheet.ts    the document: schedules, depth ledger, sources appendix
+  pdf.ts           HTML to PDF through a real browser
+
+src/lib/browser/   what the standalone planner bundles
+planner/           the planner page: template.html in, planner.html out
 
 src/lib/gear/      the research pipeline
   schema.ts        canonical device + provenance zod schema
@@ -139,3 +177,10 @@ amps and not watts — most of them. The rule is "at least one cited power figur
   varies by more than the model number suggests, and it is the number every
   depth check turns on.
 - **Set `CRON_SECRET`** before exposing `/api/cron/*`.
+- **Swap the PDF browser.** `src/lib/export/pdf.ts` drives a local Chromium.
+  On Vercel there is none in the function filesystem — use `@sparticuz/chromium`
+  with `puppeteer-core`. The launch is the only part that differs.
+- **Measure the connector and bend tables.** `CONNECTOR_PROJECTION_MM` and
+  `BEND_ALLOWANCE_MM` in `geometry.ts` are working figures, not measured ones.
+  The patch sheet says so in print, but a footnote is not a fix, and every depth
+  check turns on them.
