@@ -65,16 +65,22 @@ npx tsx prisma/seed.ts
 
 On Windows PowerShell that first line is `copy .env.example .env`.
 
-### The standalone planner
+### The planner
+
+The planner is one self-contained HTML file with the whole engine inlined, and
+it is the same file whether you open it off a disk or load it from the site:
 
 ```bash
-npm run planner:build         # -> planner/planner.html
+npm run planner:build   # -> planner/planner.html and public/planner.html
 ```
 
-One self-contained HTML file with the whole engine inlined. It opens from the
-filesystem with no server behind it, which is the point: rack planning happens
-in venues with no wifi. `planner/template.html` is the source; the built file is
-generated and gitignored.
+`npm run dev` and `npm run build` run that first, so `/planner` works on a
+fresh clone. Next serves the `public/` copy at that URL through a rewrite, and
+`planner/planner.html` is the copy you hand someone on a stick — it opens from
+the filesystem with no server behind it, which is the point: rack planning
+happens in venues with no wifi.
+
+`planner/template.html` is the source. Both built files are gitignored.
 
 ### Everything else
 
@@ -83,12 +89,22 @@ npm test              # 56 assertions — engine, patch, panels, export. No netw
 npm run typecheck     # needs `npx prisma generate` first
 npm run sheet:demo -- monitor out.pdf    # render a demo rack's patch sheet
 npm run sheet:check   # re-render every sheet and look for colliding text
+npm run planner:check # boot the built planner and drive it
 ```
 
-`sheet:check` drives a real browser, which is why it is not part of `npm test`.
-Page layout is the one part of the sheet the unit tests cannot judge: they check
-what the document says, not where it lands, and the HTML stays perfectly valid
-the whole time a legend is printing through a table.
+The last two drive a real browser, which is why neither is part of `npm test`.
+They need Chrome, Edge or a Chromium somewhere findable; `CHROMIUM_PATH`
+overrides the search.
+
+`sheet:check` covers the one part of the sheet the unit tests cannot judge:
+they check what the document says, not where it lands, and the HTML stays
+perfectly valid the whole time a legend is printing through a table.
+
+`planner:check` covers the other blind spot. The planner is ~1,900 lines of
+interaction code in an HTML template that `npm test` never loads, so a typo in
+it takes the product down with every engine assertion still green. The check
+walks every case profile and every preset, front and rear, and fails on a
+console error or an empty panel.
 
 ### Researching a device from the command line
 
@@ -120,7 +136,7 @@ src/lib/export/    the patch sheet — the thing you print and put in the lid
   patchSheet.ts    the document: schedules, depth ledger, sources appendix
   pdf.ts           HTML to PDF through a real browser
 
-src/lib/browser/   what the standalone planner bundles
+src/lib/browser/   what the planner bundles
 planner/           the planner page: template.html in, planner.html out
 
 src/lib/gear/      the research pipeline
@@ -134,7 +150,7 @@ src/lib/gear/      the research pipeline
 
 src/lib/db/        the only seam between Prisma and everything else
 src/app/api/       research, lookup, search, rack check, review queue, crons
-src/components/    planner canvas, budget rail, check panel, spec table
+src/components/    check panel and spec table for the React pages
 prisma/            schema and seed
 ```
 

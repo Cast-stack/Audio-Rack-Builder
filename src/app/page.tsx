@@ -130,12 +130,13 @@ export default function HomePage() {
             these six units do not physically go in the case.
           </p>
           <div className="mt-6 flex flex-wrap items-center gap-3">
-            <Link
+            {/* Not next/link: /planner is the generated static planner. */}
+            <a
               href="/planner"
               className="border border-accent bg-accent px-4 py-2 font-mono text-xs uppercase tracking-legend text-accent-ink"
             >
               Open the planner
-            </Link>
+            </a>
             <Link
               href="/how-it-works"
               className="border border-line-strong px-4 py-2 font-mono text-xs uppercase tracking-legend text-muted hover:border-accent hover:text-accent"
@@ -366,12 +367,12 @@ export default function HomePage() {
           The planner starts from the 8U build above, with the full catalog beside it. Every drag
           re-runs the checks.
         </p>
-        <Link
+        <a
           href="/planner"
           className="mt-4 inline-block border border-accent bg-accent px-4 py-2 font-mono text-xs uppercase tracking-legend text-accent-ink"
         >
           Open the planner
-        </Link>
+        </a>
       </section>
     </main>
   );

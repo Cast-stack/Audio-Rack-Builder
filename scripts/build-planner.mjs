@@ -1,16 +1,25 @@
 /**
  * Build the standalone planner page.
  *
- *   node scripts/build-planner.mjs [template.html] [out.html]
+ *   node scripts/build-planner.mjs [template.html] [out.html ...]
  *
  * Bundles src/lib/browser/planner-bundle.ts into an IIFE exposing `RACK` and
  * substitutes it into the template's __ENGINE__ slot. All logic is inlined, so
  * the page works from a file:// URL or a USB stick with no server behind it.
  * The only network request is the webfont link in the template, which degrades
  * to system fonts — nothing functional depends on it.
+ *
+ * Two outputs by default, from one bundle so they cannot drift:
+ *
+ *   planner/planner.html   the hand-out copy, opened straight off the disk
+ *   public/planner.html    what Next serves at /planner (see next.config.ts)
+ *
+ * Both are generated and both are gitignored. `npm run dev` and `npm run build`
+ * run this first, so a checkout with no public/planner.html still serves the
+ * planner rather than a 404.
  */
 
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -18,7 +27,10 @@ import * as esbuild from "esbuild";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const template = process.argv[2] ?? resolve(root, "planner/template.html");
-const out = process.argv[3] ?? resolve(root, "planner/planner.html");
+const outs = process.argv.slice(3);
+if (!outs.length) {
+  outs.push(resolve(root, "planner/planner.html"), resolve(root, "public/planner.html"));
+}
 
 const result = await esbuild.build({
   entryPoints: [resolve(root, "src/lib/browser/planner-bundle.ts")],
@@ -46,5 +58,9 @@ html = html.split("__ENGINE__").join(engine);
 // The panel renderer used to be a second script; it is part of the bundle now.
 html = html.split("<script>\n__PANELS__\n</script>\n").join("");
 
-await writeFile(out, html, "utf8");
-console.log(`${out} — ${(html.length / 1024).toFixed(0)} KB`);
+const size = `${(html.length / 1024).toFixed(0)} KB`;
+for (const out of outs) {
+  await mkdir(dirname(out), { recursive: true });
+  await writeFile(out, html, "utf8");
+  console.log(`${out} — ${size}`);
+}

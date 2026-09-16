@@ -30,11 +30,17 @@ export const metadata: Metadata = {
     "Plan a production rack against the numbers that decide whether it closes: real depth behind the rails, per-circuit load after the NEC derate, inrush at power-up, centre of gravity and heat.",
 };
 
+// `routed: false` means the target is not a React route. /planner is the
+// generated single-file planner served straight out of public/ (see the
+// rewrite in next.config.ts), so it needs a real page load, not next/link.
 const NAV = [
-  { href: "/planner", label: "Planner" },
-  { href: "/catalog", label: "Catalog" },
-  { href: "/how-it-works", label: "How it works" },
+  { href: "/planner", label: "Planner", routed: false },
+  { href: "/catalog", label: "Catalog", routed: true },
+  { href: "/how-it-works", label: "How it works", routed: true },
 ];
+
+const NAV_LINK =
+  "border border-transparent px-2.5 py-1.5 font-mono text-[0.6875rem] uppercase tracking-legend text-muted hover:border-line hover:bg-raised hover:text-ink";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -52,15 +58,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </span>
             </Link>
             <nav aria-label="Primary" className="ml-auto flex items-center gap-1">
-              {NAV.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="border border-transparent px-2.5 py-1.5 font-mono text-[0.6875rem] uppercase tracking-legend text-muted hover:border-line hover:bg-raised hover:text-ink"
-                >
-                  {item.label}
-                </Link>
-              ))}
+              {NAV.map((item) =>
+                item.routed ? (
+                  <Link key={item.href} href={item.href} className={NAV_LINK}>
+                    {item.label}
+                  </Link>
+                ) : (
+                  <a key={item.href} href={item.href} className={NAV_LINK}>
+                    {item.label}
+                  </a>
+                ),
+              )}
             </nav>
           </div>
         </header>

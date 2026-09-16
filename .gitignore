@@ -21,3 +21,7 @@ coverage/
 
 # built by scripts/build-planner.mjs
 planner/planner.html
+public/planner.html
+
+# Claude Cowork drops deliverables here; not part of the project.
+Claude outputs/

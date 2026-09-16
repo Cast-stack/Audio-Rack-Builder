@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "prisma generate && npm run planner:build && next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
@@ -14,8 +14,10 @@
     "db:studio": "prisma studio",
     "gear:research": "tsx scripts/research.ts",
     "planner:build": "node scripts/build-planner.mjs",
+    "planner:check": "node --import tsx scripts/check-planner.mjs",
     "sheet:demo": "tsx scripts/patch-sheet-demo.ts",
-    "sheet:check": "node --import tsx scripts/check-sheet-layout.mjs"
+    "sheet:check": "node --import tsx scripts/check-sheet-layout.mjs",
+    "predev": "npm run planner:build"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
