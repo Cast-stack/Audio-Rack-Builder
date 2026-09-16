@@ -140,6 +140,9 @@ svg.panel .silk-sm{font-size:26px;opacity:.68;letter-spacing:.5px}
 .unit select{background:#1B2025;border:1px solid #454D55;color:var(--panel-ink);font-family:var(--mono);font-size:.66rem;padding:1px 3px}
 .unit .rm{background:transparent;border:1px solid #4A525A;color:rgba(255,255,255,.6);width:20px;height:20px;padding:0;line-height:1;font-family:var(--mono)}
 .unit .rm:hover{border-color:var(--crit);color:var(--crit)}
+.dtl-acts{display:flex;gap:6px;flex:none}
+button.danger{border-color:var(--crit);color:var(--crit)}
+button.danger:hover{background:var(--crit);border-color:var(--crit);color:#fff}
 .rack-meta{display:flex;flex-wrap:wrap;gap:4px 15px;font-family:var(--mono);font-size:.65rem;color:rgba(255,255,255,.45);padding-top:6px;border-top:1px solid rgba(255,255,255,.1);margin-top:7px}
 
 .ports{display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-width:0}
@@ -174,7 +177,19 @@ circle.porthit:hover{fill:rgba(255,255,255,.14);stroke:var(--accent)}
 circle.porthit.patched{stroke:var(--run,var(--accent));stroke-opacity:.55}
 circle.porthit.sel{fill:rgba(255,255,255,.1);stroke:var(--accent);stroke-width:5}
 circle.porthit.arm{fill:rgba(255,255,255,.16);stroke:var(--accent);stroke-width:6;stroke-dasharray:8 6}
+/* While a cable is in the air, every connector says whether it will take it. */
+circle.porthit.src{fill:rgba(255,255,255,.2);stroke:var(--accent);stroke-width:6}
+circle.porthit.ok{fill:rgba(53,179,184,.16);stroke:var(--accent);stroke-width:4}
+circle.porthit.busy{fill:rgba(210,164,78,.14);stroke:var(--warn);stroke-width:4;stroke-dasharray:7 5}
+circle.porthit.bad{fill:rgba(0,0,0,.42);stroke:transparent}
+circle.porthit.under{fill:rgba(53,179,184,.4);stroke:var(--accent);stroke-width:7}
+body.dragging-cable{cursor:crosshair}
+body.dragging-cable .unit{pointer-events:none}
+body.dragging-cable circle.porthit{pointer-events:all}
+svg.cablelayer .cbl.band{stroke:var(--accent);stroke-width:3;stroke-dasharray:9 7;opacity:.95}
+svg.cablelayer .cbl.band.snapped{stroke-dasharray:none;stroke-width:4}
 svg.cablelayer{position:absolute;inset:0;pointer-events:none;overflow:visible}
+svg.cablelayer .cbl.grab{stroke:transparent;stroke-width:14;pointer-events:stroke;cursor:pointer}
 svg.cablelayer .cbl{fill:none;stroke-width:2.5;stroke-linecap:round}
 svg.cablelayer .cbl.halo{stroke:#0B0D10;stroke-width:6;opacity:.85}
 svg.cablelayer .cbl.hot{stroke-width:4}
@@ -381,6 +396,7 @@ __PANELS__
       cables: (preset.cables || []).map(function (c) { return JSON.parse(JSON.stringify(c)); }),
       patching: null,
       selectedPort: null,
+      selectedCable: null,
       placements: preset.placements.map(function (p) {
         return { uid: uid(), deviceId: p.deviceId, position: p.position, slot: p.slot || "full", circuit: p.circuit };
       })
@@ -398,6 +414,7 @@ __PANELS__
       saved.cables = saved.cables || [];
       saved.patching = null;
       saved.selectedPort = null;
+      saved.selectedCable = null;
       state = saved;
     }
   } catch (e) { /* blocked storage — the planner still works */ }
@@ -478,6 +495,34 @@ __PANELS__
       label: null
     });
   }
+  /**
+   * Pull a unit out of the rack, and its patch with it.
+   *
+   * A run to a socket that is no longer in the rack is not a run; leaving the
+   * cable behind would put a line to nowhere on the drawing and a row in the
+   * schedule for a cable nobody has to pack.
+   */
+  function removePlacement(uid) {
+    var gone = state.placements.filter(function (x) { return x.uid === uid; })[0];
+    if (!gone) return;
+    state.placements = state.placements.filter(function (x) { return x.uid !== uid; });
+    state.cables = (state.cables || []).filter(function (c) {
+      return !touchesPlacement(c, gone);
+    });
+    if (state.selected === uid) state.selected = null;
+    if (state.selectedPort && state.selectedPort.indexOf(gone.deviceId + "|" + gone.position + "|") === 0) {
+      state.selectedPort = null;
+    }
+    state.patching = null;
+    render();
+  }
+  function touchesPlacement(cable, placement) {
+    return [cable.from, cable.to].some(function (e) {
+      return e.kind === "port" && e.deviceId === placement.deviceId &&
+        e.position === placement.position && (e.slot || "full") === (placement.slot || "full");
+    });
+  }
+
   function unpatch(key) {
     state.cables = (state.cables || []).filter(function (c) {
       return keyOf(c.from) !== key && keyOf(c.to) !== key;
@@ -618,6 +663,20 @@ __PANELS__
 
   // The patch sheet is rendered by the same module the server export uses, so
   // what prints here and what the API returns are the same document.
+  // Delete works on whatever is selected, without needing the unit itself to
+  // hold focus — which it does not after a click on a cable or a port.
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key !== "Delete" && ev.key !== "Backspace") return;
+    var t = ev.target;
+    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT")) return;
+    if (state.selectedCable) { ev.preventDefault(); removeCable(state.selectedCable); return; }
+    if (state.selectedPort) {
+      var run = cableAt(state.selectedPort);
+      if (run) { ev.preventDefault(); removeCable(run.id); return; }
+    }
+    if (state.selected) { ev.preventDefault(); removePlacement(state.selected); }
+  });
+
   var sheetBtn = document.getElementById("sheetBtn");
   sheetBtn.addEventListener("click", function () {
     E.printPatchSheet(rackSpec(), BY_ID);
@@ -625,7 +684,13 @@ __PANELS__
 
   document.getElementById("clearBtn").addEventListener("click", function () {
     state.placements = [];
+    // The patch goes with the gear. Leaving it in state would resurrect runs
+    // the moment something was dropped back into the same U.
+    state.cables = [];
     state.selected = null;
+    state.selectedPort = null;
+    state.selectedCable = null;
+    state.patching = null;
     render();
   });
 
@@ -775,7 +840,10 @@ __PANELS__
         var hit = document.createElementNS("http://www.w3.org/2000/svg", "circle");
         hit.setAttribute("cx", a.x);
         hit.setAttribute("cy", a.y);
-        hit.setAttribute("r", Math.max(a.size * 0.68, 40));
+        // Big enough to hit, small enough that there is still panel left to
+        // grab the unit itself by. Connectors sit shoulder to shoulder on a
+        // rear panel, so a generous radius covers the whole face.
+        hit.setAttribute("r", Math.max(a.size * 0.55, 28));
         hit.setAttribute("class", "porthit" + (run ? " patched" : "") +
           (state.selectedPort === key ? " sel" : "") +
           (state.patching === key ? " arm" : ""));
@@ -784,7 +852,13 @@ __PANELS__
         portNodes.push({ key: key, node: hit });
         hit.addEventListener("click", function (ev) {
           ev.stopPropagation();
+          if (DRAG && DRAG.moved) return;
           onPortClick(key, placement, a);
+        });
+        hit.addEventListener("pointerdown", function (ev) {
+          ev.stopPropagation();
+          ev.preventDefault();
+          beginDrag(key, ev);
         });
       });
     }
@@ -816,6 +890,7 @@ __PANELS__
       node.addEventListener("click", function (ev) {
         if (ev.target.closest("select,button")) return;
         state.selected = state.selected === p.uid ? null : p.uid;
+        state.selectedCable = null;
         render();
       });
       node.addEventListener("keydown", function (ev) {
@@ -823,6 +898,10 @@ __PANELS__
           ev.preventDefault();
           state.selected = state.selected === p.uid ? null : p.uid;
           render();
+        }
+        if (ev.key === "Delete" || ev.key === "Backspace") {
+          ev.preventDefault();
+          removePlacement(p.uid);
         }
       });
 
@@ -843,11 +922,7 @@ __PANELS__
       var rm = el("button", "rm", "×");
       rm.type = "button";
       rm.setAttribute("aria-label", "Remove " + d.model);
-      rm.addEventListener("click", function () {
-        state.placements = state.placements.filter(function (x) { return x.uid !== p.uid; });
-        if (state.selected === p.uid) state.selected = null;
-        render();
-      });
+      rm.addEventListener("click", function () { removePlacement(p.uid); });
       ctl.appendChild(rm);
       node.appendChild(ctl);
 
@@ -881,6 +956,11 @@ __PANELS__
   }
 
   // ---------------------------------------------------------------- cables
+  var PORT_PX = {};
+  var PORT_NODES = {};
+  var LAYER_BOX = null;
+  var DRAG = null;
+
   function runColour(run) {
     if (run.colour) return run.colour;
     var port = portOf(run.from.kind === "port" ? run.from : run.to);
@@ -903,14 +983,17 @@ __PANELS__
     var old = host.parentElement.querySelector(".cablelayer");
     if (old) old.remove();
     var runs = state.cables || [];
-    if (!runs.length) return;
 
     var box = host.getBoundingClientRect();
     var at = {};
+    PORT_NODES = {};
     portNodes.forEach(function (pn) {
       var rect = pn.node.getBoundingClientRect();
       at[pn.key] = { x: rect.left + rect.width / 2 - box.left, y: rect.top + rect.height / 2 - box.top };
+      PORT_NODES[pn.key] = pn.node;
     });
+    PORT_PX = at;
+    LAYER_BOX = box;
 
     var NS = "http://www.w3.org/2000/svg";
     var svg = document.createElementNS(NS, "svg");
@@ -949,14 +1032,38 @@ __PANELS__
       var halo = document.createElementNS(NS, "path");
       halo.setAttribute("d", d); halo.setAttribute("class", "cbl halo");
       svg.appendChild(halo);
+      var lit = state.selectedCable === run.id ||
+        (state.selectedPort && (keyOf(run.from) === state.selectedPort || keyOf(run.to) === state.selectedPort));
       var path = document.createElementNS(NS, "path");
       path.setAttribute("d", d);
-      path.setAttribute("class", "cbl" + (state.selectedPort &&
-        (keyOf(run.from) === state.selectedPort || keyOf(run.to) === state.selectedPort) ? " hot" : ""));
+      path.setAttribute("class", "cbl" + (lit ? " hot" : ""));
       path.setAttribute("stroke", colour);
       if (st.dash) path.setAttribute("stroke-dasharray", scaleDash(st.dash));
       svg.appendChild(path);
+
+      // A cable is the thing you point at when you want to get rid of it, so
+      // it gets a hit path of its own rather than only being reachable through
+      // the connector at one of its ends.
+      var grab = document.createElementNS(NS, "path");
+      grab.setAttribute("d", d);
+      grab.setAttribute("class", "cbl grab");
+      grab.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        state.selectedCable = state.selectedCable === run.id ? null : run.id;
+        state.selectedPort = null;
+        state.patching = null;
+        render();
+      });
+      svg.appendChild(grab);
     });
+
+    if (!runs.length && !DRAG) {
+      // Still attach an empty layer: a drag has to have somewhere to draw its
+      // rubber band before the first cable exists.
+      host.parentElement.style.position = "relative";
+      host.parentElement.appendChild(svg);
+      return;
+    }
 
     tails.forEach(function (t) {
       var dot = document.createElementNS(NS, "circle");
@@ -977,6 +1084,131 @@ __PANELS__
     return dash.split(" ").map(function (n) { return Math.max(1, Math.round(Number(n) / 4)); }).join(" ");
   }
 
+  /**
+   * Drag from a connector to the one you want.
+   *
+   * Click-then-click still works and is what keyboard and touch fall back to,
+   * but dragging is what a hand reaches for, and it lets the planner show which
+   * connectors will take the other end while the cable is still in the air.
+   */
+  function beginDrag(key, ev) {
+    var layer = document.querySelector("svg.cablelayer");
+    var from = PORT_PX[key];
+    if (!layer || !from) return;
+
+    var NS = "http://www.w3.org/2000/svg";
+    var band = document.createElementNS(NS, "path");
+    band.setAttribute("class", "cbl band");
+    band.setAttribute("d", "M" + from.x + " " + from.y + "L" + from.x + " " + from.y);
+    layer.appendChild(band);
+
+    DRAG = { key: key, from: from, band: band, moved: false, over: null };
+    markTargets(key);
+    document.body.classList.add("dragging-cable");
+
+    window.addEventListener("pointermove", onDragMove);
+    window.addEventListener("pointerup", onDragEnd, { once: true });
+    window.addEventListener("pointercancel", onDragEnd, { once: true });
+  }
+
+  function onDragMove(ev) {
+    if (!DRAG || !LAYER_BOX) return;
+    var x = ev.clientX - LAYER_BOX.left;
+    var y = ev.clientY - LAYER_BOX.top;
+    if (Math.abs(x - DRAG.from.x) > 3 || Math.abs(y - DRAG.from.y) > 3) DRAG.moved = true;
+
+    // Snap to a connector under the pointer, so the band lands where it will
+    // actually go rather than wherever the finger stopped.
+    var target = targetUnder(ev.clientX, ev.clientY);
+    DRAG.over = target;
+    var end = target && PORT_PX[target] ? PORT_PX[target] : { x: x, y: y };
+    var dx = end.x - DRAG.from.x, dy = end.y - DRAG.from.y;
+    DRAG.band.setAttribute("d",
+      "M" + DRAG.from.x + " " + DRAG.from.y +
+      "C" + (DRAG.from.x + dx * 0.3) + " " + (DRAG.from.y + dy * 0.1 + 18) +
+      " " + (DRAG.from.x + dx * 0.7) + " " + (end.y - dy * 0.1 + 18) +
+      " " + end.x + " " + end.y);
+    DRAG.band.classList.toggle("snapped", !!target);
+
+    Object.keys(PORT_NODES).forEach(function (k) {
+      PORT_NODES[k].classList.toggle("under", k === target);
+    });
+  }
+
+  function targetUnder(clientX, clientY) {
+    var hit = null;
+    Object.keys(PORT_NODES).forEach(function (k) {
+      if (k === DRAG.key || hit) return;
+      var r = PORT_NODES[k].getBoundingClientRect();
+      if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) hit = k;
+    });
+    return hit;
+  }
+
+  function onDragEnd() {
+    window.removeEventListener("pointermove", onDragMove);
+    document.body.classList.remove("dragging-cable");
+    if (!DRAG) return;
+    var target = DRAG.over;
+    var from = DRAG.key;
+    var moved = DRAG.moved;
+    if (DRAG.band.parentNode) DRAG.band.remove();
+    clearTargets();
+    DRAG = null;
+    if (moved && target) {
+      patch(fromKey(from), fromKey(target));
+      state.selectedPort = target;
+      state.selectedCable = null;
+      state.patching = null;
+      render();
+    } else if (moved) {
+      render();
+    }
+  }
+
+  /**
+   * Show which connectors will take the other end.
+   *
+   * A connector that is free and mates is offered; one that is already patched
+   * is offered too, since dropping on it replaces what was there. One that
+   * needs an adapter is dimmed rather than blocked — the checker reports it as
+   * a warning, and a planner that refuses to draw an adapter would be lying
+   * about what a rack can be.
+   */
+  function markTargets(fromKeyStr) {
+    var src = portOf(fromKey(fromKeyStr));
+    Object.keys(PORT_NODES).forEach(function (k) {
+      var node = PORT_NODES[k];
+      if (k === fromKeyStr) { node.classList.add("src"); return; }
+      var dst = portOf(fromKey(k));
+      var cls = "bad";
+      if (src && dst) {
+        var oneWay = function (d) { return d === "input" || d === "output"; };
+        var dirOk = !(oneWay(src.direction) && oneWay(dst.direction) && src.direction === dst.direction);
+        cls = dirOk && mates(src.connector, dst.connector) ? "ok" : "bad";
+      }
+      if (cableAt(k)) cls = cls === "ok" ? "busy" : "bad";
+      node.classList.add(cls);
+    });
+  }
+  function clearTargets() {
+    Object.keys(PORT_NODES).forEach(function (k) {
+      PORT_NODES[k].classList.remove("ok", "bad", "busy", "src", "under");
+    });
+  }
+  /** Mirrors the engine's own rule, so the planner and the checker agree. */
+  function mates(a, b) {
+    if (a === b) return true;
+    var COMBO = ["XLR/TRS combo", "XLR3", "TRS", "TS"];
+    if (a === "XLR/TRS combo" && COMBO.indexOf(b) >= 0) return true;
+    if (b === "XLR/TRS combo" && COMBO.indexOf(a) >= 0) return true;
+    var JACK = ["TRS", "TS"];
+    if (JACK.indexOf(a) >= 0 && JACK.indexOf(b) >= 0) return true;
+    var RJ = ["RJ45", "Dante RJ45", "AES50 RJ45", "etherCON"];
+    if (RJ.indexOf(a) >= 0 && RJ.indexOf(b) >= 0) return true;
+    return a === "Other" || b === "Other";
+  }
+
   function onPortClick(key, placement, anchor) {
     var existing = cableAt(key);
     if (state.patching && state.patching !== key) {
@@ -987,6 +1219,7 @@ __PANELS__
       return;
     }
     if (state.patching === key) { state.patching = null; render(); return; }
+    state.selectedCable = null;
     state.selectedPort = state.selectedPort === key ? null : key;
     if (!existing && state.selectedPort) state.patching = key;
     render();
@@ -1005,6 +1238,8 @@ __PANELS__
     var body = document.getElementById("portBody");
     var where = document.getElementById("portWhere");
     body.textContent = "";
+
+    if (state.selectedCable) { renderCableCard(card, body, where); return; }
 
     var key = state.selectedPort;
     if (!key) { card.hidden = true; return; }
@@ -1086,6 +1321,56 @@ __PANELS__
 
     body.appendChild(el("div", "hint",
       "Runs are drawn on the rear view, where the connectors are."));
+  }
+
+  /** The inspector, when what is selected is a run rather than a connector. */
+  function renderCableCard(card, body, where) {
+    var run = (state.cables || []).filter(function (c) { return c.id === state.selectedCable; })[0];
+    if (!run) { state.selectedCable = null; card.hidden = true; return; }
+    card.hidden = false;
+    where.textContent = "cable";
+
+    var head = el("div");
+    head.appendChild(el("div", "portname", run.label || "Untagged run"));
+    head.appendChild(el("div", "hint", endLabel(run.from) + "  \u2192  " + endLabel(run.to)));
+    body.appendChild(head);
+
+    var tape = el("input", "tapein");
+    tape.type = "text";
+    tape.maxLength = 12;
+    tape.placeholder = "Tape marking";
+    tape.value = run.label || "";
+    tape.addEventListener("change", function () { run.label = tape.value.trim() || null; render(); });
+    body.appendChild(tape);
+
+    body.appendChild(el("div", "hint", "Cable colour"));
+    var sw = el("div", "swatches");
+    var auto = el("button", "auto" + (run.colour ? "" : " on"));
+    auto.type = "button";
+    auto.title = "By signal class";
+    auto.addEventListener("click", function () { run.colour = null; render(); });
+    sw.appendChild(auto);
+    E.CABLE_SWATCHES.forEach(function (c) {
+      var b = el("button", run.colour === c ? "on" : "");
+      b.type = "button";
+      b.style.background = c;
+      b.title = c;
+      b.addEventListener("click", function () { run.colour = c; render(); });
+      sw.appendChild(b);
+    });
+    body.appendChild(sw);
+
+    var cut = el("button", "danger", "Remove this cable");
+    cut.type = "button";
+    cut.addEventListener("click", function () { removeCable(run.id); });
+    body.appendChild(cut);
+    body.appendChild(el("div", "hint", "Or press Delete."));
+  }
+
+  function removeCable(id) {
+    state.cables = (state.cables || []).filter(function (c) { return c.id !== id; });
+    if (state.selectedCable === id) state.selectedCable = null;
+    render();
   }
 
   // ---------------------------------------------------------------- budget
@@ -1280,10 +1565,17 @@ __PANELS__
       (E.isHalfWidth(d) ? " · half-rack, " + (placement.slot === "right" ? "right" : "left") + " side" : "") +
       (d.status === "discontinued" ? " · discontinued" : "")));
     head.appendChild(who);
+    var acts = el("div", "dtl-acts");
+    var drop = el("button", "danger", "Remove from rack");
+    drop.type = "button";
+    drop.title = "Removes this unit and any runs patched to it (Delete)";
+    drop.addEventListener("click", function () { removePlacement(placement.uid); });
+    acts.appendChild(drop);
     var close = el("button", "ghost", "Close");
     close.type = "button";
     close.addEventListener("click", function () { state.selected = null; render(); });
-    head.appendChild(close);
+    acts.appendChild(close);
+    head.appendChild(acts);
     host.appendChild(head);
 
     if (d.statusNote) {
