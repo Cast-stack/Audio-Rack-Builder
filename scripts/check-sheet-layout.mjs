@@ -16,6 +16,7 @@
 import { writeFile } from "node:fs/promises";
 import { chromium } from "playwright-core";
 
+import { resolveChromium } from "../src/lib/export/pdf.ts";
 import { renderPatchSheet } from "../src/lib/export/patchSheet.ts";
 import { DEMO_RACKS, SEED_CASES, SEED_DEVICES } from "../src/lib/seed-data.ts";
 
@@ -110,7 +111,9 @@ async function main() {
   const sources = new Map(SEED_DEVICES.map((d) => [d.id, d.provenance]));
 
   const browser = await chromium.launch({
-    executablePath: process.env["CHROMIUM_PATH"] ?? "/opt/pw-browsers/chromium",
+    // Shared with the PDF export, so the browser this is checked in is the
+    // browser the document is printed with, on whichever machine is running.
+    executablePath: await resolveChromium(),
     args: ["--no-sandbox"],
   });
   let failures = 0;

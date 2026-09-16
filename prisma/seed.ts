@@ -182,7 +182,18 @@ async function seedRack(
       continue;
     }
     await prisma.placement.create({
-      data: { rackId: rack.id, deviceId, position: p.position, circuit: p.circuit },
+      data: {
+        rackId: rack.id,
+        deviceId,
+        // bay and slot are normalised on the way in, matching anchorKey()'s
+        // `slot ?? "full"`. Seeding them as defaults instead would stack a
+        // half-rack pair into one half and invent a collision.
+        bay: p.bay ?? 1,
+        slot: p.slot ?? "full",
+        position: p.position,
+        circuit: p.circuit,
+        label: p.label ?? null,
+      },
     });
   }
   return rack;

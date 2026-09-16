@@ -94,10 +94,16 @@ export function toRackSpec(row: RackRow): RackSpec {
     case: toCaseSpec(row.case),
     circuits: toCircuits(row.circuits),
     placements: row.placements.map(
+      // Every dimension of the placement key comes back out. Dropping one
+      // here is the same bug as dropping one from anchorKey(): two physical
+      // cells collapse into one and the rack that round-trips is not the rack
+      // that went in. bay and slot are non-null in the schema, and "full"
+      // reads identically to an omitted slot throughout the engine.
       (p): PlacementSpec => ({
         deviceId: p.deviceId,
+        bay: p.bay,
         position: p.position,
-        slot: (p.slot as PlacementSpec["slot"]) ?? undefined,
+        slot: p.slot as PlacementSpec["slot"],
         circuit: p.circuit,
         label: p.label,
       }),

@@ -26,20 +26,53 @@ export interface PdfOptions {
   footerLeft?: string;
 }
 
-const CANDIDATES = [
-  process.env["CHROMIUM_PATH"],
-  "/opt/pw-browsers/chromium",
-  "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
-  "/usr/bin/chromium",
-  "/usr/bin/chromium-browser",
-  "/usr/bin/google-chrome",
-  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-];
+/**
+ * Where a Chromium might be, on each platform this is developed and deployed
+ * on. CHROMIUM_PATH wins everywhere, because no list survives contact with a
+ * machine somebody actually uses.
+ *
+ * Windows entries are built from the environment rather than hardcoded: the
+ * Program Files directories are localised on some installs, so the base comes
+ * from PROGRAMFILES rather than being spelled out.
+ */
+function candidates(): (string | undefined)[] {
+  const env = process.env;
+  const win = [env["PROGRAMFILES"], env["PROGRAMFILES(X86)"], env["LOCALAPPDATA"]]
+    .filter(Boolean)
+    .flatMap((base) => [
+      // Forward slashes on purpose: Windows accepts them, and they keep
+      // these out of escape-sequence trouble inside a template literal.
+      `${base}/Google/Chrome/Application/chrome.exe`,
+      `${base}/Microsoft/Edge/Application/msedge.exe`,
+    ]);
 
-async function resolveExecutable(explicit?: string): Promise<string> {
+  return [
+    env["CHROMIUM_PATH"],
+    // Linux, including the serverless and CI images.
+    "/opt/pw-browsers/chromium",
+    "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+    "/usr/bin/chromium",
+    "/usr/bin/chromium-browser",
+    "/usr/bin/google-chrome",
+    // macOS.
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+    // Windows.
+    ...win,
+  ];
+}
+
+/**
+ * The first Chromium on this machine that actually exists.
+ *
+ * Exported because the layout checks drive a browser too, and a second copy of
+ * this list is a second thing to forget to update — which is how `sheet:check`
+ * came to be un-runnable outside the one sandbox it was written in.
+ */
+export async function resolveChromium(explicit?: string): Promise<string> {
   const { access } = await import("node:fs/promises");
 
-  for (const c of [explicit, ...CANDIDATES]) {
+  for (const c of [explicit, ...candidates()]) {
     if (!c) continue;
     try {
       await access(c);
@@ -49,7 +82,7 @@ async function resolveExecutable(explicit?: string): Promise<string> {
     }
   }
   throw new Error(
-    "No Chromium found for PDF rendering. Set CHROMIUM_PATH, or install one where the export can reach it.",
+    "No Chromium found. Set CHROMIUM_PATH, or install Chrome or Edge where this can reach it.",
   );
 }
 
@@ -61,7 +94,7 @@ async function resolveExecutable(explicit?: string): Promise<string> {
  */
 export async function htmlToPdf(html: string, opts: PdfOptions = {}): Promise<Buffer> {
   const { chromium } = await import("playwright-core");
-  const executablePath = await resolveExecutable(opts.executablePath);
+  const executablePath = await resolveChromium(opts.executablePath);
 
   const browser = await chromium.launch({
     executablePath,

@@ -318,11 +318,23 @@ model Placement {
   /// Rack position, 1 = bottom U. Bottom-origin because that is how weight
   /// distribution and centre of gravity are reasoned about.
   position Int
+  /// Which column of rails, 1 = the only bay on a single-bay case. Part of the
+  /// key: without it, U3 of bay 1 and U3 of bay 2 are the same cell and a
+  /// two-bay rack can only ever hold one unit per row.
+  bay      Int    @default(1)
+  /// Which half of the U this unit sits in: "full", "left" or "right". Matches
+  /// the Slot type in src/lib/rack/types.ts, where "full" and an omitted slot
+  /// mean the same thing everywhere they are read.
+  ///
+  /// Stored with a default rather than left nullable so the unique index below
+  /// actually bites. Postgres counts NULLs as distinct from each other, so a
+  /// nullable slot would happily let the same U be filled twice.
+  slot     String @default("full")
   /// Which branch circuit this unit is plugged into, by circuit label.
   circuit  String?
   label    String?
   notes    String?
 
-  @@unique([rackId, position, slot])
+  @@unique([rackId, bay, position, slot])
   @@index([rackId])
 }
