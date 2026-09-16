@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import ThemeToggle, { THEME_KEY } from "@/components/ThemeToggle";
 import { Barlow_Condensed, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 import "./globals.css";
 
@@ -42,9 +43,22 @@ const NAV = [
 const NAV_LINK =
   "border border-transparent px-2.5 py-1.5 font-mono text-[0.6875rem] uppercase tracking-legend text-muted hover:border-line hover:bg-raised hover:text-ink";
 
+/**
+ * Applies the stored theme before the page paints.
+ *
+ * It has to be inline and it has to be in <head>: anything that runs after
+ * hydration paints light first and snaps to dark, which is more annoying than
+ * having no setting at all. Small enough to read, and it only ever sets an
+ * attribute the CSS already understands.
+ */
+const THEME_SCRIPT = `try{var t=localStorage.getItem(${JSON.stringify(THEME_KEY)});if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${display.variable} ${body.variable} ${mono.variable}`}>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body className="min-h-screen bg-bg text-ink antialiased">
         <header className="sticky top-0 z-30 border-b border-line bg-surface">
           <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2.5 sm:px-6">
@@ -70,6 +84,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 ),
               )}
             </nav>
+            <ThemeToggle />
           </div>
         </header>
         {children}

@@ -106,11 +106,68 @@ check(
     : "the add-a-device action should be offered when the planner is served",
 );
 
+// The button being hidden is not enough: the form it opens has to be hidden
+// too, and a class that sets display will silently defeat the attribute.
+check(
+  !(await page.isVisible("#addGear")),
+  "the add-a-device form must not show until it is asked for",
+);
+
 check(
   isFile ? home.link === true && home.plain === false : home.link === false && home.plain === true,
   isFile
     ? "the home link should stay hidden on file://, where there is no home"
     : "the home link should be showing when the planner is served",
+);
+
+// Theme. Asserting the attribute flips would prove nothing — what matters is
+// that the page actually changes colour, that the choice outlives a reload,
+// and that Auto really does hand control back to the operating system.
+async function bodyInk() {
+  return page.evaluate(() => {
+    const cs = getComputedStyle(document.body);
+    return `${cs.backgroundColor}|${cs.color}`;
+  });
+}
+
+const beforeTheme = await bodyInk();
+await page.click('#themeSeg button[data-theme-set="dark"]');
+const darkInk = await bodyInk();
+check(
+  (await page.getAttribute("html", "data-theme")) === "dark",
+  "choosing Dark should set data-theme on the root",
+);
+
+await page.click('#themeSeg button[data-theme-set="light"]');
+const lightInk = await bodyInk();
+check(darkInk !== lightInk, `dark and light should not paint the same: both were ${darkInk}`);
+check(
+  (await page.$eval('#themeSeg button[data-theme-set="light"]', (b) => b.getAttribute("aria-pressed"))) === "true",
+  "the chosen theme should be the pressed one",
+);
+
+// A theme that forgets itself on reload is worse than no theme.
+await page.click('#themeSeg button[data-theme-set="dark"]');
+await page.reload({ waitUntil: "networkidle" });
+check(
+  (await page.getAttribute("html", "data-theme")) === "dark",
+  "the chosen theme should survive a reload",
+);
+check(
+  (await bodyInk()) === darkInk,
+  "the reloaded page should come back in the theme that was chosen",
+);
+
+// Auto means auto: the attribute goes away entirely rather than being pinned
+// to whatever the OS happens to be right now.
+await page.click('#themeSeg button[data-theme-set="auto"]');
+check(
+  (await page.getAttribute("html", "data-theme")) === null,
+  "Auto should remove data-theme, not freeze the current appearance",
+);
+check(
+  (await bodyInk()) === beforeTheme,
+  "Auto should return the page to how it looked before any choice was made",
 );
 
 // Every preset, on every case profile it will be asked to sit in. This is where

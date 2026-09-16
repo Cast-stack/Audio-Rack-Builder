@@ -50,6 +50,10 @@
 }
 
 *{box-sizing:border-box}
+/* The hidden attribute is only a UA display:none, and any class here that sets
+   display beats it. .addgear (flex) and .baytags (grid) both did: the add form
+   showed on file://, where it can never work, with its button correctly gone. */
+[hidden]{display:none!important}
 body{background:var(--ground);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;margin:0;padding-inline:16px;padding-block:0;-webkit-font-smoothing:antialiased}
 .wrap{max-width:1420px;margin:0 auto}
 h1,h2,h3{font-family:var(--display);margin:0;line-height:1.1;text-wrap:balance}
@@ -314,6 +318,27 @@ svg.cablelayer .tailend{stroke:#0B0D10;stroke-width:1.5}
 footer{padding-block:18px 42px;border-top:1px solid var(--rule);font-family:var(--mono);font-size:.67rem;color:var(--ink-muted);display:flex;flex-wrap:wrap;gap:5px 20px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
+<script>
+/* Theme, applied before anything paints.
+   Three states, not two: "auto" follows the operating system and is the
+   default, so the planner matches the rest of the machine until someone says
+   otherwise. The CSS above already handles all three — :root for light, a
+   prefers-color-scheme block guarded against an explicit light, and a
+   [data-theme="dark"] block so the choice wins in both directions. All this
+   does is set the attribute.
+   Deliberately inline and dependency-free: it runs before the engine bundle
+   exists, and a theme that arrives after first paint is a flash of the wrong
+   colour. */
+(function () {
+  window.ARB_THEME_KEY = "arb.theme.v1";
+  try {
+    var saved = localStorage.getItem(window.ARB_THEME_KEY);
+    if (saved === "light" || saved === "dark") {
+      document.documentElement.setAttribute("data-theme", saved);
+    }
+  } catch (e) { /* blocked storage — the system theme still applies */ }
+})();
+</script>
 
 <div class="wrap">
 
@@ -326,6 +351,14 @@ footer{padding-block:18px 42px;border-top:1px solid var(--rule);font-family:var(
   <div class="controls">
     <label class="ctl"><span>Case</span><select id="caseSel"></select></label>
     <label class="ctl"><span>Load</span><select id="presetSel"></select></label>
+    <div class="ctl">
+      <span class="legend">Theme</span>
+      <div class="seg" id="themeSeg" role="group" aria-label="Colour theme">
+        <button type="button" data-theme-set="auto">Auto</button>
+        <button type="button" data-theme-set="light">Light</button>
+        <button type="button" data-theme-set="dark">Dark</button>
+      </div>
+    </div>
     <div class="ctl">
       <span class="legend">View</span>
       <div class="seg" role="group" aria-label="Rack face">
@@ -814,7 +847,8 @@ __PANELS__
   catSearch.value = state.filter;
   catSearch.addEventListener("input", function () {
     state.filter = catSearch.value;
-    PROVISIONAL = loadProvisional();
+    applyTheme(currentTheme());
+  PROVISIONAL = loadProvisional();
   refreshDevices();
   renderPalette();
     persist();
@@ -1036,6 +1070,50 @@ __PANELS__
       }
     }
   }
+
+  // ----------------------------------------------------------------- theme
+  //
+  // The palette itself is not new — every colour in this page has had a dark
+  // value since it was written, and the browser has been picking between them
+  // by prefers-color-scheme. What was missing was any way to disagree with the
+  // operating system, which is what someone at front of house at 11pm on a
+  // bright laptop actually wants.
+
+  var themeSeg = document.getElementById("themeSeg");
+
+  function currentTheme() {
+    try {
+      var v = localStorage.getItem(window.ARB_THEME_KEY);
+      return v === "light" || v === "dark" ? v : "auto";
+    } catch (e) { return "auto"; }
+  }
+
+  function applyTheme(mode) {
+    if (mode === "auto") {
+      document.documentElement.removeAttribute("data-theme");
+    } else {
+      document.documentElement.setAttribute("data-theme", mode);
+    }
+    try {
+      if (mode === "auto") localStorage.removeItem(window.ARB_THEME_KEY);
+      else localStorage.setItem(window.ARB_THEME_KEY, mode);
+    } catch (e) { /* blocked storage — the choice lasts this session */ }
+
+    Array.prototype.forEach.call(themeSeg.children, function (btn) {
+      btn.setAttribute("aria-pressed", btn.getAttribute("data-theme-set") === mode ? "true" : "false");
+    });
+
+    // The rack drawing reads its colours from CSS variables at render time,
+    // not live, so a theme change needs a redraw or the panels keep the old
+    // face colour while the page around them flips.
+    if (typeof render === "function") render();
+  }
+
+  Array.prototype.forEach.call(themeSeg.children, function (btn) {
+    btn.addEventListener("click", function () {
+      applyTheme(btn.getAttribute("data-theme-set"));
+    });
+  });
 
   // ------------------------------------------------------- add a device
   //

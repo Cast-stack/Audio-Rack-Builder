@@ -556,6 +556,11 @@ const CSS = `
 @page { size: ${PAPER.width} ${PAPER.height}; margin: 0.5in 0.5in 0.62in; }
 *,*::before,*::after { box-sizing: border-box; }
 :root {
+  /* The sheet is paper. It is printed, photocopied and written on with a pen,
+     and it does not follow the screen's theme — a dark patch sheet is a black
+     rectangle in a rack lid and an empty toner cartridge. Declared explicitly
+     so a dark-mode browser does not paint its own canvas behind these. */
+  color-scheme: light;
   --ink:#14181C; --ink-2:#4A545D; --ink-3:#7C8792; --rule:#C9D1D8; --rule-2:#E4E9ED;
   --bad:#B3261E; --warn:#9A6400; --ok:#1B6E4A;
   --dir-in:#1F5FA8; --dir-out:#B4491C; --dir-bi:#14785A;

@@ -135,3 +135,23 @@ test("the document is self-contained", () => {
   assert.ok(!/<script/i.test(html), "a printable sheet should carry no script");
   assert.ok(!/(src|href)="https?:/i.test(html), "the sheet must not depend on network fetches");
 });
+
+test("the sheet is paper, and stays paper whatever the screen is doing", () => {
+  const html = renderPatchSheet({ rack: DEMO_RACK_WIRELESS, devices, sources });
+
+  // No theme switching of any kind. The sheet is printed and photocopied; a
+  // dark one is a black rectangle in a rack lid.
+  assert.ok(
+    !html.includes("prefers-color-scheme"),
+    "the patch sheet must not follow the screen's colour scheme",
+  );
+  assert.ok(
+    !html.includes("data-theme"),
+    "the patch sheet must not respond to the app's theme attribute",
+  );
+  // And it says so, rather than relying on the browser's default canvas.
+  assert.ok(
+    html.includes("color-scheme: light"),
+    "the sheet should declare itself light so a dark browser does not paint behind it",
+  );
+});
