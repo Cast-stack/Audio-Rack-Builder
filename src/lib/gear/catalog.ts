@@ -11,91 +11,157 @@
 export type Domain =
   | "AUDIO" | "LIGHTING" | "VIDEO" | "NETWORK" | "POWER" | "COMMS" | "INFRASTRUCTURE";
 
+/**
+ * How the catalog is browsed.
+ *
+ * Domain is what the research pipeline reasons about; it is too coarse to
+ * browse, because AUDIO alone is most of the catalog. Family is the shelf a
+ * person actually walks to — it cuts across domain where the gear does, which
+ * is why Dante converters sit with network switches under Networking & Digital
+ * rather than off in AUDIO, and why a rack fan and a rack case share a shelf
+ * even though one draws power and the other does not.
+ *
+ * Order here is the order they are shown. Wireless and RF leads because that
+ * is what these racks are mostly made of.
+ */
+export type Family =
+  | "Wireless & RF"
+  | "Mixing & I/O"
+  | "Monitoring"
+  | "Snakes & Splits"
+  | "Processing & Amps"
+  | "Networking & Digital"
+  | "Playback & Control"
+  | "Power"
+  | "Rack Hardware"
+  | "Comms"
+  | "Lighting"
+  | "Video";
+
+export const FAMILIES: Family[] = [
+  "Wireless & RF",
+  "Mixing & I/O",
+  "Monitoring",
+  "Snakes & Splits",
+  "Processing & Amps",
+  "Networking & Digital",
+  "Playback & Control",
+  "Power",
+  "Rack Hardware",
+  "Comms",
+  "Lighting",
+  "Video",
+];
+
 export interface CategoryDef {
   name: string;
   slug: string;
   domain: Domain;
+  /** The shelf this category is browsed under. */
+  family: Family;
   /** Passive categories must carry no power draw. Enforced by the guardrails. */
   passive?: boolean;
 }
 
 export const CATEGORIES: CategoryDef[] = [
   // ---- audio: wireless and RF
-  { name: "IEM Transmitter", slug: "iem-transmitter", domain: "AUDIO" },
-  { name: "IEM Receiver", slug: "iem-receiver", domain: "AUDIO" },
-  { name: "Wireless Mic Receiver", slug: "wireless-mic-receiver", domain: "AUDIO" },
-  { name: "Wireless Guitar", slug: "wireless-guitar", domain: "AUDIO" },
-  { name: "Antenna Distro", slug: "antenna-distro", domain: "AUDIO" },
-  { name: "RF Antenna", slug: "rf-antenna", domain: "AUDIO", passive: true },
-  { name: "Spectrum Manager", slug: "spectrum-manager", domain: "AUDIO" },
+  { name: "IEM Transmitter", slug: "iem-transmitter", domain: "AUDIO", family: "Wireless & RF" },
+  { name: "IEM Receiver", slug: "iem-receiver", domain: "AUDIO", family: "Wireless & RF" },
+  { name: "Wireless Mic Receiver", slug: "wireless-mic-receiver", domain: "AUDIO", family: "Wireless & RF" },
+  { name: "Wireless Guitar", slug: "wireless-guitar", domain: "AUDIO", family: "Wireless & RF" },
+  { name: "Antenna Distro", slug: "antenna-distro", domain: "AUDIO", family: "Wireless & RF" },
+  { name: "RF Antenna", slug: "rf-antenna", domain: "AUDIO", family: "Wireless & RF", passive: true },
+  { name: "Spectrum Manager", slug: "spectrum-manager", domain: "AUDIO", family: "Wireless & RF" },
 
   // ---- audio: mixing, processing, conversion
-  { name: "Digital Mixer", slug: "digital-mixer", domain: "AUDIO" },
-  { name: "Stage Box", slug: "stage-box", domain: "AUDIO" },
-  { name: "Audio Interface", slug: "audio-interface", domain: "AUDIO" },
-  { name: "Mic Preamp", slug: "mic-preamp", domain: "AUDIO" },
-  { name: "Personal Mixer", slug: "personal-mixer", domain: "AUDIO" },
-  { name: "Headphone Amp", slug: "headphone-amp", domain: "AUDIO" },
-  { name: "Dynamics Processor", slug: "dynamics-processor", domain: "AUDIO" },
-  { name: "Equalizer", slug: "equalizer", domain: "AUDIO" },
-  { name: "FX Processor", slug: "fx-processor", domain: "AUDIO" },
-  { name: "System Processor", slug: "system-processor", domain: "AUDIO" },
-  { name: "Dante Converter", slug: "dante-converter", domain: "AUDIO" },
-  { name: "MADI Converter", slug: "madi-converter", domain: "AUDIO" },
-  { name: "Word Clock", slug: "word-clock", domain: "AUDIO" },
-  { name: "Playback Switcher", slug: "playback-switcher", domain: "AUDIO" },
+  { name: "Digital Mixer", slug: "digital-mixer", domain: "AUDIO", family: "Mixing & I/O" },
+  { name: "Stage Box", slug: "stage-box", domain: "AUDIO", family: "Mixing & I/O" },
+  { name: "Audio Interface", slug: "audio-interface", domain: "AUDIO", family: "Mixing & I/O" },
+  { name: "Mic Preamp", slug: "mic-preamp", domain: "AUDIO", family: "Mixing & I/O" },
+  { name: "Personal Mixer", slug: "personal-mixer", domain: "AUDIO", family: "Monitoring" },
+  { name: "Headphone Amp", slug: "headphone-amp", domain: "AUDIO", family: "Monitoring" },
+  { name: "Dynamics Processor", slug: "dynamics-processor", domain: "AUDIO", family: "Processing & Amps" },
+  { name: "Equalizer", slug: "equalizer", domain: "AUDIO", family: "Processing & Amps" },
+  { name: "FX Processor", slug: "fx-processor", domain: "AUDIO", family: "Processing & Amps" },
+  { name: "System Processor", slug: "system-processor", domain: "AUDIO", family: "Processing & Amps" },
+  { name: "Dante Converter", slug: "dante-converter", domain: "AUDIO", family: "Networking & Digital" },
+  { name: "MADI Converter", slug: "madi-converter", domain: "AUDIO", family: "Networking & Digital" },
+  { name: "Word Clock", slug: "word-clock", domain: "AUDIO", family: "Networking & Digital" },
+  { name: "Playback Switcher", slug: "playback-switcher", domain: "AUDIO", family: "Playback & Control" },
 
   // ---- audio: passive distribution
-  { name: "Analog Snake", slug: "analog-snake", domain: "AUDIO", passive: true },
-  { name: "Mic Splitter", slug: "mic-splitter", domain: "AUDIO", passive: true },
-  { name: "DI Box", slug: "di-box", domain: "AUDIO", passive: true },
-  { name: "Patch Bay", slug: "patch-bay", domain: "AUDIO", passive: true },
-  { name: "Power Amplifier", slug: "power-amplifier", domain: "AUDIO" },
-  { name: "Earphones/IEMs", slug: "earphones", domain: "AUDIO", passive: true },
+  { name: "Analog Snake", slug: "analog-snake", domain: "AUDIO", family: "Snakes & Splits", passive: true },
+  { name: "Mic Splitter", slug: "mic-splitter", domain: "AUDIO", family: "Snakes & Splits", passive: true },
+  { name: "DI Box", slug: "di-box", domain: "AUDIO", family: "Snakes & Splits", passive: true },
+  { name: "Patch Bay", slug: "patch-bay", domain: "AUDIO", family: "Snakes & Splits", passive: true },
+  { name: "Power Amplifier", slug: "power-amplifier", domain: "AUDIO", family: "Processing & Amps" },
+  { name: "Earphones/IEMs", slug: "earphones", domain: "AUDIO", family: "Monitoring", passive: true },
 
   // ---- lighting
-  { name: "Lighting Console", slug: "lighting-console", domain: "LIGHTING" },
-  { name: "DMX Node", slug: "dmx-node", domain: "LIGHTING" },
-  { name: "DMX Splitter", slug: "dmx-splitter", domain: "LIGHTING" },
-  { name: "Dimmer", slug: "dimmer", domain: "LIGHTING" },
-  { name: "Media Server", slug: "media-server", domain: "LIGHTING" },
+  { name: "Lighting Console", slug: "lighting-console", domain: "LIGHTING", family: "Lighting" },
+  { name: "DMX Node", slug: "dmx-node", domain: "LIGHTING", family: "Lighting" },
+  { name: "DMX Splitter", slug: "dmx-splitter", domain: "LIGHTING", family: "Lighting" },
+  { name: "Dimmer", slug: "dimmer", domain: "LIGHTING", family: "Lighting" },
+  { name: "Media Server", slug: "media-server", domain: "LIGHTING", family: "Lighting" },
 
   // ---- video
-  { name: "Video Switcher", slug: "video-switcher", domain: "VIDEO" },
-  { name: "Video Converter", slug: "video-converter", domain: "VIDEO" },
-  { name: "Video Scaler", slug: "video-scaler", domain: "VIDEO" },
-  { name: "Capture/Playback", slug: "capture-playback", domain: "VIDEO" },
-  { name: "LED Processor", slug: "led-processor", domain: "VIDEO" },
-  { name: "Monitor", slug: "monitor", domain: "VIDEO" },
+  { name: "Video Switcher", slug: "video-switcher", domain: "VIDEO", family: "Video" },
+  { name: "Video Converter", slug: "video-converter", domain: "VIDEO", family: "Video" },
+  { name: "Video Scaler", slug: "video-scaler", domain: "VIDEO", family: "Video" },
+  { name: "Capture/Playback", slug: "capture-playback", domain: "VIDEO", family: "Video" },
+  { name: "LED Processor", slug: "led-processor", domain: "VIDEO", family: "Video" },
+  { name: "Monitor", slug: "monitor", domain: "VIDEO", family: "Video" },
 
   // ---- network
-  { name: "Network Switch", slug: "network-switch", domain: "NETWORK" },
-  { name: "WiFi Access Point", slug: "wifi-access-point", domain: "NETWORK" },
-  { name: "Router/Firewall", slug: "router-firewall", domain: "NETWORK" },
-  { name: "Fibre Transport", slug: "fibre-transport", domain: "NETWORK" },
+  { name: "Network Switch", slug: "network-switch", domain: "NETWORK", family: "Networking & Digital" },
+  { name: "WiFi Access Point", slug: "wifi-access-point", domain: "NETWORK", family: "Networking & Digital" },
+  { name: "Router/Firewall", slug: "router-firewall", domain: "NETWORK", family: "Networking & Digital" },
+  { name: "Fibre Transport", slug: "fibre-transport", domain: "NETWORK", family: "Networking & Digital" },
 
   // ---- power
-  { name: "Power Conditioner", slug: "power-conditioner", domain: "POWER" },
-  { name: "Power Distro", slug: "power-distro", domain: "POWER" },
-  { name: "UPS", slug: "ups", domain: "POWER" },
-  { name: "Sequencer", slug: "sequencer", domain: "POWER" },
+  { name: "Power Conditioner", slug: "power-conditioner", domain: "POWER", family: "Power" },
+  { name: "Power Distro", slug: "power-distro", domain: "POWER", family: "Power" },
+  { name: "UPS", slug: "ups", domain: "POWER", family: "Power" },
+  { name: "Sequencer", slug: "sequencer", domain: "POWER", family: "Power" },
 
   // ---- comms
-  { name: "Intercom Base", slug: "intercom-base", domain: "COMMS" },
-  { name: "Intercom Interface", slug: "intercom-interface", domain: "COMMS" },
+  { name: "Intercom Base", slug: "intercom-base", domain: "COMMS", family: "Comms" },
+  { name: "Intercom Interface", slug: "intercom-interface", domain: "COMMS", family: "Comms" },
 
   // ---- infrastructure
-  { name: "Rack Case", slug: "rack-case", domain: "INFRASTRUCTURE", passive: true },
-  { name: "Rack Drawer", slug: "rack-drawer", domain: "INFRASTRUCTURE", passive: true },
-  { name: "Rack Shelf", slug: "rack-shelf", domain: "INFRASTRUCTURE", passive: true },
-  { name: "Rack Fan", slug: "rack-fan", domain: "INFRASTRUCTURE" },
-  { name: "Vent Panel", slug: "vent-panel", domain: "INFRASTRUCTURE", passive: true },
-  { name: "Blank Panel", slug: "blank-panel", domain: "INFRASTRUCTURE", passive: true },
-  { name: "Computer", slug: "computer", domain: "INFRASTRUCTURE" },
-  { name: "MIDI Controller", slug: "midi-controller", domain: "INFRASTRUCTURE" },
+  { name: "Rack Case", slug: "rack-case", domain: "INFRASTRUCTURE", family: "Rack Hardware", passive: true },
+  { name: "Rack Drawer", slug: "rack-drawer", domain: "INFRASTRUCTURE", family: "Rack Hardware", passive: true },
+  { name: "Rack Shelf", slug: "rack-shelf", domain: "INFRASTRUCTURE", family: "Rack Hardware", passive: true },
+  { name: "Rack Fan", slug: "rack-fan", domain: "INFRASTRUCTURE", family: "Rack Hardware" },
+  { name: "Vent Panel", slug: "vent-panel", domain: "INFRASTRUCTURE", family: "Rack Hardware", passive: true },
+  { name: "Blank Panel", slug: "blank-panel", domain: "INFRASTRUCTURE", family: "Rack Hardware", passive: true },
+  { name: "Computer", slug: "computer", domain: "INFRASTRUCTURE", family: "Playback & Control" },
+  { name: "MIDI Controller", slug: "midi-controller", domain: "INFRASTRUCTURE", family: "Playback & Control" },
 ];
 
 export const CATEGORY_NAMES = CATEGORIES.map((c) => c.name);
+
+/** Category name -> the family it is browsed under. */
+export const FAMILY_BY_CATEGORY = new Map<string, Family>(
+  CATEGORIES.map((c) => [c.name, c.family]),
+);
+
+/**
+ * The family a device belongs to.
+ *
+ * An unknown category is a real possibility once the research pipeline is
+ * writing categories, so it lands in a named bucket rather than vanishing from
+ * the browser. Silently dropping it would make a device unreachable in the one
+ * place people look for gear.
+ */
+export function familyOf(category: string): Family | "Uncategorised" {
+  return FAMILY_BY_CATEGORY.get(category) ?? "Uncategorised";
+}
+
+/** Categories of one family, in the order CATEGORIES declares them. */
+export function categoriesOf(family: Family): CategoryDef[] {
+  return CATEGORIES.filter((c) => c.family === family);
+}
 export const PASSIVE_CATEGORY_NAMES = new Set(
   CATEGORIES.filter((c) => c.passive).map((c) => c.name),
 );

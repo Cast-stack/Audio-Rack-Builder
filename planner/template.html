@@ -110,6 +110,23 @@ button:disabled:hover{border-color:var(--rule);color:var(--ink-muted)}
 .tag.disc{color:var(--warn)}
 .pal-item .add{flex:none;border:1px solid var(--rule-strong);background:var(--surface);width:24px;height:24px;line-height:1;padding:0;font-family:var(--mono);font-size:.9rem}
 
+/* Browse rows. A shelf is a button, not a link: it changes what this panel
+   shows, it does not go anywhere. */
+.pal-shelf-row{display:flex;align-items:center;gap:8px;width:100%;text-align:left;border:1px solid var(--rule);background:var(--surface-2);padding:8px;cursor:pointer;font:inherit;color:inherit;margin-bottom:5px}
+.pal-shelf-row:hover{border-color:var(--accent)}
+.pal-shelf-row .nm{flex:1;min-width:0}
+.pal-shelf-row .nm b{display:block;font-weight:600;font-size:.85rem}
+.pal-shelf-row .nm em{font-style:normal;font-family:var(--mono);font-size:.64rem;color:var(--ink-muted);display:block;margin-top:2px;line-height:1.3}
+.pal-go{flex:none;color:var(--ink-muted);font-size:1rem}
+.pal-shelf-row:hover .pal-go{color:var(--accent)}
+.tag.count{margin-left:6px;background:var(--sunken);color:var(--ink-2);border-color:var(--rule-strong)}
+.pal-back{border:1px solid var(--rule);background:var(--surface);padding:5px 8px;font:inherit;font-size:.78rem;cursor:pointer;color:var(--ink-2);margin-bottom:8px}
+.pal-back:hover{border-color:var(--accent);color:var(--accent)}
+.pal-shelf{font-family:var(--display);font-size:1.05rem;text-transform:uppercase;letter-spacing:.02em;margin:0 0 8px}
+.pal-by{margin-bottom:10px}
+.pal-empty{margin-top:12px;padding-top:10px;border-top:1px solid var(--rule)}
+.pal-empty p{font-family:var(--mono);font-size:.64rem;color:var(--ink-muted);line-height:1.5;margin-top:3px}
+
 .rack-shell{background:var(--panel);border:1px solid var(--rule-strong);padding:10px;
   --pf-face:#2C3239;--pf-ear:#22272C;--pf-edge:#171B1F;--pf-hole:#0E1114;
   --pf-pin:#8A949B;--pf-silk:#C8D0D6;--pf-knob:#454D55;--pf-btn:#3A424A;
@@ -408,6 +425,8 @@ __PANELS__
   function fromPreset(i) {
     var preset = PRESETS[i];
     return {
+      browseBy: "type",
+      shelf: null,
       caseSlug: preset.case.slug,
       view: "front",
       selected: null,
@@ -432,6 +451,8 @@ __PANELS__
     if (saved && Array.isArray(saved.placements) && CASES.some(function (c) { return c.slug === saved.caseSlug; })) {
       saved.placements.forEach(function (p) { if (!p.uid) p.uid = uid(); });
       saved.filter = saved.filter || "";
+      saved.browseBy = saved.browseBy === "brand" ? "brand" : "type";
+      saved.shelf = typeof saved.shelf === "string" ? saved.shelf : null;
       saved.cables = saved.cables || [];
       saved.patching = null;
       saved.selectedPort = null;
@@ -758,66 +779,207 @@ __PANELS__
   });
 
   // --------------------------------------------------------------- catalog
+  //
+  // The catalog is browsed, not scrolled. Sixteen devices fit in one list;
+  // several hundred do not, and the taxonomy already has 56 categories across
+  // twelve families waiting to be filled. So: shelves first, gear second, and
+  // a filter that cuts straight through both.
+  //
+  // Two ways in, because people arrive knowing one of two things — what job
+  // the box has to do, or whose box it is. Type opens the families from
+  // catalog.ts; Brand opens the manufacturers present in the catalog.
+
+  var RECENT_STORE = "arb.planner.recent.v1";
+  var RECENT_MAX = 5;
+
+  function recentIds() {
+    try {
+      var v = JSON.parse(localStorage.getItem(RECENT_STORE) || "[]");
+      return Array.isArray(v) ? v.filter(function (id) { return BY_ID.has(id); }) : [];
+    } catch (e) { return []; }
+  }
+
+  /** Most recent first, no duplicates, capped. Placing is the signal. */
+  function noteRecent(deviceId) {
+    var ids = recentIds().filter(function (id) { return id !== deviceId; });
+    ids.unshift(deviceId);
+    try { localStorage.setItem(RECENT_STORE, JSON.stringify(ids.slice(0, RECENT_MAX))); } catch (e) {}
+  }
+
+  function shelfOf(device) {
+    return state.browseBy === "brand" ? device.brand : E.familyOf(device.category);
+  }
+
+  /** Every shelf that has gear on it, in taxonomy order for types and A-Z for brands. */
+  function shelves() {
+    var counts = new Map();
+    DEVICES.forEach(function (d) {
+      var key = shelfOf(d);
+      if (!counts.has(key)) counts.set(key, []);
+      counts.get(key).push(d);
+    });
+    var order = state.browseBy === "brand"
+      ? Array.from(counts.keys()).sort(function (a, b) { return a.localeCompare(b); })
+      : E.FAMILIES.filter(function (f) { return counts.has(f); })
+          .concat(counts.has("Uncategorised") ? ["Uncategorised"] : []);
+    return order.map(function (key) { return { key: key, items: counts.get(key) }; });
+  }
+
+  /** The categories a shelf covers, for the subtitle line. */
+  function shelfCategories(items) {
+    var seen = [];
+    items.forEach(function (d) { if (seen.indexOf(d.category) < 0) seen.push(d.category); });
+    return seen;
+  }
+
+  function paletteItem(d) {
+    var item = el("div", "pal-item");
+    item.draggable = true;
+    item.setAttribute("data-device", d.id);
+    item.addEventListener("dragstart", function (ev) {
+      ev.dataTransfer.setData("text/plain", JSON.stringify({ kind: "new", deviceId: d.id }));
+      ev.dataTransfer.effectAllowed = "copy";
+    });
+
+    var nm = el("div", "nm");
+    var b = el("b", null, d.brand + " " + d.model);
+    if (E.isHalfWidth(d)) b.appendChild(el("span", "tag half", "½ rack"));
+    if (d.status === "discontinued") b.appendChild(el("span", "tag disc", "disc"));
+    nm.appendChild(b);
+    var req = E.requiredDepth(d).requiredMm;
+    nm.appendChild(el("em", null,
+      E.occupiedUnits(d) + "U · " + (req == null ? "?" : req + " mm") + " · " + fmt(d.weightLb, " lb")));
+    item.appendChild(nm);
+
+    var add = el("button", "add", "+");
+    add.type = "button";
+    add.title = "Place in the first free slot";
+    add.setAttribute("aria-label", "Place " + d.brand + " " + d.model);
+    add.addEventListener("click", function () {
+      var spot = firstFree(d);
+      if (!spot) { add.textContent = "✕"; setTimeout(function () { add.textContent = "+"; }, 900); return; }
+      state.placements.push({
+        uid: uid(), deviceId: d.id, position: spot.position, bay: spot.bay,
+        slot: E.isHalfWidth(d) ? spot.half : "full",
+        circuit: state.circuits.length ? state.circuits[0].label : null
+      });
+      noteRecent(d.id);
+      render();
+    });
+    item.appendChild(add);
+    return item;
+  }
+
+  /** One group heading plus its gear. */
+  function paletteGroup(host, heading, items) {
+    var g = el("div", "pal-group");
+    if (heading) g.appendChild(el("div", "legend", heading));
+    items.forEach(function (d) { g.appendChild(paletteItem(d)); });
+    host.appendChild(g);
+  }
+
   function renderPalette() {
     var host = document.getElementById("palette");
     host.textContent = "";
     var q = state.filter.trim().toLowerCase();
-    var list = DEVICES.filter(function (d) {
+
+    var matches = DEVICES.filter(function (d) {
       if (!q) return true;
-      return (d.brand + " " + d.model + " " + d.category).toLowerCase().indexOf(q) >= 0;
+      return (d.brand + " " + d.model + " " + d.category + " " + E.familyOf(d.category))
+        .toLowerCase().indexOf(q) >= 0;
     });
     document.getElementById("catCount").textContent =
-      list.length + (list.length === DEVICES.length ? " devices" : " of " + DEVICES.length);
+      q ? matches.length + " of " + DEVICES.length : DEVICES.length + " devices";
 
-    var groups = new Map();
-    list.forEach(function (d) {
-      if (!groups.has(d.category)) groups.set(d.category, []);
-      groups.get(d.category).push(d);
-    });
-    if (!groups.size) {
-      host.appendChild(el("p", "noports", "Nothing matches “" + state.filter + "”."));
+    // Filtering cuts through the shelves. Someone typing "ulxd" wants the
+    // receiver, not a lecture about which family it lives in.
+    if (q) {
+      if (!matches.length) {
+        host.appendChild(el("p", "noports", "Nothing matches “" + state.filter + "”."));
+        return;
+      }
+      var byCat = new Map();
+      matches.forEach(function (d) {
+        if (!byCat.has(d.category)) byCat.set(d.category, []);
+        byCat.get(d.category).push(d);
+      });
+      byCat.forEach(function (items, category) { paletteGroup(host, category, items); });
       return;
     }
-    groups.forEach(function (items, category) {
-      var g = el("div", "pal-group");
-      g.appendChild(el("div", "legend", category));
-      items.forEach(function (d) {
-        var item = el("div", "pal-item");
-        item.draggable = true;
-        item.addEventListener("dragstart", function (ev) {
-          ev.dataTransfer.setData("text/plain", JSON.stringify({ kind: "new", deviceId: d.id }));
-          ev.dataTransfer.effectAllowed = "copy";
-        });
 
-        var nm = el("div", "nm");
-        var b = el("b", null, d.brand + " " + d.model);
-        if (E.isHalfWidth(d)) b.appendChild(el("span", "tag half", "½ rack"));
-        if (d.status === "discontinued") b.appendChild(el("span", "tag disc", "disc"));
-        nm.appendChild(b);
-        var req = E.requiredDepth(d).requiredMm;
-        nm.appendChild(el("em", null,
-          E.occupiedUnits(d) + "U · " + (req == null ? "?" : req + " mm") + " · " + fmt(d.weightLb, " lb")));
-        item.appendChild(nm);
+    // ---- inside a shelf
+    if (state.shelf) {
+      var picked = DEVICES.filter(function (d) { return shelfOf(d) === state.shelf; });
+      var back = el("button", "pal-back", "← All gear");
+      back.type = "button";
+      back.addEventListener("click", function () { state.shelf = null; renderPalette(); persist(); });
+      host.appendChild(back);
+      host.appendChild(el("h4", "pal-shelf", state.shelf));
 
-        var add = el("button", "add", "+");
-        add.type = "button";
-        add.title = "Place in the first free slot";
-        add.setAttribute("aria-label", "Place " + d.brand + " " + d.model);
-        add.addEventListener("click", function () {
-          var spot = firstFree(d);
-          if (!spot) { add.textContent = "✕"; setTimeout(function () { add.textContent = "+"; }, 900); return; }
-          state.placements.push({
-            uid: uid(), deviceId: d.id, position: spot.position, bay: spot.bay,
-            slot: E.isHalfWidth(d) ? spot.half : "full",
-            circuit: state.circuits.length ? state.circuits[0].label : null
-          });
-          render();
-        });
-        item.appendChild(add);
-        g.appendChild(item);
+      var groups = new Map();
+      picked.forEach(function (d) {
+        if (!groups.has(d.category)) groups.set(d.category, []);
+        groups.get(d.category).push(d);
       });
-      host.appendChild(g);
+      groups.forEach(function (items, category) { paletteGroup(host, category, items); });
+      return;
+    }
+
+    // ---- the shelves themselves
+    var recent = recentIds();
+    if (recent.length) {
+      paletteGroup(host, "Recently used", recent.map(function (id) { return BY_ID.get(id); }));
+    }
+
+    var seg = el("div", "seg pal-by");
+    seg.setAttribute("role", "group");
+    seg.setAttribute("aria-label", "Group the catalog by");
+    [["type", "Type"], ["brand", "Brand"]].forEach(function (pair) {
+      var btn = el("button", null, pair[1]);
+      btn.type = "button";
+      btn.setAttribute("aria-pressed", state.browseBy === pair[0] ? "true" : "false");
+      btn.addEventListener("click", function () {
+        state.browseBy = pair[0];
+        state.shelf = null;
+        renderPalette();
+        persist();
+      });
+      seg.appendChild(btn);
     });
+    host.appendChild(seg);
+
+    shelves().forEach(function (shelf) {
+      var row = el("button", "pal-shelf-row");
+      row.type = "button";
+      row.setAttribute("data-shelf", shelf.key);
+      var head = el("div", "nm");
+      var b = el("b", null, shelf.key);
+      b.appendChild(el("span", "tag count", String(shelf.items.length)));
+      head.appendChild(b);
+      head.appendChild(el("em", null, shelfCategories(shelf.items).join(" · ")));
+      row.appendChild(head);
+      row.appendChild(el("span", "pal-go", "→"));
+      row.addEventListener("click", function () {
+        state.shelf = shelf.key;
+        renderPalette();
+        persist();
+      });
+      host.appendChild(row);
+    });
+
+    // The empty shelves are worth naming. They say what the planner knows how
+    // to hold, which is the honest answer to "can I put my amp rack in this".
+    if (state.browseBy === "type") {
+      var filled = {};
+      shelves().forEach(function (s) { filled[s.key] = true; });
+      var empty = E.FAMILIES.filter(function (f) { return !filled[f]; });
+      if (empty.length) {
+        var note = el("div", "pal-empty");
+        note.appendChild(el("div", "legend", "Nothing in the catalog yet"));
+        note.appendChild(el("p", null, empty.join(" · ")));
+        host.appendChild(note);
+      }
+    }
   }
 
   // ------------------------------------------------------------------ rack

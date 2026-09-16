@@ -74,6 +74,7 @@ async function snapshot() {
       budget: text("#budget").length,
       ledger: text("#ledger").length,
       catalog: document.querySelectorAll("#palette .pal-item").length,
+      shelves: document.querySelectorAll("#palette .pal-shelf-row").length,
       caseOptions: document.querySelectorAll("#caseSel option").length,
       presetOptions: document.querySelectorAll("#presetSel option").length,
     };
@@ -82,10 +83,12 @@ async function snapshot() {
 
 await page.goto(target, { waitUntil: "networkidle" });
 
+const DEVICE_COUNT = await page.evaluate(() => window.RACK.SEED_DEVICES.length);
+
 const first = await snapshot();
 check(first.caseOptions > 0, "the case selector came up empty");
 check(first.presetOptions > 0, "the preset selector came up empty");
-check(first.catalog > 0, "the catalog drew no gear");
+check(first.shelves > 0, "the catalog drew no shelves to browse");
 check(first.units > 0, "the starting rack drew no units");
 check(first.svgs > 0, "no device panel was drawn");
 check(first.budget > 0, "the budget rail is blank");
@@ -130,6 +133,41 @@ check(
 );
 await page.click("#viewFront");
 
+// The catalog browses two levels deep and both ways up. Opening a shelf has to
+// produce gear, and Brand has to cover the same catalog Type does — a device
+// reachable under one grouping and not the other is a device nobody finds.
+for (const by of ["Type", "Brand"]) {
+  await page.click(`#palette .pal-by button:has-text("${by}")`);
+  const shelfCount = await page.$$eval("#palette .pal-shelf-row", (r) => r.length);
+  check(shelfCount > 0, `browsing by ${by} offered no shelves`);
+
+  let reachable = 0;
+  for (let n = 0; n < shelfCount; n++) {
+    const rows = await page.$$("#palette .pal-shelf-row");
+    const name = await rows[n].getAttribute("data-shelf");
+    await rows[n].click();
+    const inside = await page.$$eval("#palette .pal-item", (r) => r.length);
+    check(inside > 0, `shelf "${name}" (by ${by}) opened onto nothing`);
+    reachable += inside;
+    await page.click("#palette .pal-back");
+  }
+  check(
+    reachable === DEVICE_COUNT,
+    `browsing by ${by} reaches ${reachable} devices, the catalog has ${DEVICE_COUNT}`,
+  );
+}
+
+// The filter cuts through the shelves rather than navigating them.
+await page.fill("#catSearch", "ulxd");
+const filtered = await page.$$eval("#palette .pal-item", (r) => r.length);
+check(filtered > 0, "filtering for a known model found nothing");
+await page.fill("#catSearch", "zzzznotathing");
+check(
+  (await page.$$eval("#palette .noports", (r) => r.length)) === 1,
+  "a filter matching nothing should say so",
+);
+await page.fill("#catSearch", "");
+
 // Clicking a placed unit opens the inspector. If the port list is empty the
 // click-to-patch flow has nothing to start from.
 const unit = await page.$("#rack .unit");
@@ -148,7 +186,7 @@ if (!unit) {
 await page.click("#clearBtn");
 const emptied = await snapshot();
 check(emptied.units === 0, "Empty left units in the rack");
-check(emptied.catalog > 0, "Empty took the catalog with it");
+check(emptied.shelves > 0, "Empty took the catalog with it");
 
 for (const line of noise) failures.push(line);
 

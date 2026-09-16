@@ -41,6 +41,20 @@ export {
 import * as PANEL from "@/lib/rack/panels";
 export { PANEL };
 
+/**
+ * The browse taxonomy. Pure data with no Node imports, so it bundles like the
+ * rest — and the planner's shelves stay the same shelves the research
+ * pipeline files gear under, rather than a second list that drifts.
+ */
+export {
+  CATEGORIES,
+  FAMILIES,
+  FAMILY_BY_CATEGORY,
+  categoriesOf,
+  familyOf,
+} from "@/lib/gear/catalog";
+export type { CategoryDef, Family } from "@/lib/gear/catalog";
+
 import { renderPatchSheet } from "@/lib/export/patchSheet";
 import type { SourceRow } from "@/lib/export/patchSheet";
 import { SEED_DEVICES } from "@/lib/seed-data";
