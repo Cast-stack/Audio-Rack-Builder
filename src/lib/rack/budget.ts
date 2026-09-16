@@ -5,7 +5,14 @@
  * numbers in the planner's side rail are never stale.
  */
 
-import { MM_PER_RU, occupiedPositions, occupiedUnits, requiredDepth } from "./geometry";
+import {
+  bayCount,
+  bayOf,
+  MM_PER_RU,
+  occupiedPositions,
+  occupiedUnits,
+  requiredDepth,
+} from "./geometry";
 import type { Circuit, DeviceSpec, RackSpec } from "./types";
 
 /** NEC 210.19(A)/210.20(A): a continuous load may use 80% of the breaker. */
@@ -32,10 +39,26 @@ export interface CircuitLoad {
   utilization: number;
 }
 
+/** What one column of rails is carrying. */
+export interface BayLoad {
+  bay: number;
+  unitsUsed: number;
+  unitsTotal: number;
+  weightLb: number;
+}
+
 export interface RackBudget {
   unitsUsed: number;
   unitsTotal: number;
   unitsFree: number;
+  /** One entry per bay, in order. A single-bay case has one. */
+  bays: BayLoad[];
+  /**
+   * How lopsided the load is across the bays: 0 when even, 1 when it is all in
+   * one bay. A wide case goes over sideways on a ramp long before a narrow one
+   * does, and neither the weight total nor the centre of gravity shows it.
+   */
+  lateralImbalance: number;
 
   weightLb: number;
   /** Including the empty case, when known. */
@@ -76,7 +99,12 @@ export function computeBudget(
 
   // Space is counted in occupied U rows, not per device: two half-rack
   // receivers sharing U3 consume one rack unit between them, not two.
-  const rowsUsed = new Set<number>();
+  const bays = bayCount(rack.case);
+  // Keyed by bay and row: in a two-bay case, U3 of bay 1 and U3 of bay 2 are
+  // two different rack units, and counting bare rows would halve the space.
+  const rowsUsed = new Set<string>();
+  const perBayRows = new Map<number, Set<number>>();
+  const perBayWeight = new Map<number, number>();
   let weightLb = 0;
   let momentLbMm = 0;
   let totalTypicalW = 0;
@@ -87,7 +115,16 @@ export function computeBudget(
 
   for (const { placement, device } of placed) {
     const units = occupiedUnits(device);
-    for (const u of occupiedPositions(device, placement.position)) rowsUsed.add(u);
+    const bay = bayOf(placement);
+    for (const u of occupiedPositions(device, placement.position)) {
+      rowsUsed.add(`${bay}|${u}`);
+      const seen = perBayRows.get(bay) ?? new Set<number>();
+      seen.add(u);
+      perBayRows.set(bay, seen);
+    }
+    if (device.weightLb != null) {
+      perBayWeight.set(bay, (perBayWeight.get(bay) ?? 0) + device.weightLb);
+    }
 
     const missing: string[] = [];
     if (device.weightLb == null) missing.push("weight");
@@ -165,6 +202,19 @@ export function computeBudget(
     };
   });
 
+  const bayLoads: BayLoad[] = [];
+  for (let b = 1; b <= bays; b++) {
+    bayLoads.push({
+      bay: b,
+      unitsUsed: perBayRows.get(b)?.size ?? 0,
+      unitsTotal: rack.case.rackUnits,
+      weightLb: round1(perBayWeight.get(b) ?? 0),
+    });
+  }
+  const heaviest = bayLoads.reduce((m, b) => Math.max(m, b.weightLb), 0);
+  const lightest = bayLoads.reduce((m, b) => Math.min(m, b.weightLb), heaviest);
+  const lateralImbalance = bays < 2 || weightLb <= 0 ? 0 : (heaviest - lightest) / weightLb;
+
   const rackHeightMm = rack.case.rackUnits * MM_PER_RU;
   const cogMm = weightLb > 0 ? momentLbMm / weightLb : null;
 
@@ -172,8 +222,10 @@ export function computeBudget(
 
   return {
     unitsUsed,
-    unitsTotal: rack.case.rackUnits,
-    unitsFree: rack.case.rackUnits - unitsUsed,
+    unitsTotal: rack.case.rackUnits * bays,
+    unitsFree: rack.case.rackUnits * bays - unitsUsed,
+    bays: bayLoads,
+    lateralImbalance,
 
     weightLb: round1(weightLb),
     grossWeightLb:
@@ -190,7 +242,8 @@ export function computeBudget(
     unassignedDeviceIds,
 
     heatW: round1(totalTypicalW),
-    heatWPerRu: rack.case.rackUnits > 0 ? round1(totalTypicalW / rack.case.rackUnits) : 0,
+    heatWPerRu:
+      rack.case.rackUnits > 0 ? round1(totalTypicalW / (rack.case.rackUnits * bays)) : 0,
     hasForcedAir,
 
     incomplete,

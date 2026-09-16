@@ -343,8 +343,11 @@ test("two half-rack units share one U", () => {
   const b = device({ id: "rxB", formFactor: "half-rack", model: "SLXD4", weightLb: 1.8, powerTypicalW: 9 });
 
   assert.ok(isHalfWidth(a));
-  assert.deepEqual(occupiedCells(a, 1, "left"), ["1|left"]);
-  assert.deepEqual(occupiedCells(a, 1, "right"), ["1|right"]);
+  // Cells are keyed bay|U|half. The bay has to be in the key, or U3 of bay 1
+  // and U3 of bay 2 collide and a two-bay case holds one unit per row.
+  assert.deepEqual(occupiedCells(a, 1, "left"), ["1|1|left"]);
+  assert.deepEqual(occupiedCells(a, 1, "right"), ["1|1|right"]);
+  assert.deepEqual(occupiedCells(a, 1, "left", 2), ["2|1|left"]);
 
   const report = checkRack(
     rack({

@@ -146,16 +146,30 @@ export function slotsFor(device: DeviceSpec, slot: Slot | undefined): ("left" | 
   return [chosen];
 }
 
-/** Every (U, half) cell a placement occupies, as stable keys. */
+/** Bays default to one, everywhere a case or a placement leaves it unsaid. */
+export function bayCount(rackCase: { bays?: number }): number {
+  return Math.max(1, Math.round(rackCase.bays ?? 1));
+}
+export function bayOf(placement: { bay?: number }): number {
+  return Math.max(1, Math.round(placement.bay ?? 1));
+}
+
+/**
+ * Every (bay, U, half) cell a placement occupies, as stable keys.
+ *
+ * The bay has to be part of the key: without it, U3 of bay 1 and U3 of bay 2
+ * are the same cell and a two-bay rack can only ever hold one unit per row.
+ */
 export function occupiedCells(
   device: DeviceSpec,
   position: number,
   slot: Slot | undefined,
+  bay = 1,
 ): string[] {
   const halves = slotsFor(device, slot);
   const cells: string[] = [];
   for (const u of occupiedPositions(device, position)) {
-    for (const half of halves) cells.push(`${u}|${half}`);
+    for (const half of halves) cells.push(`${bay}|${u}|${half}`);
   }
   return cells;
 }

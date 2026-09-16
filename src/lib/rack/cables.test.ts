@@ -12,7 +12,7 @@ import { test } from "node:test";
 
 import { checkRack } from "./checks";
 import { cableTags, resolveCables, signalClassOf, SIGNAL_STYLE } from "./cables";
-import { DEMO_DEVICES, DEMO_RACK_MONITOR, SEED_CASES } from "@/lib/seed-data";
+import { DEMO_DEVICES, DEMO_RACK_DOUBLE, DEMO_RACK_MONITOR, SEED_CASES } from "@/lib/seed-data";
 import type { CableSpec, DeviceSpec, PortSpec, RackSpec } from "./types";
 
 const CASE = SEED_CASES[0]!;
@@ -284,4 +284,132 @@ test("signal class comes from the port, not from a guess", () => {
   assert.equal(signalClassOf(port({ signal: "network" })), "network");
   assert.equal(signalClassOf(port({ signal: "digital audio" })), "digital audio");
   assert.equal(signalClassOf(port({ signal: "analog audio" })), "analog audio");
+});
+
+// ------------------------------------------------------------------- bays
+
+test("the same U in two bays holds two units, not one", () => {
+  const a = device("a", [port({ label: "OUT" })]);
+  const two = {
+    ...CASE,
+    bays: 2,
+    slug: "two-bay",
+    name: "two bay",
+  };
+  const rack: RackSpec = {
+    name: "t",
+    case: two,
+    circuits: [{ label: "A", volts: 120, amps: 20 }],
+    placements: [
+      { deviceId: "a", bay: 1, position: 1, slot: "full", circuit: "A" },
+      { deviceId: "a", bay: 2, position: 1, slot: "full", circuit: "A" },
+    ],
+  };
+  const map = new Map([["a", a]]);
+  const report = checkRack(rack, map);
+  assert.deepEqual(
+    report.results.filter((r) => r.code === "placement.collision"),
+    [],
+    "two bays were treated as one column",
+  );
+  assert.equal(report.budget.unitsTotal, CASE.rackUnits * 2);
+  assert.equal(report.budget.unitsUsed, 2);
+});
+
+test("a unit in a bay the case does not have is an error", () => {
+  const a = device("a", [port({ label: "OUT" })]);
+  const rack: RackSpec = {
+    name: "t",
+    case: CASE,
+    circuits: [],
+    placements: [{ deviceId: "a", bay: 3, position: 1, slot: "full", circuit: null }],
+  };
+  const codes = checkRack(rack, new Map([["a", a]])).results.map((r) => r.code);
+  assert.ok(codes.includes("placement.no-such-bay"));
+});
+
+test("a lopsided wide case is called out, an even one is not", () => {
+  const heavy = { ...device("h", [port({ label: "OUT" })]), weightLb: 60 };
+  const light = { ...device("l", [port({ label: "IN", direction: "input" as const })]), weightLb: 4 };
+  const two = { ...CASE, bays: 2, slug: "two-bay", name: "two bay", maxLoadLb: 400 };
+  const map = new Map([["h", heavy], ["l", light]]);
+
+  const lopsided: RackSpec = {
+    name: "t",
+    case: two,
+    circuits: [{ label: "A", volts: 120, amps: 20 }],
+    placements: [
+      { deviceId: "h", bay: 1, position: 1, slot: "full", circuit: "A" },
+      { deviceId: "l", bay: 2, position: 1, slot: "full", circuit: "A" },
+    ],
+  };
+  assert.ok(
+    checkRack(lopsided, map).results.some((r) => r.code === "weight.lopsided"),
+    "all the weight in one bay went unremarked",
+  );
+
+  const even: RackSpec = {
+    ...lopsided,
+    placements: [
+      { deviceId: "h", bay: 1, position: 1, slot: "full", circuit: "A" },
+      { deviceId: "h", bay: 2, position: 1, slot: "full", circuit: "A" },
+    ],
+  };
+  assert.ok(!checkRack(even, map).results.some((r) => r.code === "weight.lopsided"));
+});
+
+test("a single-bay case is never called lopsided", () => {
+  const heavy = { ...device("h", [port({ label: "OUT" })]), weightLb: 60 };
+  const rack: RackSpec = {
+    name: "t",
+    case: CASE,
+    circuits: [{ label: "A", volts: 120, amps: 20 }],
+    placements: [{ deviceId: "h", position: 1, slot: "full", circuit: "A" }],
+  };
+  const report = checkRack(rack, new Map([["h", heavy]]));
+  assert.equal(report.budget.lateralImbalance, 0);
+  assert.ok(!report.results.some((r) => r.code === "weight.lopsided"));
+});
+
+test("a run crosses bays and still resolves to both ends", () => {
+  const runs = resolveCables(DEMO_RACK_DOUBLE, DEMO_DEVICES);
+  const crossing = runs.filter(
+    (r) => r.from.kind === "port" && r.to.kind === "port" && r.from.bay !== r.to.bay,
+  );
+  assert.ok(crossing.length >= 2, "the double-wide demo should patch across its bays");
+  for (const r of crossing) {
+    assert.ok(r.from.device && r.to.device);
+  }
+});
+
+test("the same model in the same U of two bays is two connectors", () => {
+  // Without the bay in the key these are one socket, and patching both would
+  // read as a double-patch.
+  const a = device("a", [port({ label: "OUT" }), port({ label: "IN", direction: "input" })]);
+  const two = { ...CASE, bays: 2, slug: "two-bay", name: "two bay" };
+  const rack: RackSpec = {
+    name: "t",
+    case: two,
+    circuits: [],
+    placements: [
+      { deviceId: "a", bay: 1, position: 1, slot: "full", circuit: null },
+      { deviceId: "a", bay: 2, position: 1, slot: "full", circuit: null },
+    ],
+    cables: [
+      {
+        id: "x",
+        from: { kind: "port", deviceId: "a", bay: 1, position: 1, port: "OUT" },
+        to: { kind: "external", name: "console 1" },
+      },
+      {
+        id: "y",
+        from: { kind: "port", deviceId: "a", bay: 2, position: 1, port: "OUT" },
+        to: { kind: "external", name: "console 2" },
+      },
+    ],
+  };
+  const codes = checkRack(rack, new Map([["a", a]]))
+    .results.filter((r) => r.code.startsWith("patch."))
+    .map((r) => r.code);
+  assert.deepEqual(codes, []);
 });

@@ -1094,6 +1094,30 @@ export const SEED_CASES: (CaseSpec & { description: string })[] = [
     emptyWeightLb: 72,
   },
   {
+    slug: "shock-8u-24in-2bay",
+    name: "8U double-wide, 24\" rails",
+    description:
+      "Two columns of 19-inch rails in one case. One load rating, one set of casters, and a good deal easier to tip sideways than a single-wide.",
+    bays: 2,
+    rackUnits: 8,
+    usableDepthMm: 610,
+    hasRearRails: true,
+    maxLoadLb: 400,
+    emptyWeightLb: 132,
+  },
+  {
+    slug: "shock-12u-30in-3bay",
+    name: "12U triple-wide, 30\" rails",
+    description:
+      "Three bays in one frame: the monitor-world or RF-world rack that stays on its wheels all tour.",
+    bays: 3,
+    rackUnits: 12,
+    usableDepthMm: 762,
+    hasRearRails: true,
+    maxLoadLb: 750,
+    emptyWeightLb: 240,
+  },
+  {
     slug: "shallow-6u-12in",
     name: "6U shallow case, 12\" rails",
     description: "Front rails only. Fly-pack sized, and the reason depth checks exist.",
@@ -1224,11 +1248,63 @@ export const DEMO_RACK_MONITOR: RackSpec = {
   ],
 };
 
+/**
+ * A two-bay case: RF and wireless in bay 1, IEM in bay 2, with the antenna
+ * feeds crossing from one column to the other. It exists to exercise the
+ * things a single bay cannot show — cross-bay runs, per-bay space, and the
+ * sideways balance that tips a wide case on a ramp.
+ */
+export const DEMO_RACK_DOUBLE: RackSpec = {
+  name: "Monitor world \u2014 8U double-wide",
+  case: SEED_CASES[2]!,
+  circuits: [
+    { label: "A", volts: 120, amps: 20 },
+    { label: "B", volts: 120, amps: 20 },
+  ],
+  placements: [
+    { deviceId: "shure-ad600", bay: 1, position: 8, slot: "full", circuit: "A" },
+    { deviceId: "shure-ulxp4", bay: 1, position: 7, slot: "left", circuit: "A" },
+    { deviceId: "shure-ulxs4", bay: 1, position: 7, slot: "right", circuit: "A" },
+    { deviceId: "shure-slx4", bay: 1, position: 6, slot: "left", circuit: "A", label: "Vox 1" },
+    { deviceId: "shure-slx4", bay: 1, position: 6, slot: "right", circuit: "A", label: "Vox 2" },
+    { deviceId: "shure-slxd4", bay: 1, position: 5, slot: "left", circuit: "A" },
+    { deviceId: "shure-glxd4rp", bay: 1, position: 5, slot: "right", circuit: "A" },
+    { deviceId: "generic-vent-1u", bay: 1, position: 4, slot: "full", circuit: null },
+    { deviceId: "radial-sw8", bay: 1, position: 2, slot: "full", circuit: "A" },
+    { deviceId: "generic-fan-1u", bay: 1, position: 1, slot: "full", circuit: "A" },
+
+    { deviceId: "shure-adtq", bay: 2, position: 8, slot: "full", circuit: "B" },
+    { deviceId: "shure-p3t", bay: 2, position: 7, slot: "left", circuit: "B", label: "IEM 1-2" },
+    { deviceId: "shure-p3t", bay: 2, position: 7, slot: "right", circuit: "B", label: "IEM 3-4" },
+    { deviceId: "sennheiser-sr-iem-g4", bay: 2, position: 6, slot: "left", circuit: "B", label: "IEM 5" },
+    { deviceId: "sennheiser-sr300-iem-g3", bay: 2, position: 6, slot: "right", circuit: "B", label: "IEM 6" },
+    { deviceId: "generic-vent-1u", bay: 2, position: 5, slot: "full", circuit: null },
+    { deviceId: "motu-24ao", bay: 2, position: 3, slot: "full", circuit: "B" },
+    { deviceId: "rme-digiface-dante", bay: 2, position: 2, slot: "full", circuit: "B" },
+    { deviceId: "generic-fan-1u", bay: 2, position: 1, slot: "full", circuit: "B" },
+  ],
+  cables: [
+    { id: "d1", from: { kind: "port", deviceId: "shure-ad600", bay: 1, position: 8, port: "A" }, to: { kind: "external", name: "SR antenna (paddle)" }, label: "ANT A" },
+    { id: "d2", from: { kind: "port", deviceId: "shure-ad600", bay: 1, position: 8, port: "B" }, to: { kind: "external", name: "SL antenna (paddle)" }, label: "ANT B" },
+    // Across the bays: the spectrum manager in bay 1 feeding the IEM
+    // transmitter in bay 2 is exactly the run a single-bay drawing cannot show.
+    { id: "d3", from: { kind: "port", deviceId: "shure-ad600", bay: 1, position: 8, port: "Dante primary" }, to: { kind: "port", deviceId: "shure-adtq", bay: 2, position: 8, port: "Dante 1" }, label: "DANTE" },
+    { id: "d4", from: { kind: "port", deviceId: "shure-ad600", bay: 1, position: 8, port: "ctrl 1" }, to: { kind: "port", deviceId: "shure-adtq", bay: 2, position: 8, port: "Ctrl 1 (PoE)" }, label: "CTRL" },
+    { id: "d5", from: { kind: "port", deviceId: "shure-p3t", bay: 2, position: 7, slot: "left", port: "Audio Inputs", index: 0 }, to: { kind: "external", name: "Monitor console \u2014 mix 1 L" }, label: "IEM 1 L" },
+    { id: "d6", from: { kind: "port", deviceId: "shure-p3t", bay: 2, position: 7, slot: "left", port: "Audio Inputs", index: 1 }, to: { kind: "external", name: "Monitor console \u2014 mix 1 R" }, label: "IEM 1 R" },
+    { id: "d7", from: { kind: "port", deviceId: "shure-slx4", bay: 1, position: 6, slot: "left", port: "MIC OUT" }, to: { kind: "external", name: "Monitor console \u2014 ch 21" }, label: "VOX 1" },
+    { id: "d8", from: { kind: "port", deviceId: "shure-slx4", bay: 1, position: 6, slot: "right", port: "MIC OUT" }, to: { kind: "external", name: "Monitor console \u2014 ch 22" }, label: "VOX 2" },
+    { id: "d9", from: { kind: "port", deviceId: "generic-fan-1u", bay: 1, position: 1, port: "AC In" }, to: { kind: "external", name: "Rack distro \u2014 outlet 1" } },
+    { id: "d10", from: { kind: "port", deviceId: "generic-fan-1u", bay: 2, position: 1, port: "AC In" }, to: { kind: "external", name: "Rack distro \u2014 outlet 2" } },
+  ],
+};
+
 export const DEMO_RACKS: RackSpec[] = [
   DEMO_RACK,
   DEMO_RACK_FIXED,
   DEMO_RACK_WIRELESS,
   DEMO_RACK_MONITOR,
+  DEMO_RACK_DOUBLE,
 ];
 
 export const DEMO_DEVICES: Map<string, DeviceSpec> = new Map(

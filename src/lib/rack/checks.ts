@@ -12,12 +12,30 @@
  */
 
 import { computeBudget, PASSIVE_THERMAL_W_PER_RU, type RackBudget } from "./budget";
-import { caseDepthHeadroom, isHalfWidth, occupiedCells, occupiedPositions, occupiedUnits } from "./geometry";
+import {
+  bayCount,
+  bayOf,
+  caseDepthHeadroom,
+  isHalfWidth,
+  occupiedCells,
+  occupiedPositions,
+  occupiedUnits,
+} from "./geometry";
 import { cableTags, endKey, resolveCables, signalClassOf } from "./cables";
 import type { CheckResult, DeviceSpec, RackSpec } from "./types";
 
 /** Above this fraction of rack height, a loaded case wants to tip on a ramp. */
 export const COG_WARN_FRACTION = 0.55;
+
+/**
+ * How lopsided a multi-bay case may be before it is called out.
+ *
+ * A wide case is more stable front to back and less stable side to side than a
+ * narrow one, and the load is easy to get wrong because each bay is planned on
+ * its own. A third of the total sitting on one side is the point where a ramp
+ * starts to matter.
+ */
+export const LATERAL_WARN_FRACTION = 0.34;
 /** A unit this heavy in the top third is worth calling out on its own. */
 export const HEAVY_UNIT_LB = 25;
 /** Circuits above this share of their derated capacity have no headroom left. */
@@ -61,9 +79,27 @@ function checkPlacement(rack: RackSpec, devices: Map<string, DeviceSpec>): Check
   const out: CheckResult[] = [];
   const occupancy = new Map<string, string[]>();
 
+  const bays = bayCount(rack.case);
+  const bayName = (b: number) => (bays > 1 ? `bay ${b} ` : "");
+
   for (const p of rack.placements) {
     const device = devices.get(p.deviceId);
     if (!device) continue;
+
+    const bay = bayOf(p);
+    if (bay > bays) {
+      out.push({
+        code: "placement.no-such-bay",
+        severity: "error",
+        title: "Placed in a bay this case does not have",
+        detail:
+          `${device.brand} ${device.model} is in bay ${bay}, and this case has ` +
+          `${bays} ${bays === 1 ? "bay" : "bays"}.`,
+        deviceIds: [device.id],
+        positions: [p.position],
+      });
+      continue;
+    }
 
     if (p.position < 1) {
       out.push({
@@ -94,7 +130,7 @@ function checkPlacement(rack: RackSpec, devices: Map<string, DeviceSpec>): Check
 
     // Occupancy is per half-U, so two half-rack receivers can share a U while
     // a full-width unit still blocks the whole row.
-    for (const cell of occupiedCells(device, p.position, p.slot)) {
+    for (const cell of occupiedCells(device, p.position, p.slot, bay)) {
       const list = occupancy.get(cell) ?? [];
       list.push(device.id);
       occupancy.set(cell, list);
@@ -103,8 +139,9 @@ function checkPlacement(rack: RackSpec, devices: Map<string, DeviceSpec>): Check
 
   for (const [cell, ids] of occupancy) {
     if (ids.length > 1) {
-      const [uStr, half] = cell.split("|");
+      const [bStr, uStr, half] = cell.split("|");
       const u = Number(uStr);
+      const b = Number(bStr);
       const names = ids
         .map((id) => devices.get(id))
         .filter((d): d is DeviceSpec => !!d)
@@ -112,8 +149,8 @@ function checkPlacement(rack: RackSpec, devices: Map<string, DeviceSpec>): Check
       out.push({
         code: "placement.collision",
         severity: "error",
-        title: `Two units in U${u}`,
-        detail: `${names.join(" and ")} both occupy the ${half} side of U${u}.`,
+        title: `Two units in ${bayName(b)}U${u}`,
+        detail: `${names.join(" and ")} both occupy the ${half} side of ${bayName(b)}U${u}.`,
         deviceIds: ids,
         positions: [u],
       });
@@ -122,36 +159,37 @@ function checkPlacement(rack: RackSpec, devices: Map<string, DeviceSpec>): Check
 
   // A lone half-rack unit leaves an open half. That is legal, but it is also
   // a hole in the airflow path and a place for cables to migrate into.
-  const halfCells = new Map<number, { ids: string[]; halves: Set<string> }>();
+  const halfCells = new Map<string, { ids: string[]; halves: Set<string>; u: number; bay: number }>();
   for (const p of rack.placements) {
     const device = devices.get(p.deviceId);
     if (!device || !isHalfWidth(device)) continue;
-    for (const cell of occupiedCells(device, p.position, p.slot)) {
-      const [uStr, half] = cell.split("|");
-      const u = Number(uStr);
-      const entry = halfCells.get(u) ?? { ids: [], halves: new Set<string>() };
+    for (const cell of occupiedCells(device, p.position, p.slot, bayOf(p))) {
+      const [bStr, uStr, half] = cell.split("|");
+      const key = `${bStr}|${uStr}`;
+      const entry = halfCells.get(key) ??
+        { ids: [], halves: new Set<string>(), u: Number(uStr), bay: Number(bStr) };
       entry.ids.push(device.id);
       entry.halves.add(half!);
-      halfCells.set(u, entry);
+      halfCells.set(key, entry);
     }
   }
-  for (const [u, entry] of halfCells) {
+  for (const entry of halfCells.values()) {
     const blockedByFull = rack.placements.some((p) => {
       const d = devices.get(p.deviceId);
       if (!d || isHalfWidth(d)) return false;
-      return occupiedPositions(d, p.position).includes(u);
+      return bayOf(p) === entry.bay && occupiedPositions(d, p.position).includes(entry.u);
     });
     if (!blockedByFull && entry.halves.size === 1) {
       out.push({
         code: "placement.half-open",
         severity: "info",
-        title: `U${u} has one half empty`,
+        title: `${bayName(entry.bay) || ""}U${entry.u} has one half empty`.replace(/^b/, "B"),
         detail:
-          `Only the ${[...entry.halves][0]} side of U${u} is filled. Pair it with another ` +
-          `half-rack unit, or fit the blanking plate that came with the mounting kit — an open ` +
-          `half lets air bypass the gear it was meant to cool.`,
+          `Only the ${[...entry.halves][0]} side of ${bayName(entry.bay)}U${entry.u} is filled. ` +
+          `Pair it with another half-rack unit, or fit the blanking plate that came with the ` +
+          `mounting kit — an open half lets air bypass the gear it was meant to cool.`,
         deviceIds: entry.ids,
-        positions: [u],
+        positions: [entry.u],
       });
     }
   }
@@ -345,6 +383,19 @@ function checkWeight(
     });
   }
 
+  if (budget.lateralImbalance > LATERAL_WARN_FRACTION) {
+    const heaviest = [...budget.bays].sort((a, b) => b.weightLb - a.weightLb)[0];
+    out.push({
+      code: "weight.lopsided",
+      severity: "warning",
+      title: "The load is lopsided across the bays",
+      detail:
+        `Bay ${heaviest?.bay} carries ${heaviest?.weightLb} lb of the ${budget.weightLb} lb in ` +
+        `this case. A wide case tips sideways on a ramp before a narrow one does — ` +
+        `${budget.bays.map((b) => `bay ${b.bay}: ${b.weightLb} lb`).join(", ")}.`,
+    });
+  }
+
   const topThirdStart = Math.ceil((rack.case.rackUnits * 2) / 3);
   for (const p of rack.placements) {
     const device = devices.get(p.deviceId);
@@ -485,7 +536,8 @@ function checkPatch(rack: RackSpec, devices: Map<string, DeviceSpec>): CheckResu
 
   for (const [key, tagList] of seen) {
     if (tagList.length < 2) continue;
-    const port = key.split("|")[3] ?? "a connector";
+    // deviceId | bay | position | slot | port | index
+    const port = key.split("|")[4] ?? "a connector";
     out.push({
       code: "patch.double-patched",
       severity: "error",

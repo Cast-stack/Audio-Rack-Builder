@@ -120,6 +120,14 @@ export interface DeviceSpec {
 export interface CaseSpec {
   slug: string;
   name: string;
+  /**
+   * Columns of 19-inch rails in this case, side by side. One physical
+   * assembly either way: a two-bay shock case has one load rating, one centre
+   * of gravity and one set of casters, so it is planned and wheeled as one
+   * thing even though gear sits in two columns.
+   */
+  bays?: number;
+  /** Rack units in EACH bay, not across the case. */
   rackUnits: number;
   /** Usable depth between the rails — not the outside dimension. */
   usableDepthMm: number;
@@ -139,6 +147,8 @@ export type Slot = "full" | "left" | "right";
 
 export interface PlacementSpec {
   deviceId: string;
+  /** Which column of rails, 1-based. Omitted means the first bay. */
+  bay?: number;
   /** 1 = bottom U. Bottom-origin, because that is how weight is reasoned about. */
   position: number;
   /** Omitted means "full" for full-width gear, "left" for half-rack. */
@@ -161,6 +171,8 @@ export type CableEnd =
   | {
       kind: "port";
       deviceId: string;
+      /** Which column of rails, 1-based. Omitted means the first bay. */
+      bay?: number;
       /** Which placement, since the same model can appear twice in a rack. */
       position: number;
       /**

@@ -13,6 +13,7 @@ import { htmlToPdf } from "@/lib/export/pdf";
 import {
   DEMO_RACK,
   DEMO_RACK_FIXED,
+  DEMO_RACK_DOUBLE,
   DEMO_RACK_MONITOR,
   DEMO_RACK_WIRELESS,
   SEED_DEVICES,
@@ -24,6 +25,7 @@ const RACKS: Record<string, RackSpec> = {
   fixed: DEMO_RACK_FIXED,
   wireless: DEMO_RACK_WIRELESS,
   monitor: DEMO_RACK_MONITOR,
+  double: DEMO_RACK_DOUBLE,
 };
 
 async function main() {

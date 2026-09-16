@@ -18,6 +18,7 @@
 import { computeBudget, type RackBudget } from "@/lib/rack/budget";
 import { checkRack, type CheckReport } from "@/lib/rack/checks";
 import {
+  bayCount,
   caseDepthHeadroom,
   isHalfWidth,
   occupiedPositions,
@@ -76,12 +77,20 @@ function slotLabel(device: DeviceSpec, slot: string | undefined): string {
   return slotsFor(device, slot as never)[0] === "right" ? " R" : " L";
 }
 
-function positionLabel(device: DeviceSpec, position: number, slot?: string): string {
+function positionLabel(
+  device: DeviceSpec,
+  position: number,
+  slot?: string,
+  bay?: number,
+): string {
   const us = occupiedPositions(device, position);
   const first = us[0] ?? position;
   const last = us[us.length - 1] ?? position;
   const span = first === last ? `U${first}` : `U${first}–U${last}`;
-  return span + slotLabel(device, slot);
+  // The bay prefix appears only when there is more than one, so a single-bay
+  // sheet is not cluttered with a distinction it does not have.
+  const prefix = bay && bay > 1 ? `B${bay} ` : bay === 1 ? "B1 " : "";
+  return prefix + span + slotLabel(device, slot);
 }
 
 const SEVERITY_ORDER: Record<string, number> = { error: 0, warning: 1, info: 2 };
@@ -110,12 +119,21 @@ function coverSection(
         : { cls: "ok", text: "No problems found" };
 
   const stats: [string, string][] = [
-    ["Space", `${budget.unitsUsed} of ${budget.unitsTotal} U used · ${budget.unitsFree} free`],
+    [
+      "Space",
+      `${budget.unitsUsed} of ${budget.unitsTotal} U used · ${budget.unitsFree} free` +
+        (budget.bays.length > 1
+          ? ` · ${budget.bays.map((b) => `bay ${b.bay}: ${b.unitsUsed}/${b.unitsTotal}`).join(", ")}`
+          : ""),
+    ],
     [
       "Weight",
-      budget.grossWeightLb !== null
+      (budget.grossWeightLb !== null
         ? `${fmt(budget.weightLb, 1)} lb of gear · ${fmt(budget.grossWeightLb, 1)} lb all up`
-        : `${fmt(budget.weightLb, 1)} lb of gear`,
+        : `${fmt(budget.weightLb, 1)} lb of gear`) +
+        (budget.bays.length > 1
+          ? ` · ${budget.bays.map((b) => `bay ${b.bay}: ${fmt(b.weightLb, 1)} lb`).join(", ")}`
+          : ""),
     ],
     [
       "Deepest unit",
@@ -143,7 +161,7 @@ function coverSection(
     <div>
       <div class="kicker">Rack patch sheet</div>
       <h1>${esc(rack.name)}</h1>
-      <div class="sub">${esc(rack.case.name)} · ${rack.case.rackUnits}U · ${dual(rack.case.usableDepthMm)} usable depth${rack.case.hasRearRails ? " · rear rails" : " · front rails only"}</div>
+      <div class="sub">${esc(rack.case.name)} · ${bayCount(rack.case) > 1 ? `${bayCount(rack.case)} bays of ${rack.case.rackUnits}U` : `${rack.case.rackUnits}U`} · ${dual(rack.case.usableDepthMm)} usable depth${rack.case.hasRearRails ? " · rear rails" : " · front rails only"}</div>
     </div>
     <div class="meta">
       <div><span>Generated</span>${esc(when)}</div>
@@ -198,8 +216,11 @@ function findingsBlock(
 
 function elevationSection(input: PatchSheetInput): string {
   const { rack, devices } = input;
+  // A wide case cannot also be half a page wide. Past one bay the two faces
+  // stack instead, so each is drawn across the full sheet.
+  const wide = bayCount(rack.case) > 1;
   return `
-<section class="sheet elevations">
+<section class="sheet elevations${wide ? " stacked" : ""}">
   <h2 class="pagetitle">Elevations</h2>
   <div class="elev-pair">
     <figure>
@@ -229,6 +250,7 @@ function deviceSchedule(input: PatchSheetInput, budget: RackBudget): string {
     .filter((x): x is { p: (typeof rack.placements)[number]; d: DeviceSpec } => !!x.d)
     .sort((a, b) => b.p.position - a.p.position);
 
+  const multiBay = bayCount(input.rack.case) > 1;
   const incomplete = new Map(budget.incomplete.map((i) => [i.deviceId, i.missing]));
 
   const rows = placed
@@ -236,7 +258,7 @@ function deviceSchedule(input: PatchSheetInput, budget: RackBudget): string {
       const depth = requiredDepth(d);
       const missing = incomplete.get(d.id) ?? [];
       return `<tr>
-      <td class="u">${esc(positionLabel(d, p.position, p.slot))}</td>
+      <td class="u">${esc(positionLabel(d, p.position, p.slot, multiBay ? (p.bay ?? 1) : undefined))}</td>
       <td><b>${esc(d.brand)} ${esc(d.model)}</b>${p.label ? `<div class="where">${esc(p.label)}</div>` : ""}<div class="where">${esc(d.category)}</div></td>
       <td class="num">${fmt(d.rackUnits, 1)}${isHalfWidth(d) ? " ½W" : ""}</td>
       <td class="num">${dual(d.depthMm)}</td>
@@ -275,6 +297,7 @@ function depthLedger(input: PatchSheetInput): string {
       return db - da;
     });
 
+  const multiBay = bayCount(input.rack.case) > 1;
   const rows = placed
     .map(({ p, d }) => {
       const b = requiredDepth(d);
@@ -282,7 +305,7 @@ function depthLedger(input: PatchSheetInput): string {
       const over = head !== null && head < 0;
       const tight = head !== null && head >= 0 && head < 25;
       return `<tr class="${over ? "sev-error" : tight ? "sev-warning" : ""}">
-      <td class="u">${esc(positionLabel(d, p.position, p.slot))}</td>
+      <td class="u">${esc(positionLabel(d, p.position, p.slot, multiBay ? (p.bay ?? 1) : undefined))}</td>
       <td>${esc(d.brand)} ${esc(d.model)}</td>
       <td class="num">${mm(b.chassisMm)}</td>
       <td class="num">+ ${mm(b.connectorMm)}</td>
@@ -315,6 +338,7 @@ function connectionSchedule(input: PatchSheetInput): string {
     .filter((x): x is { p: (typeof rack.placements)[number]; d: DeviceSpec } => !!x.d)
     .sort((a, b) => b.p.position - a.p.position);
 
+  const multiBay = bayCount(input.rack.case) > 1;
   const rows: string[] = [];
   for (const { p, d } of placed) {
     const ports = [...d.ports].sort((a, b) =>
@@ -322,7 +346,7 @@ function connectionSchedule(input: PatchSheetInput): string {
     );
     if (!ports.length) continue;
     rows.push(
-      `<tr class="devrow"><td colspan="8"><b>${esc(d.brand)} ${esc(d.model)}</b> <span class="where">${esc(positionLabel(d, p.position, p.slot))}${p.label ? ` · ${esc(p.label)}` : ""}</span></td></tr>`,
+      `<tr class="devrow"><td colspan="8"><b>${esc(d.brand)} ${esc(d.model)}</b> <span class="where">${esc(positionLabel(d, p.position, p.slot, multiBay ? (p.bay ?? 1) : undefined))}${p.label ? ` · ${esc(p.label)}` : ""}</span></td></tr>`,
     );
     for (const port of ports) {
       const dir = port.direction === "input" ? "in" : port.direction === "output" ? "out" : "bi";
@@ -481,6 +505,7 @@ function cableSchedule(input: PatchSheetInput): string {
   const runs = resolveCables(input.rack, input.devices);
   if (!runs.length) return "";
 
+  const multiBay = bayCount(input.rack.case) > 1;
   const tags = cableTags(runs);
   const rows = runs
     .map((run) => {
@@ -495,7 +520,7 @@ function cableSchedule(input: PatchSheetInput): string {
       const where = (e: typeof a) =>
         e.kind === "external"
           ? "outside the rack"
-          : `${positionLabel(e.device!, e.position ?? 0, e.slot)}${e.port && e.port.count > 1 ? ` · #${e.index + 1}` : ""}`;
+          : `${positionLabel(e.device!, e.position ?? 0, e.slot, multiBay ? (e.bay ?? 1) : undefined)}${e.port && e.port.count > 1 ? ` · #${e.index + 1}` : ""}`;
       return `<tr>
         <td class="u">${esc(tags.get(run.cable.id) ?? "—")}</td>
         ${endCell(a.label, where(a))}
@@ -619,6 +644,10 @@ tr.sev-warning .bar i { background:var(--warn); } tr.sev-error .bar i { backgrou
    remainder becomes ruled note space, which is what the page gets used for
    anyway. A tall rack squeezes it to nothing on its own. */
 .sheet.elevations { display:flex; flex-direction:column; height:7.38in; }
+.elevations.stacked .elev-pair { grid-template-columns:1fr; gap:10px; }
+.elevations.stacked svg.elevation { max-height:2.95in; }
+/* A stacked page has no room left over, so the note block collapses out. */
+.elevations.stacked .notesbox { min-height:0; }
 .notesbox { flex:1 1 auto; min-height:0; margin-top:12px; border-top:1px solid var(--rule);
   background:repeating-linear-gradient(#FFF,#FFF 23px,var(--rule-2) 23px,var(--rule-2) 24px);
   position:relative; }
@@ -631,6 +660,7 @@ figcaption { font-family:var(--mono); font-size:7.4pt; letter-spacing:.1em; text
 figcaption span { letter-spacing:0; text-transform:none; color:var(--ink-3); }
 svg.elevation { width:100%; height:auto; max-height:6.2in; }
 svg.elevation text.el-u { font-family:var(--mono); font-size:52px; fill:#7C8792; }
+svg.elevation text.el-bay { font-family:var(--mono); font-size:44px; letter-spacing:8px; fill:#4A545D; }
 svg.panel text { font-family:var(--mono); fill:var(--pf-silk); }
 svg.panel .silk-brand { font-size:44px; font-weight:600; letter-spacing:3px; }
 svg.panel .silk-model { font-size:34px; opacity:.72; }

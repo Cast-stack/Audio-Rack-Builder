@@ -33,6 +33,7 @@ export {
   DEMO_RACK_FIXED,
   DEMO_RACK_WIRELESS,
   DEMO_RACK_MONITOR,
+  DEMO_RACK_DOUBLE,
   DEMO_RACKS,
   DEMO_DEVICES,
 } from "@/lib/seed-data";

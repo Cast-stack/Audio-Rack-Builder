@@ -7,6 +7,7 @@
  * finished, and the lead to the distro is the one people forget to pack.
  */
 
+import { bayOf } from "./geometry";
 import type { CableSpec, DeviceSpec, PortSpec, RackSpec, SignalClass } from "./types";
 
 /**
@@ -91,6 +92,7 @@ export interface ResolvedEnd {
   port?: PortSpec;
   position?: number;
   slot?: "full" | "left" | "right";
+  bay?: number;
   /** Which connector of a multi-connector port, zero-based. */
   index: number;
   /** Display text: "Shure AD600 · A" or "FOH console".  */
@@ -117,13 +119,14 @@ function resolveEnd(
     return { kind: "external", index: 0, label: end.name };
   }
   const wantSlot = end.slot ?? "full";
+  const wantBay = bayOf(end);
   const placement =
     rack.placements.find(
       (p) => p.deviceId === end.deviceId && p.position === end.position &&
-        (p.slot ?? "full") === wantSlot,
+        (p.slot ?? "full") === wantSlot && bayOf(p) === wantBay,
     ) ??
-    // A run recorded before slots were required still resolves, as long as the
-    // position holds only one unit of that model.
+    // A run recorded before slots and bays were required still resolves, as
+    // long as the position holds only one unit of that model.
     rack.placements.find((p) => p.deviceId === end.deviceId && p.position === end.position);
   const device = devices.get(end.deviceId);
   if (!placement || !device) return null;
@@ -135,6 +138,7 @@ function resolveEnd(
     port,
     position: placement.position,
     slot: placement.slot ?? "full",
+    bay: bayOf(placement),
     index: end.index ?? 0,
     label: `${device.brand} ${device.model} · ${port.label}`,
   };
@@ -165,18 +169,31 @@ export function resolveCables(
 /** A stable key for one physical connector, for "is this already patched". */
 export function endKey(end: CableSpec["from"]): string {
   if (end.kind === "external") return `ext|${end.name}`;
-  return `${end.deviceId}|${end.position}|${end.slot ?? "full"}|${end.port}|${end.index ?? 0}`;
+  return anchorKey(
+    end.deviceId,
+    bayOf(end),
+    end.position,
+    end.slot ?? "full",
+    end.port,
+    end.index ?? 0,
+  );
 }
 
-/** The same key, from a resolved end, for matching against an anchor index. */
+/**
+ * One key shape for a physical connector, used by the patch, the drawing and
+ * the planner alike. Bay comes before position: without it, the same model in
+ * the same U of two different bays is one connector as far as the patch is
+ * concerned.
+ */
 export function anchorKey(
   deviceId: string,
+  bay: number,
   position: number,
   slot: string,
   port: string,
   index: number,
 ): string {
-  return `${deviceId}|${position}|${slot}|${port}|${index}`;
+  return `${deviceId}|${bay}|${position}|${slot}|${port}|${index}`;
 }
 
 const CLASS_TAG: Record<SignalClass, string> = {

@@ -19,11 +19,13 @@ import {
   type ResolvedCable,
   type ResolvedEnd,
 } from "@/lib/rack/cables";
-import { isHalfWidth, slotsFor } from "@/lib/rack/geometry";
+import { bayCount, bayOf, isHalfWidth, slotsFor } from "@/lib/rack/geometry";
 import type { DeviceSpec, RackSpec } from "@/lib/rack/types";
 
 /** Left gutter carrying the U numbers, in panel units. */
 const RULER_W = 150;
+/** Air between two columns of rails, where the uprights of the frame sit. */
+const BAY_GAP = 120;
 /** Air around the drawing so the rails are not against the page edge. */
 const MARGIN = 40;
 
@@ -82,24 +84,51 @@ export function renderElevation(
   const mirror = opts.mirrorRear !== false;
   const units = rack.case.rackUnits;
   const height = units * U;
+  const bays = bayCount(rack.case);
   const withCables = opts.cables === true;
   const tail = withCables || opts.tailRoom === true ? TAIL_W : 0;
-  const vbW = RULER_W + W + tail + MARGIN * 2;
-  const vbH = height + MARGIN * 2;
+  const bayPitch = W + BAY_GAP;
+  const allBaysW = W * bays + BAY_GAP * (bays - 1);
+  const vbW = RULER_W + allBaysW + tail + MARGIN * 2;
+  const vbH = height + MARGIN * 2 + (bays > 1 ? 54 : 0);
 
   const parts: string[] = [];
   const x0 = MARGIN + RULER_W;
+  /** Left edge of a bay. Bays run left to right as you face the case. */
+  const bayX = (b: number) => x0 + (b - 1) * bayPitch;
 
   // Open rail: every U row drawn whether or not something is in it, so the
   // gaps are as legible as the gear.
   for (let u = 1; u <= units; u++) {
     const y = MARGIN + (units - u) * U;
-    parts.push(
-      `<rect x="${x0}" y="${y}" width="${W}" height="${U}" fill="var(--el-void)" stroke="var(--el-rail)" stroke-width="2"/>`,
-    );
+    for (let b = 1; b <= bays; b++) {
+      parts.push(
+        `<rect x="${bayX(b)}" y="${y}" width="${W}" height="${U}" fill="var(--el-void)" stroke="var(--el-rail)" stroke-width="2"/>`,
+      );
+    }
     parts.push(
       `<text x="${MARGIN + RULER_W - 28}" y="${y + U * 0.66}" class="el-u" text-anchor="end">${u}</text>`,
     );
+  }
+
+  /**
+   * Which bay is drawn in which column, for this face.
+   *
+   * A rear elevation mirrors the bays as it mirrors the halves: standing
+   * behind a two-bay case, bay 1 is on your right. The labels have to travel
+   * with the gear — a column of bay 2 under a label saying BAY 1 is worse than
+   * no label at all.
+   */
+  const columnFor = (bay: number) => (face === "rear" && mirror ? bays - bay + 1 : bay);
+
+  // Bays are only named when there is more than one; a single-bay case should
+  // not carry a label for a distinction it does not have.
+  if (bays > 1) {
+    for (let b = 1; b <= bays; b++) {
+      parts.push(
+        `<text x="${bayX(columnFor(b)) + W / 2}" y="${MARGIN + height + 42}" class="el-bay" text-anchor="middle">BAY ${b}</text>`,
+      );
+    }
   }
 
   // Bottom-origin: U1 is the bottom row, because that is how load is reasoned
@@ -117,32 +146,40 @@ export function renderElevation(
     const slot = isHalfWidth(d) ? slotsFor(d, p.slot)[0] ?? "left" : null;
     const half = slot ? drawnSlot(slot, face, mirror) : null;
     const hx = half === "right" ? W / 2 : 0;
+    const bx = bayX(Math.min(Math.max(columnFor(bayOf(p)), 1), bays));
     const anchors: PortAnchor[] = [];
     parts.push(
-      `<g transform="translate(${x0 + hx} ${top})">${drawInner(d, face, ru, { half, anchors })}</g>`,
+      `<g transform="translate(${bx + hx} ${top})">${drawInner(d, face, ru, { half, anchors })}</g>`,
     );
     // Panel-local anchors become elevation coordinates once, here, where the
     // offset is known.
     for (const a of anchors) {
-      anchorIndex.set(anchorKey(p.deviceId, p.position, p.slot ?? "full", a.portLabel, a.index), {
-        x: x0 + hx + a.x,
-        y: top + a.y,
-        size: a.size,
-      });
+      anchorIndex.set(
+        anchorKey(p.deviceId, bayOf(p), p.position, p.slot ?? "full", a.portLabel, a.index),
+        { x: bx + hx + a.x, y: top + a.y, size: a.size },
+      );
     }
   }
 
   // Rack ears line, so the drawing reads as a rack and not a stack of boxes.
-  parts.push(
-    `<rect x="${x0}" y="${MARGIN}" width="${W}" height="${height}" fill="none" stroke="var(--el-rail)" stroke-width="5"/>`,
-  );
+  for (let b = 1; b <= bays; b++) {
+    parts.push(
+      `<rect x="${bayX(b)}" y="${MARGIN}" width="${W}" height="${height}" fill="none" stroke="var(--el-rail)" stroke-width="5"/>`,
+    );
+  }
+  // The case around them, so two bays read as one thing to wheel.
+  if (bays > 1) {
+    parts.push(
+      `<rect x="${x0 - 18}" y="${MARGIN - 18}" width="${allBaysW + 36}" height="${height + 36}" rx="10" fill="none" stroke="var(--el-rail)" stroke-width="3" opacity=".55"/>`,
+    );
+  }
 
   if (withCables) {
     parts.push(
       drawCables(rack, devices, anchorIndex, {
         top: MARGIN,
         height,
-        tailX: x0 + W + 90,
+        tailX: x0 + allBaysW + 90,
       }),
     );
   }
@@ -174,7 +211,14 @@ function anchorFor(end: ResolvedEnd, index: AnchorMap) {
   if (end.kind !== "port" || !end.device || !end.port) return null;
   return (
     index.get(
-      anchorKey(end.device.id, end.position ?? 0, end.slot ?? "full", end.port.label, end.index),
+      anchorKey(
+        end.device.id,
+        end.bay ?? 1,
+        end.position ?? 0,
+        end.slot ?? "full",
+        end.port.label,
+        end.index,
+      ),
     ) ?? null
   );
 }
