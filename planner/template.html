@@ -178,6 +178,7 @@ svg.cablelayer{position:absolute;inset:0;pointer-events:none;overflow:visible}
 svg.cablelayer .cbl{fill:none;stroke-width:2.5;stroke-linecap:round}
 svg.cablelayer .cbl.halo{stroke:#0B0D10;stroke-width:6;opacity:.85}
 svg.cablelayer .cbl.hot{stroke-width:4}
+svg.cablelayer .tailend{stroke:#0B0D10;stroke-width:1.5}
 
 .portrow{display:flex;justify-content:space-between;gap:10px;font-size:.8rem;padding-block:3px;border-bottom:1px solid var(--rule)}
 .portrow:last-of-type{border-bottom:0}
@@ -919,6 +920,7 @@ __PANELS__
     svg.style.height = box.height + "px";
 
     var floor = box.height - 4;
+    var tails = [];
     runs.forEach(function (run, i) {
       var a = at[keyOf(run.from)], b = at[keyOf(run.to)];
       var st = runStyle(run);
@@ -932,11 +934,17 @@ __PANELS__
         d = "M" + a.x + " " + a.y + "C" + (a.x + dx * 0.25) + " " + (a.y + dy * 0.15 + sag) +
           " " + (a.x + dx * 0.75) + " " + (b.y - dy * 0.15 + sag) + " " + b.x + " " + b.y;
       } else {
-        // One end is outside the rack: a short stub towards the right edge,
-        // so it is visible that the connector is spoken for.
+        // One end is outside the rack. There is no room inside the case to
+        // write where it goes, so it gets a pigtail dropping out of the
+        // connector — enough to see the socket is spoken for. The destination
+        // is one click away in the inspector, and on the printed sheet.
         var inside = a || b;
         if (!inside) return;
-        d = "M" + inside.x + " " + inside.y + "L" + Math.min(box.width - 6, inside.x + 26) + " " + inside.y;
+        var drop = Math.min(26, Math.max(8, floor - inside.y));
+        var out = Math.min(box.width - 4, inside.x + 20);
+        d = "M" + inside.x + " " + inside.y +
+          "q 10 " + (drop * 0.7) + " " + (out - inside.x) + " " + drop;
+        tails.push({ x: out + 1, y: inside.y + drop, colour: colour });
       }
       var halo = document.createElementNS(NS, "path");
       halo.setAttribute("d", d); halo.setAttribute("class", "cbl halo");
@@ -948,6 +956,16 @@ __PANELS__
       path.setAttribute("stroke", colour);
       if (st.dash) path.setAttribute("stroke-dasharray", scaleDash(st.dash));
       svg.appendChild(path);
+    });
+
+    tails.forEach(function (t) {
+      var dot = document.createElementNS(NS, "circle");
+      dot.setAttribute("cx", t.x);
+      dot.setAttribute("cy", t.y);
+      dot.setAttribute("r", 3.2);
+      dot.setAttribute("fill", t.colour);
+      dot.setAttribute("class", "tailend");
+      svg.appendChild(dot);
     });
 
     host.parentElement.style.position = "relative";
