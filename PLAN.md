@@ -75,12 +75,13 @@ Drawing and export:
 
 Catalog:
 
-- **Twenty devices**, browsed by family or by brand. `Family` in `catalog.ts`
+- **Twenty-three devices**, browsed by family or by brand. `Family` in `catalog.ts`
   puts all 56 categories on twelve shelves; the planner shows the ones with
   gear on them and names the ones without, so the taxonomy's reach is visible
   rather than implied.
-- **Power has its first entry.** A Furman M-8x2, with its power draw
-  deliberately null — see the note below.
+- **Power is the first family filled on purpose**: three Furman Merit
+  conditioners and a Tripp Lite 2U UPS, covering Power Conditioner and UPS.
+  Power Distro and Sequencer are still empty — see note 9.
 
 Research pipeline — `src/lib/gear`, written and typechecked, **never run
 end to end**. It needs `ANTHROPIC_API_KEY` and a database. Treat it as
@@ -99,7 +100,7 @@ In the order the launch plan put them.
 | Metering on gear lookup | The live "device not found" lookup costs money per call. Unmetered, one user with a script is the whole margin. |
 | Export escape hatch | If people are paying for their data, they have to be able to take it out. JSON of the rack plus the PDF. |
 | Landing and pricing page | `src/app/page.tsx` and `how-it-works` exist and are scaffold-grade. |
-| Catalog backfill | Twenty devices is still a demo. The pipeline exists to make it hundreds, and six of the twelve families are empty: Monitoring, Snakes & Splits, Processing & Amps, Comms, Lighting, Video. |
+| Catalog backfill | Twenty-three devices is still a demo. The pipeline exists to make it hundreds, and six of the twelve families are empty: Monitoring, Snakes & Splits, Processing & Amps, Comms, Lighting, Video. |
 | Rack power as a supply | A conditioner or distro is what other gear plugs into, and the engine does not model that. Circuits are still `{label, volts, amps}` on the rack. See note 7. |
 | Legal pages | Terms, privacy. Required before taking money. |
 | Mobile pass | Untested below tablet width. A patch sheet gets read on a phone at load-in. |
@@ -149,9 +150,26 @@ Stated plainly because they are easy to forget and expensive to discover.
    the totals a floor, which is honest but is not the same as modelling the
    chain.
 8. **The research pipeline is still unproven.** There is no `.env` in the
-   working tree, so the four devices added most recently were researched by
-   hand from manufacturer documents. That does not validate the pipeline; it
-   only shows what the pipeline has to produce.
+   working tree, so every device added recently was researched by hand from
+   manufacturer documents. That does not validate the pipeline; it only shows
+   what the pipeline has to produce.
+9. **Two allowlisted manufacturers could not be sourced at all.** SurgeX's
+   store refuses the TLS handshake and their product pages 404; Middle
+   Atlantic's technical-document URLs now redirect to a generic Legrand AV
+   landing page. Both are in `MANUFACTURER_DOMAINS`. Worth knowing before the
+   pipeline is pointed at the whole allowlist and quietly returns nothing for
+   them, and it is why Power Distro and Sequencer are still empty.
+10. **The Tripp Lite UPS publishes a minimum rack depth the engine ignores.**
+    Its chassis is 342 mm and Tripp Lite separately require a 17 in / 432 mm
+    rack — 90 mm more than the box. `requiredDepth()` derives its own figure
+    from chassis plus connector plus bend and never reads a published
+    clearance, because until now nothing in the catalog printed one. If more
+    do, the manufacturer's number should win over the estimate. Recorded in
+    that device's `unresolved` in the meantime.
+11. **The M-8Dx's power figure is known to understate.** 8 W covers its two
+    lamps; the voltmeter that distinguishes it from the M-8Lx draws too and
+    Furman do not say how much. Confidence is set to 0.55 to say so. It is the
+    only figure in the catalog recorded as a floor rather than a ceiling.
 
 ---
 
