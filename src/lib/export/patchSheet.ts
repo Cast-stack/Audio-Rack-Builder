@@ -644,16 +644,29 @@ tr.sev-warning .bar i { background:var(--warn); } tr.sev-error .bar i { backgrou
    remainder becomes ruled note space, which is what the page gets used for
    anyway. A tall rack squeezes it to nothing on its own. */
 .sheet.elevations { display:flex; flex-direction:column; height:7.38in; }
-.elevations.stacked .elev-pair { grid-template-columns:1fr; gap:10px; }
-.elevations.stacked svg.elevation { max-height:2.95in; }
-/* A stacked page has no room left over, so the note block collapses out. */
-.elevations.stacked .notesbox { min-height:0; }
+/* Stacked: the two faces share what is left of the page and each fits the box
+   it is given. Capping by a guessed max-height instead overflowed the page and
+   dropped the legend on top of the next section — a wide rack and a tall one
+   need different numbers, and the figure should not need one at all. */
+/* The pair must not shrink: it has no way to pass a smaller height down to an
+   aspect-ratio SVG, so shrinking it only makes its own content overflow it and
+   land on the key below. */
+.elevations.stacked .elev-pair { grid-template-columns:1fr; gap:8px; flex:0 0 auto; }
+/* An SVG sized from its own aspect ratio will not shrink to fit a grid track,
+   so the cap is explicit. 2.28in x 2 leaves room for the title, two captions,
+   the direction key and the cable key inside the 7.38in page — measured, not
+   guessed, and re-measured by the overlap check in the test suite. */
+.elevations.stacked svg.elevation { max-height:2.28in; }
+.elevations.stacked .legend { margin-top:8px; padding-top:6px; }
+.elevations.stacked .cablekey { margin-top:4px; }
+/* A stacked page has no paper left over, so the note block goes. */
+.elevations.stacked .notesbox { display:none; }
 .notesbox { flex:1 1 auto; min-height:0; margin-top:12px; border-top:1px solid var(--rule);
   background:repeating-linear-gradient(#FFF,#FFF 23px,var(--rule-2) 23px,var(--rule-2) 24px);
   position:relative; }
 .notesbox span { position:absolute; top:3px; left:0; font-family:var(--mono); font-size:6.8pt;
   letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3); background:#FFF; padding-right:6px; }
-.elev-pair { display:grid; grid-template-columns:1fr 1fr; gap:22px; align-items:start; margin-top:10px; }
+.elev-pair { display:grid; grid-template-columns:1fr 1fr; gap:22px; align-items:start; margin-top:10px; min-height:0; }
 .elev-pair figure { margin:0; }
 figcaption { font-family:var(--mono); font-size:7.4pt; letter-spacing:.1em; text-transform:uppercase;
   color:var(--ink); margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid var(--rule); }

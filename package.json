@@ -14,7 +14,8 @@
     "db:studio": "prisma studio",
     "gear:research": "tsx scripts/research.ts",
     "planner:build": "node scripts/build-planner.mjs",
-    "sheet:demo": "tsx scripts/patch-sheet-demo.ts"
+    "sheet:demo": "tsx scripts/patch-sheet-demo.ts",
+    "sheet:check": "node --import tsx scripts/check-sheet-layout.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
