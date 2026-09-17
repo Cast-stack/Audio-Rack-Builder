@@ -1164,9 +1164,44 @@ __PANELS__
   var agCancel = document.getElementById("agCancel");
   var agStatus = document.getElementById("agStatus");
 
-  // Served from somewhere: the endpoint is reachable. Opened off a disk: it is
-  // not, and never will be, so the button stays gone.
-  if (location.protocol !== "file:") addGearBtn.hidden = false;
+  // An operator tool, not a user feature: every request costs money. The
+  // server decides who may use it (ARB_ENABLE_GEAR_REQUEST, ARB_ADMIN_TOKEN),
+  // and the button appears only after the server says yes to this browser.
+  // Opened off a disk there is no server to ask, so it never appears.
+  //
+  // An operator signs a browser in once with /planner?admin=<token>. The token
+  // is kept in this browser and taken straight back out of the address bar so
+  // it does not end up in a bookmark or a screenshot.
+  var ADMIN_STORE = "arb.admin.token.v1";
+  function adminToken() {
+    try { return localStorage.getItem(ADMIN_STORE) || ""; } catch (e) { return ""; }
+  }
+  (function takeTokenFromUrl() {
+    if (location.protocol === "file:") return;
+    var params = new URLSearchParams(location.search);
+    if (!params.has("admin")) return;
+    try {
+      var t = params.get("admin") || "";
+      if (t) localStorage.setItem(ADMIN_STORE, t);
+      else localStorage.removeItem(ADMIN_STORE);
+    } catch (e) {}
+    params.delete("admin");
+    var rest = params.toString();
+    history.replaceState(null, "", location.pathname + (rest ? "?" + rest : "") + location.hash);
+  })();
+  function adminHeaders(extra) {
+    var h = extra || {};
+    var t = adminToken();
+    if (t) h.authorization = "Bearer " + t;
+    return h;
+  }
+
+  if (location.protocol !== "file:") {
+    fetch("api/gear/request", { headers: adminHeaders() })
+      .then(function (res) { return res.ok ? res.json() : { enabled: false }; })
+      .then(function (body) { addGearBtn.hidden = !(body && body.enabled === true); })
+      .catch(function () { addGearBtn.hidden = true; });
+  }
 
   addGearBtn.addEventListener("click", function () {
     addGear.hidden = !addGear.hidden;
@@ -1201,7 +1236,7 @@ __PANELS__
 
     fetch("api/gear/request", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: adminHeaders({ "content-type": "application/json" }),
       body: JSON.stringify({ query: query, sources: sources }),
     }).then(function (res) {
       return res.json().then(function (body) { return { ok: res.ok, status: res.status, body: body }; });

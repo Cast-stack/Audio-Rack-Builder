@@ -83,7 +83,6 @@ export async function fetchPricing(
         } as unknown as Anthropic.Beta.BetaToolUnion,
         emitTool,
       ],
-      betas: ["web-fetch-2025-09-10"],
     }, { signal: opts.signal });
 
     messages.push({ role: "assistant", content: response.content });

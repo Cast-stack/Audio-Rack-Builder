@@ -23,13 +23,37 @@ import {
 import { triage, Disposition, Issue } from "./validate";
 import { VettedSources, sourcesPrompt, vetSources } from "./sources";
 
-// Verify these against the current tool-use docs before deploying; Anthropic
-// versions its server tools by date and older versions do get retired.
-const WEB_SEARCH_TOOL = "web_search_20250305";
-const WEB_FETCH_TOOL = "web_fetch_20250910";
-const WEB_FETCH_BETA = "web-fetch-2025-09-10";
+// Checked against the web search, web fetch and server-tools docs in
+// September 2026. Anthropic versions server tools by date; re-check before
+// bumping the model, because the newer versions only run on some models.
+//
+// The _20260318 versions filter what they fetch in a code sandbox before it
+// reaches context. That matters here more than most places: a manufacturer
+// manual is a 100-page PDF and we want four numbers and a connector list out
+// of it. Neither tool needs a beta header any more; the old
+// "web-fetch-2025-09-10" flag is gone.
+const WEB_SEARCH_TOOL = "web_search_20260318";
+const WEB_FETCH_TOOL = "web_fetch_20260318";
 
-const MODEL = process.env.GEAR_RESEARCH_MODEL ?? "claude-sonnet-4-5";
+const MODEL = process.env.GEAR_RESEARCH_MODEL ?? "claude-opus-5";
+
+/**
+ * Server-side refusal fallback. If the model declines a request, the API
+ * re-runs it on a fallback model inside the same call rather than handing
+ * back an empty turn. Gear research should never trip this; it is here so
+ * that a false positive costs a retry rather than a failed job. The SDK
+ * version this repo pins does not type the parameter yet, hence the cast at
+ * the call site.
+ */
+const FALLBACK_BETA = "server-side-fallback-2026-07-01";
+
+/**
+ * Output ceiling per turn. Opus 5 thinks by default and the thinking counts
+ * against this, and emit_device carries a full port list plus a verbatim
+ * quote per field. 8000 was enough for a model that did not think first; on
+ * this one it truncates the record mid-provenance.
+ */
+const MAX_TOKENS = 16_000;
 
 export interface ResearchOptions {
   /** e.g. "Shure AD600" or "Radial Engineering SW8". */
@@ -161,15 +185,17 @@ export async function researchDevice(
   // The agentic loop. Server tools resolve inside the API, so we only ever loop
   // to hand back the result of our own client tool (or a validation error).
   for (let turn = 0; turn < 12; turn++) {
+    const params = {
+      model: MODEL,
+      max_tokens: MAX_TOKENS,
+      system: SYSTEM,
+      messages,
+      tools: [...(serverTools as Anthropic.Beta.BetaToolUnion[]), emitTool],
+      betas: [FALLBACK_BETA],
+      fallbacks: "default",
+    };
     const response = await client.beta.messages.create(
-      {
-        model: MODEL,
-        max_tokens: 8000,
-        system: SYSTEM,
-        messages,
-        tools: [...(serverTools as Anthropic.Beta.BetaToolUnion[]), emitTool],
-        betas: [WEB_FETCH_BETA],
-      },
+      params as unknown as Anthropic.Beta.MessageCreateParamsNonStreaming,
       { signal: opts.signal },
     );
 
@@ -189,13 +215,31 @@ export async function researchDevice(
     );
 
     if (!call) {
-      if (response.stop_reason === "end_turn") {
-        return {
-          result: null, disposition: "failed", usage, sources: vetted, transcript: messages,
-          issues: [{ field: "_", severity: "error", message: "model finished without calling emit_device" }],
-        };
-      }
-      continue; // server tool round-trip; the API already resolved it
+      /**
+       * Only pause_turn may loop. It means the server paused a long search or
+       * fetch and wants the paused content sent back as-is, which is exactly
+       * what the push above did.
+       *
+       * Every other stop reason ends the job. Looping on them re-sends the
+       * conversation with an assistant turn at the end, which on Opus 5 is a
+       * prefill and comes back as a 400 — so a refusal or a truncated turn
+       * would surface as an API error instead of as what actually happened.
+       */
+      const stop = response.stop_reason as string | null;
+      if (stop === "pause_turn") continue;
+
+      const why =
+        stop === "end_turn"
+          ? "model finished without calling emit_device"
+          : stop === "refusal"
+            ? "the model declined this request"
+            : stop === "max_tokens"
+              ? `turn ran past ${MAX_TOKENS} output tokens before emitting a record`
+              : `turn ended with stop_reason ${stop ?? "null"} and no record`;
+      return {
+        result: null, disposition: "failed", usage, sources: vetted, transcript: messages,
+        issues: [{ field: "_", severity: "error", message: why }],
+      };
     }
 
     const parsed = ResearchResultSchema.safeParse(call.input);

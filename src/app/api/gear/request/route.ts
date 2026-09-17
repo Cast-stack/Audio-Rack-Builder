@@ -21,6 +21,8 @@
  *     published to anybody.
  */
 
+import { timingSafeEqual } from "node:crypto";
+
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
@@ -30,6 +32,41 @@ import { CATEGORY_NAMES, MANUFACTURER_DOMAINS } from "@/lib/gear/catalog";
 import { MAX_SOURCES } from "@/lib/gear/sources";
 
 export const maxDuration = 300;
+
+/**
+ * Off unless the operator turns it on.
+ *
+ * Every call spends real money on a model and on searches, and there are no
+ * accounts yet to meter it against, so this is an operator tool rather than a
+ * user feature. ARB_ENABLE_GEAR_REQUEST=1 switches it on. ARB_ADMIN_TOKEN, if
+ * set, additionally requires `Authorization: Bearer <token>` — set it on any
+ * server other people can reach, because the flag alone opens it to them.
+ *
+ * A closed gate answers 404, not 403: to anyone without the switch and the
+ * token, the endpoint does not exist.
+ */
+function gateOpen(request: Request): boolean {
+  if (process.env.ARB_ENABLE_GEAR_REQUEST !== "1") return false;
+  const token = process.env.ARB_ADMIN_TOKEN;
+  if (!token) return true;
+  const given = Buffer.from(request.headers.get("authorization") ?? "");
+  const want = Buffer.from(`Bearer ${token}`);
+  return given.length === want.length && timingSafeEqual(given, want);
+}
+
+const notFound = () => NextResponse.json({ error: "Not found" }, { status: 404 });
+
+/**
+ * GET /api/gear/request — may this caller use the feature?
+ *
+ * The planner asks before it shows the button, so nobody is offered an action
+ * that will refuse them.
+ */
+export async function GET(request: Request) {
+  return NextResponse.json({
+    enabled: gateOpen(request) && !!process.env.ANTHROPIC_API_KEY,
+  });
+}
 
 const Body = z.object({
   query: z.string().min(2).max(200),
@@ -73,6 +110,8 @@ function callerKey(request: Request): string {
 }
 
 export async function POST(request: Request) {
+  if (!gateOpen(request)) return notFound();
+
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json(
       { error: "Adding gear is not configured on this server. Set ANTHROPIC_API_KEY." },
