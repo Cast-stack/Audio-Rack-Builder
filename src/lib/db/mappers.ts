@@ -104,6 +104,7 @@ export function toRackSpec(row: RackRow): RackSpec {
         bay: p.bay,
         position: p.position,
         slot: p.slot as PlacementSpec["slot"],
+        mount: p.mount as PlacementSpec["mount"],
         circuit: p.circuit,
         label: p.label,
       }),

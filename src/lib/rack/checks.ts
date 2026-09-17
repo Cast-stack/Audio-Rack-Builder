@@ -16,10 +16,13 @@ import {
   bayCount,
   bayOf,
   caseDepthHeadroom,
+  cellSpace,
   isHalfWidth,
+  mountOf,
   occupiedCells,
   occupiedPositions,
   occupiedUnits,
+  requiredDepth,
 } from "./geometry";
 import { cableTags, endKey, resolveCables, signalClassOf } from "./cables";
 import type { CheckResult, DeviceSpec, RackSpec } from "./types";
@@ -58,6 +61,7 @@ export function checkRack(rack: RackSpec, devices: Map<string, DeviceSpec>): Che
     ...checkPlacement(rack, devices),
     ...checkDepth(rack, devices),
     ...checkMounting(rack, devices),
+    ...checkRearMount(rack, devices),
     ...checkPower(rack, devices, budget),
     ...checkWeight(rack, budget, devices),
     ...checkThermal(budget),
@@ -130,7 +134,7 @@ function checkPlacement(rack: RackSpec, devices: Map<string, DeviceSpec>): Check
 
     // Occupancy is per half-U, so two half-rack receivers can share a U while
     // a full-width unit still blocks the whole row.
-    for (const cell of occupiedCells(device, p.position, p.slot, bay)) {
+    for (const cell of occupiedCells(device, p.position, p.slot, bay, mountOf(p))) {
       const list = occupancy.get(cell) ?? [];
       list.push(device.id);
       occupancy.set(cell, list);
@@ -139,7 +143,7 @@ function checkPlacement(rack: RackSpec, devices: Map<string, DeviceSpec>): Check
 
   for (const [cell, ids] of occupancy) {
     if (ids.length > 1) {
-      const [bStr, uStr, half] = cell.split("|");
+      const [bStr, uStr, half, mount] = cell.split("|");
       const u = Number(uStr);
       const b = Number(bStr);
       const names = ids
@@ -150,7 +154,9 @@ function checkPlacement(rack: RackSpec, devices: Map<string, DeviceSpec>): Check
         code: "placement.collision",
         severity: "error",
         title: `Two units in ${bayName(b)}U${u}`,
-        detail: `${names.join(" and ")} both occupy the ${half} side of ${bayName(b)}U${u}.`,
+        detail:
+          `${names.join(" and ")} both occupy the ${half} side of ${bayName(b)}U${u}` +
+          `${mount === "rear" ? " on the rear rails" : ""}.`,
         deviceIds: ids,
         positions: [u],
       });
@@ -163,7 +169,7 @@ function checkPlacement(rack: RackSpec, devices: Map<string, DeviceSpec>): Check
   for (const p of rack.placements) {
     const device = devices.get(p.deviceId);
     if (!device || !isHalfWidth(device)) continue;
-    for (const cell of occupiedCells(device, p.position, p.slot, bayOf(p))) {
+    for (const cell of occupiedCells(device, p.position, p.slot, bayOf(p), mountOf(p))) {
       const [bStr, uStr, half] = cell.split("|");
       const key = `${bStr}|${uStr}`;
       const entry = halfCells.get(key) ??
@@ -235,6 +241,92 @@ function checkDepth(rack: RackSpec, devices: Map<string, DeviceSpec>): CheckResu
         positions: [p.position],
       });
     }
+  }
+
+  return out;
+}
+
+/**
+ * Gear on the rear rails, and what it costs.
+ *
+ * Two things can go wrong that nothing else catches. A case with no rear rails
+ * has nothing to bolt a rear-mounted unit to at all. And a unit on the front
+ * rails and one behind it in the same U are not fighting for holes — they are
+ * fighting for depth, back to back, and the case only has so much between the
+ * rails. That second one is the whole reason this feature is worth having:
+ * a patch bay behind a receiver is the classic way to discover on site that
+ * the lid will not close.
+ */
+function checkRearMount(rack: RackSpec, devices: Map<string, DeviceSpec>): CheckResult[] {
+  const out: CheckResult[] = [];
+  const rear = rack.placements.filter((p) => mountOf(p) === "rear");
+  if (!rear.length) return out;
+
+  const bays = bayCount(rack.case);
+  const bayName = (b: number) => (bays > 1 ? `bay ${b} ` : "");
+
+  if (!rack.case.hasRearRails) {
+    const names = rear
+      .map((p) => devices.get(p.deviceId))
+      .filter((d): d is DeviceSpec => !!d)
+      .map((d) => `${d.brand} ${d.model}`);
+    out.push({
+      code: "mounting.no-rear-rails",
+      severity: "error",
+      title: `Nothing to bolt ${names.length === 1 ? "it" : "them"} to`,
+      detail:
+        `${names.join(", ")} ${names.length === 1 ? "is" : "are"} on the rear rails, and ` +
+        `${rack.case.name} has front rails only. Move ${names.length === 1 ? "it" : "them"} ` +
+        `to the front, or use a case with rear rails.`,
+      deviceIds: rear.map((p) => p.deviceId),
+      positions: rear.map((p) => p.position),
+    });
+  }
+
+  // Depth is shared between whatever faces forwards and whatever faces back in
+  // the same half-U.
+  const bySpace = new Map<string, { front: string[]; rear: string[] }>();
+  for (const p of rack.placements) {
+    const device = devices.get(p.deviceId);
+    if (!device) continue;
+    for (const cell of occupiedCells(device, p.position, p.slot, bayOf(p), mountOf(p))) {
+      const space = cellSpace(cell);
+      const entry = bySpace.get(space) ?? { front: [], rear: [] };
+      entry[mountOf(p)].push(p.deviceId);
+      bySpace.set(space, entry);
+    }
+  }
+
+  const reported = new Set<string>();
+  for (const [space, entry] of bySpace) {
+    if (!entry.front.length || !entry.rear.length) continue;
+    const frontDevice = devices.get(entry.front[0]!);
+    const rearDevice = devices.get(entry.rear[0]!);
+    if (!frontDevice || !rearDevice) continue;
+
+    const f = requiredDepth(frontDevice).requiredMm;
+    const r = requiredDepth(rearDevice).requiredMm;
+    if (f == null || r == null) continue;
+
+    const together = f + r;
+    if (together <= rack.case.usableDepthMm) continue;
+
+    const key = `${frontDevice.id}|${rearDevice.id}`;
+    if (reported.has(key)) continue;
+    reported.add(key);
+
+    const [bStr, uStr] = space.split("|");
+    out.push({
+      code: "mounting.back-to-back-depth",
+      severity: "error",
+      title: `${frontDevice.model} and ${rearDevice.model} meet in the middle`,
+      detail:
+        `In ${bayName(Number(bStr))}U${uStr} the front unit needs ${f} mm with its connectors ` +
+        `and the rear one needs ${r} mm, which is ${together} mm nose to nose against ` +
+        `${rack.case.usableDepthMm} mm between the rails. Over by ${together - rack.case.usableDepthMm} mm.`,
+      deviceIds: [frontDevice.id, rearDevice.id],
+      positions: [Number(uStr)],
+    });
   }
 
   return out;

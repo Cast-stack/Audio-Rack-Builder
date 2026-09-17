@@ -51,6 +51,10 @@ Engine — `src/lib/rack`, pure, tested, no database, no network:
 - **Heat.** Watts per rack unit against what a closed case sheds by convection.
 - **Placement.** Half-rack pairs sharing a U, multi-bay occupancy, collisions,
   overflow, open halves.
+- **Rear rails.** Patch bays, splitters and strips mount facing the back of
+  the case, sharing a U with whatever faces forwards. The check that earns the
+  feature is depth: front unit plus rear unit, nose to nose, against what the
+  case has between the rails. A case with no rear rails refuses them outright.
 - **The patch.** A connector wired twice, two outputs facing each other, a run
   that needs an adapter nobody packed.
 

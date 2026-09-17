@@ -330,11 +330,15 @@ model Placement {
   /// actually bites. Postgres counts NULLs as distinct from each other, so a
   /// nullable slot would happily let the same U be filled twice.
   slot     String @default("full")
+  /// Which rails: "front" or "rear". A rear-mounted unit shares the U with
+  /// whatever faces forwards, so it belongs in the key below — without it the
+  /// patch bay behind a receiver cannot be stored at all.
+  mount    String @default("front")
   /// Which branch circuit this unit is plugged into, by circuit label.
   circuit  String?
   label    String?
   notes    String?
 
-  @@unique([rackId, bay, position, slot])
+  @@unique([rackId, bay, position, slot, mount])
   @@index([rackId])
 }

@@ -32,6 +32,7 @@ export const PlacementSchema = z.object({
   deviceId: z.string().min(1),
   position: z.number().int().positive(),
   slot: z.enum(["full", "left", "right"]).optional(),
+  mount: z.enum(["front", "rear"]).optional(),
   circuit: z.string().nullable(),
   label: z.string().nullable().optional(),
 });

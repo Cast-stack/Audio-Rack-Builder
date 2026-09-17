@@ -343,11 +343,13 @@ test("two half-rack units share one U", () => {
   const b = device({ id: "rxB", formFactor: "half-rack", model: "SLXD4", weightLb: 1.8, powerTypicalW: 9 });
 
   assert.ok(isHalfWidth(a));
-  // Cells are keyed bay|U|half. The bay has to be in the key, or U3 of bay 1
-  // and U3 of bay 2 collide and a two-bay case holds one unit per row.
-  assert.deepEqual(occupiedCells(a, 1, "left"), ["1|1|left"]);
-  assert.deepEqual(occupiedCells(a, 1, "right"), ["1|1|right"]);
-  assert.deepEqual(occupiedCells(a, 1, "left", 2), ["2|1|left"]);
+  // Cells are keyed bay|U|half|mount. Every dimension has to be in the key:
+  // without bay, U3 of bay 1 and U3 of bay 2 collide; without mount, a patch
+  // bay on the rear rails collides with the receiver on the front ones.
+  assert.deepEqual(occupiedCells(a, 1, "left"), ["1|1|left|front"]);
+  assert.deepEqual(occupiedCells(a, 1, "right"), ["1|1|right|front"]);
+  assert.deepEqual(occupiedCells(a, 1, "left", 2), ["2|1|left|front"]);
+  assert.deepEqual(occupiedCells(a, 1, "left", 1, "rear"), ["1|1|left|rear"]);
 
   const report = checkRack(
     rack({
@@ -423,4 +425,118 @@ test("a filled pair raises no half-open note", () => {
     mapOf(a, b),
   );
   assert.ok(!codes(report).includes("placement.half-open"));
+});
+
+// ------------------------------------------------------------- rear rails
+//
+// Patch bays, splitters and power strips live on the rear rails. A unit there
+// shares the U with whatever faces forwards — different holes — but the two of
+// them divide the case's depth between them, nose to nose.
+
+test("a rear-mounted unit shares the U with the one in front of it", () => {
+  const rx = device({ id: "rx", model: "Receiver", depthMm: 150 });
+  const bay = device({ id: "pb", model: "Patch bay", depthMm: 80, passive: true });
+
+  const report = checkRack(
+    rack({
+      placements: [
+        { deviceId: "rx", position: 2, circuit: "A" },
+        { deviceId: "pb", position: 2, mount: "rear", circuit: null },
+      ],
+    }),
+    mapOf(rx, bay),
+  );
+
+  assert.equal(
+    report.results.filter((r) => r.code === "placement.collision").length,
+    0,
+    "front and rear rails are different holes, not a collision",
+  );
+  assert.equal(report.errors, 0);
+});
+
+test("two units on the same rails in one U still collide", () => {
+  const a = device({ id: "a", model: "A" });
+  const b = device({ id: "b", model: "B" });
+  const report = checkRack(
+    rack({
+      placements: [
+        { deviceId: "a", position: 2, mount: "rear", circuit: null },
+        { deviceId: "b", position: 2, mount: "rear", circuit: null },
+      ],
+    }),
+    mapOf(a, b),
+  );
+  const hit = report.results.find((r) => r.code === "placement.collision");
+  assert.ok(hit, "two rear-mounted units in one U is still a collision");
+  assert.match(hit!.detail, /rear rails/, "and the report says which rails");
+});
+
+test("front and rear meeting in the middle is an error", () => {
+  // 450 mm between the rails; 300 + 250 of chassis plus connectors does not fit.
+  const front = device({ id: "front", model: "Deep front", depthMm: 300 });
+  const back = device({ id: "back", model: "Deep rear", depthMm: 250 });
+
+  const report = checkRack(
+    rack({
+      placements: [
+        { deviceId: "front", position: 1, circuit: "A" },
+        { deviceId: "back", position: 1, mount: "rear", circuit: "A" },
+      ],
+    }),
+    mapOf(front, back),
+  );
+
+  const hit = report.results.find((r) => r.code === "mounting.back-to-back-depth");
+  assert.ok(hit, "a rack that cannot close its lid has to say so");
+  assert.equal(hit!.severity, "error");
+  assert.match(hit!.detail, /nose to nose/);
+});
+
+test("front and rear that do fit raise nothing", () => {
+  // The margin is tighter than chassis depths suggest: each of these carries an
+  // IEC inlet, so each costs its depth plus a plug and a cable bend — 105 mm
+  // apiece. 150 + 80 of chassis is 440 mm nose to nose in a 450 mm case.
+  const front = device({ id: "front", model: "Front", depthMm: 150 });
+  const back = device({ id: "back", model: "Rear", depthMm: 80, passive: true });
+  const report = checkRack(
+    rack({
+      placements: [
+        { deviceId: "front", position: 1, circuit: "A" },
+        { deviceId: "back", position: 1, mount: "rear", circuit: null },
+      ],
+    }),
+    mapOf(front, back),
+  );
+  assert.equal(report.results.filter((r) => r.code === "mounting.back-to-back-depth").length, 0);
+});
+
+test("a case with no rear rails cannot take rear-mounted gear", () => {
+  const bay = device({ id: "pb", model: "Patch bay", depthMm: 80, passive: true });
+  const report = checkRack(
+    rack({
+      case: { ...CASE_4U, name: "Front-rail case", hasRearRails: false },
+      placements: [{ deviceId: "pb", position: 1, mount: "rear", circuit: null }],
+    }),
+    mapOf(bay),
+  );
+  const hit = report.results.find((r) => r.code === "mounting.no-rear-rails");
+  assert.ok(hit, "there is nothing to bolt it to");
+  assert.equal(hit!.severity, "error");
+});
+
+test("depth stays a per-U question, not a whole-rack one", () => {
+  // Deep front unit in U1, deep rear unit in U3: they never meet.
+  const front = device({ id: "front", model: "Deep front", depthMm: 300 });
+  const back = device({ id: "back", model: "Deep rear", depthMm: 250 });
+  const report = checkRack(
+    rack({
+      placements: [
+        { deviceId: "front", position: 1, circuit: "A" },
+        { deviceId: "back", position: 3, mount: "rear", circuit: "A" },
+      ],
+    }),
+    mapOf(front, back),
+  );
+  assert.equal(report.results.filter((r) => r.code === "mounting.back-to-back-depth").length, 0);
 });

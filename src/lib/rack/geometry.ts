@@ -9,7 +9,7 @@
  * six BNCs with right-angle-averse coax and a locking IEC need another 100 mm.
  */
 
-import type { CaseSpec, DeviceSpec, PortSpec, Slot } from "./types";
+import type { CaseSpec, DeviceSpec, Mount, PortSpec, Slot } from "./types";
 
 /** EIA-310: one rack unit is 1.75 in. */
 export const MM_PER_RU = 44.45;
@@ -154,6 +154,11 @@ export function bayOf(placement: { bay?: number }): number {
   return Math.max(1, Math.round(placement.bay ?? 1));
 }
 
+/** Which rails a placement is on. Anything unsaid is front-mounted. */
+export function mountOf(placement: { mount?: Mount }): Mount {
+  return placement.mount === "rear" ? "rear" : "front";
+}
+
 /**
  * Every (bay, U, half) cell a placement occupies, as stable keys.
  *
@@ -165,13 +170,22 @@ export function occupiedCells(
   position: number,
   slot: Slot | undefined,
   bay = 1,
+  mount: Mount = "front",
 ): string[] {
   const halves = slotsFor(device, slot);
   const cells: string[] = [];
   for (const u of occupiedPositions(device, position)) {
-    for (const half of halves) cells.push(`${bay}|${u}|${half}`);
+    for (const half of halves) cells.push(`${bay}|${u}|${half}|${mount}`);
   }
   return cells;
+}
+
+/**
+ * The same cell with the rails dropped: the physical space a front unit and a
+ * rear unit share, and therefore have to divide the case's depth between.
+ */
+export function cellSpace(cell: string): string {
+  return cell.split("|").slice(0, 3).join("|");
 }
 
 /** Rack units a device occupies, rounded up to a whole U for placement. */

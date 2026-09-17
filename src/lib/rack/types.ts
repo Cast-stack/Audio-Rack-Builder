@@ -145,6 +145,16 @@ export interface Circuit {
 /** Which half of the U a unit sits in. Full-width gear takes both. */
 export type Slot = "full" | "left" | "right";
 
+/**
+ * Which set of rails a unit is bolted to.
+ *
+ * A rear-mounted unit faces the back of the case, which is where patch bays,
+ * splitters and power strips usually live. It shares the U with whatever is on
+ * the front rails rather than colliding with it — they are different holes —
+ * and the two of them share the case's depth between them.
+ */
+export type Mount = "front" | "rear";
+
 export interface PlacementSpec {
   deviceId: string;
   /** Which column of rails, 1-based. Omitted means the first bay. */
@@ -153,6 +163,8 @@ export interface PlacementSpec {
   position: number;
   /** Omitted means "full" for full-width gear, "left" for half-rack. */
   slot?: Slot;
+  /** Which rails. Omitted means the front ones, which is the usual case. */
+  mount?: Mount;
   circuit: string | null;
   label?: string | null;
 }
@@ -181,6 +193,12 @@ export type CableEnd =
        * together do not name one of them.
        */
       slot?: Slot;
+      /**
+       * Which rails the unit is on. Part of identifying a placement for the
+       * same reason slot is: a front-mounted and a rear-mounted unit can share
+       * a bay, U and half, and they are two different boxes.
+       */
+      mount?: Mount;
       /** PortSpec.label. */
       port: string;
       /** Which connector of a multi-connector port, zero-based. */

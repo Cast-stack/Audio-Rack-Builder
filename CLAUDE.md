@@ -23,10 +23,21 @@ worker, in the browser bundle and in the PDF renderer. The only seam is
 `src/lib/db/mappers.ts`. Breaking this breaks the standalone planner silently.
 
 **One key shape for a connector.** `anchorKey(deviceId, bay, position, slot,
-port, index)` in `cables.ts`. Three separate bugs have come from a key missing
-a dimension — first `slot`, then `bay` — where two different physical sockets
-collapsed into one. If a fourth dimension ever appears, it goes in that
-function and nowhere else.
+mount, port, index)` in `cables.ts`. Four separate bugs have come from a key
+missing a dimension — `slot`, then `bay`, then `mount` — where two different
+physical sockets collapsed into one. `mount` was the predicted fourth, and it
+arrived the same way: the planner's `rackSpec()` dropped it on the way to the
+engine, so a patch bay on the rear rails was reported as colliding with the
+receiver in front of it. **If a fifth ever appears, it goes in that function,
+in `occupiedCells()`, in `rackSpec()`, and in the Placement unique index —
+those four are where the previous ones were forgotten.**
+
+**Front and rear rails are different holes, and the same depth.** A
+rear-mounted unit shares its U with whatever faces forwards; it does not
+collide with it. What the two of them do share is the space between the rails,
+which is what `mounting.back-to-back-depth` checks. Anything that draws a rack
+has to put the unit facing the reader on top and ghost the one behind it, or
+the patch bay hides the receiver.
 
 **The drawing and the schedule are computed from the same source.** Cable tags
 come from `cableTags()`, used by both the elevation and the table. A tag on the

@@ -232,6 +232,41 @@ check(
 );
 await page.fill("#catSearch", "");
 
+// Rear rails. Adding gear while looking at the back of the rack puts it on the
+// back, where it shares the U with whatever faces forwards instead of
+// colliding with it — and the front view still shows it, marked.
+await page.click("#clearBtn");
+await page.click('#palette .pal-by button:has-text("Type")');
+await page.click('#palette .pal-shelf-row[data-shelf="Rack Hardware"]');
+await page.click("#palette .pal-item .add");
+await page.waitForTimeout(250);
+const frontUnits = await page.$$eval("#rack .unit", (u) => u.length);
+check(frontUnits === 1, `expected one unit placed on the front, saw ${frontUnits}`);
+
+await page.click("#viewRear");
+await page.click("#palette .pal-item .add");
+await page.waitForTimeout(250);
+const rearBadged = await page.$$eval("#rack .unit.rearmount", (u) => u.length);
+check(rearBadged === 1, `a unit added in the rear view should be marked rear-mounted, saw ${rearBadged}`);
+check(
+  (await page.$$eval("#rack .unit", (u) => u.length)) === 2,
+  "the rear-mounted unit should not have displaced the one on the front",
+);
+
+await page.click("#viewFront");
+check(
+  (await page.$$eval("#rack .unit.rearmount", (u) => u.length)) === 1,
+  "a rear-mounted unit is still drawn from the front, marked as rear",
+);
+check(
+  !/both occupy/.test((await page.textContent("#findings")) ?? ""),
+  "front and rear rails are different holes and must not report a collision",
+);
+await page.click("#palette .pal-back");
+await page.click("#clearBtn");
+await page.selectOption("#presetSel", (await page.$$eval("#presetSel option", (o) => o.map((x) => x.value)))[1]);
+await page.waitForTimeout(250);
+
 // Clicking a placed unit opens the inspector. If the port list is empty the
 // click-to-patch flow has nothing to start from.
 const unit = await page.$("#rack .unit");

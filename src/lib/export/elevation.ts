@@ -19,7 +19,7 @@ import {
   type ResolvedCable,
   type ResolvedEnd,
 } from "@/lib/rack/cables";
-import { bayCount, bayOf, isHalfWidth, slotsFor } from "@/lib/rack/geometry";
+import { bayCount, bayOf, isHalfWidth, mountOf, slotsFor } from "@/lib/rack/geometry";
 import type { DeviceSpec, RackSpec } from "@/lib/rack/types";
 
 /** Left gutter carrying the U numbers, in panel units. */
@@ -135,10 +135,20 @@ export function renderElevation(
   // about and how a tech counts up the rail with a finger.
   const anchorIndex = new Map<string, { x: number; y: number; size: number }>();
 
+  /**
+   * A front-mounted and a rear-mounted unit can share a U, so the one facing
+   * away is drawn first and the one facing the reader lands on top of it.
+   * Without this the patch bay behind a receiver hides the receiver.
+   */
+  const facesReader = (p: (typeof rack.placements)[number]) =>
+    (mountOf(p) === "rear") === (face === "rear");
+
   const placed = rack.placements
     .map((p) => ({ p, d: devices.get(p.deviceId) }))
     .filter((x): x is { p: (typeof rack.placements)[number]; d: DeviceSpec } => x.d !== undefined)
-    .sort((a, b) => a.p.position - b.p.position);
+    .sort((a, b) =>
+      a.p.position - b.p.position ||
+      Number(facesReader(a.p)) - Number(facesReader(b.p)));
 
   for (const { p, d } of placed) {
     const ru = Math.max(1, Math.ceil(d.rackUnits));
@@ -148,14 +158,34 @@ export function renderElevation(
     const hx = half === "right" ? W / 2 : 0;
     const bx = bayX(Math.min(Math.max(columnFor(bayOf(p)), 1), bays));
     const anchors: PortAnchor[] = [];
+
+    /**
+     * A unit bolted to the rear rails faces the back of the case, so it shows
+     * the opposite panel to everything around it: its connectors are what you
+     * see from the front, and its controls are what you see from the back.
+     * Which half of the rack it sits in is unaffected — that is geometry of the
+     * case, not of the box, and drawnSlot already mirrors it for the rear view.
+     */
+    const rearMounted = mountOf(p) === "rear";
+    const deviceFace = rearMounted ? (face === "front" ? "rear" : "front") : face;
+
+    const behind = !facesReader(p);
     parts.push(
-      `<g transform="translate(${bx + hx} ${top})">${drawInner(d, face, ru, { half, anchors })}</g>`,
+      `<g transform="translate(${bx + hx} ${top})"${behind ? ' opacity="0.45"' : ""}>` +
+        `${drawInner(d, deviceFace, ru, { half, anchors })}</g>`,
     );
+    if (rearMounted) {
+      const w = half ? W / 2 : W;
+      parts.push(
+        `<text x="${bx + hx + w - 14}" y="${top + 20}" class="el-bay" text-anchor="end">` +
+          `${face === "rear" ? "ON REAR RAILS" : "REAR-MOUNTED"}</text>`,
+      );
+    }
     // Panel-local anchors become elevation coordinates once, here, where the
     // offset is known.
     for (const a of anchors) {
       anchorIndex.set(
-        anchorKey(p.deviceId, bayOf(p), p.position, p.slot ?? "full", a.portLabel, a.index),
+        anchorKey(p.deviceId, bayOf(p), p.position, p.slot ?? "full", mountOf(p), a.portLabel, a.index),
         { x: bx + hx + a.x, y: top + a.y, size: a.size },
       );
     }
@@ -216,6 +246,7 @@ function anchorFor(end: ResolvedEnd, index: AnchorMap) {
         end.bay ?? 1,
         end.position ?? 0,
         end.slot ?? "full",
+        end.mount ?? "front",
         end.port.label,
         end.index,
       ),

@@ -7,8 +7,8 @@
  * finished, and the lead to the distro is the one people forget to pack.
  */
 
-import { bayOf } from "./geometry";
-import type { CableSpec, DeviceSpec, PortSpec, RackSpec, SignalClass } from "./types";
+import { bayOf, mountOf } from "./geometry";
+import type { CableSpec, DeviceSpec, Mount, PortSpec, RackSpec, SignalClass } from "./types";
 
 /**
  * The five classes a run is coloured by, in the order the legend prints them.
@@ -93,6 +93,8 @@ export interface ResolvedEnd {
   position?: number;
   slot?: "full" | "left" | "right";
   bay?: number;
+  /** Which rails the unit is on. */
+  mount?: Mount;
   /** Which connector of a multi-connector port, zero-based. */
   index: number;
   /** Display text: "Shure AD600 · A" or "FOH console".  */
@@ -120,10 +122,11 @@ function resolveEnd(
   }
   const wantSlot = end.slot ?? "full";
   const wantBay = bayOf(end);
+  const wantMount = mountOf(end);
   const placement =
     rack.placements.find(
       (p) => p.deviceId === end.deviceId && p.position === end.position &&
-        (p.slot ?? "full") === wantSlot && bayOf(p) === wantBay,
+        (p.slot ?? "full") === wantSlot && bayOf(p) === wantBay && mountOf(p) === wantMount,
     ) ??
     // A run recorded before slots and bays were required still resolves, as
     // long as the position holds only one unit of that model.
@@ -139,6 +142,7 @@ function resolveEnd(
     position: placement.position,
     slot: placement.slot ?? "full",
     bay: bayOf(placement),
+    mount: mountOf(placement),
     index: end.index ?? 0,
     label: `${device.brand} ${device.model} · ${port.label}`,
   };
@@ -174,6 +178,7 @@ export function endKey(end: CableSpec["from"]): string {
     bayOf(end),
     end.position,
     end.slot ?? "full",
+    mountOf(end),
     end.port,
     end.index ?? 0,
   );
@@ -190,10 +195,11 @@ export function anchorKey(
   bay: number,
   position: number,
   slot: string,
+  mount: string,
   port: string,
   index: number,
 ): string {
-  return `${deviceId}|${bay}|${position}|${slot}|${port}|${index}`;
+  return `${deviceId}|${bay}|${position}|${slot}|${mount}|${port}|${index}`;
 }
 
 const CLASS_TAG: Record<SignalClass, string> = {

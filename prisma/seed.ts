@@ -190,6 +190,7 @@ async function seedRack(
         // half-rack pair into one half and invent a collision.
         bay: p.bay ?? 1,
         slot: p.slot ?? "full",
+        mount: p.mount ?? "front",
         position: p.position,
         circuit: p.circuit,
         label: p.label ?? null,

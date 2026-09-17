@@ -21,6 +21,7 @@ import {
   bayCount,
   caseDepthHeadroom,
   isHalfWidth,
+  mountOf,
   occupiedPositions,
   requiredDepth,
   slotsFor,
@@ -82,6 +83,7 @@ function positionLabel(
   position: number,
   slot?: string,
   bay?: number,
+  mount?: string,
 ): string {
   const us = occupiedPositions(device, position);
   const first = us[0] ?? position;
@@ -90,7 +92,10 @@ function positionLabel(
   // The bay prefix appears only when there is more than one, so a single-bay
   // sheet is not cluttered with a distinction it does not have.
   const prefix = bay && bay > 1 ? `B${bay} ` : bay === 1 ? "B1 " : "";
-  return prefix + span + slotLabel(device, slot);
+  // Rear is always called out: someone reading U3 on this sheet and finding
+  // nothing at U3 on the front of the case has been sent to the wrong side.
+  const rails = mount === "rear" ? " REAR" : "";
+  return prefix + span + slotLabel(device, slot) + rails;
 }
 
 const SEVERITY_ORDER: Record<string, number> = { error: 0, warning: 1, info: 2 };
@@ -258,7 +263,7 @@ function deviceSchedule(input: PatchSheetInput, budget: RackBudget): string {
       const depth = requiredDepth(d);
       const missing = incomplete.get(d.id) ?? [];
       return `<tr>
-      <td class="u">${esc(positionLabel(d, p.position, p.slot, multiBay ? (p.bay ?? 1) : undefined))}</td>
+      <td class="u">${esc(positionLabel(d, p.position, p.slot, multiBay ? (p.bay ?? 1) : undefined, mountOf(p)))}</td>
       <td><b>${esc(d.brand)} ${esc(d.model)}</b>${p.label ? `<div class="where">${esc(p.label)}</div>` : ""}<div class="where">${esc(d.category)}</div></td>
       <td class="num">${fmt(d.rackUnits, 1)}${isHalfWidth(d) ? " ½W" : ""}</td>
       <td class="num">${dual(d.depthMm)}</td>
@@ -305,7 +310,7 @@ function depthLedger(input: PatchSheetInput): string {
       const over = head !== null && head < 0;
       const tight = head !== null && head >= 0 && head < 25;
       return `<tr class="${over ? "sev-error" : tight ? "sev-warning" : ""}">
-      <td class="u">${esc(positionLabel(d, p.position, p.slot, multiBay ? (p.bay ?? 1) : undefined))}</td>
+      <td class="u">${esc(positionLabel(d, p.position, p.slot, multiBay ? (p.bay ?? 1) : undefined, mountOf(p)))}</td>
       <td>${esc(d.brand)} ${esc(d.model)}</td>
       <td class="num">${mm(b.chassisMm)}</td>
       <td class="num">+ ${mm(b.connectorMm)}</td>
@@ -346,7 +351,7 @@ function connectionSchedule(input: PatchSheetInput): string {
     );
     if (!ports.length) continue;
     rows.push(
-      `<tr class="devrow"><td colspan="8"><b>${esc(d.brand)} ${esc(d.model)}</b> <span class="where">${esc(positionLabel(d, p.position, p.slot, multiBay ? (p.bay ?? 1) : undefined))}${p.label ? ` · ${esc(p.label)}` : ""}</span></td></tr>`,
+      `<tr class="devrow"><td colspan="8"><b>${esc(d.brand)} ${esc(d.model)}</b> <span class="where">${esc(positionLabel(d, p.position, p.slot, multiBay ? (p.bay ?? 1) : undefined, mountOf(p)))}${p.label ? ` · ${esc(p.label)}` : ""}</span></td></tr>`,
     );
     for (const port of ports) {
       const dir = port.direction === "input" ? "in" : port.direction === "output" ? "out" : "bi";
@@ -520,7 +525,7 @@ function cableSchedule(input: PatchSheetInput): string {
       const where = (e: typeof a) =>
         e.kind === "external"
           ? "outside the rack"
-          : `${positionLabel(e.device!, e.position ?? 0, e.slot, multiBay ? (e.bay ?? 1) : undefined)}${e.port && e.port.count > 1 ? ` · #${e.index + 1}` : ""}`;
+          : `${positionLabel(e.device!, e.position ?? 0, e.slot, multiBay ? (e.bay ?? 1) : undefined, e.mount)}${e.port && e.port.count > 1 ? ` · #${e.index + 1}` : ""}`;
       return `<tr>
         <td class="u">${esc(tags.get(run.cable.id) ?? "—")}</td>
         ${endCell(a.label, where(a))}
