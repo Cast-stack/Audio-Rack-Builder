@@ -77,6 +77,14 @@ const SLX_GUIDE = "https://pubs.shure.com/view/guide/SLX/en-US.pdf";
 const ULX_2024 = "https://pubs.shure.com/view/guide/ULX/en-US.pdf";
 const EW_IEM_G4_MANUAL =
   'Sennheiser, "ew IEM G4 \u2014 EK IEM G4, SR IEM G4", Instruction manual v3.3, 05/2026';
+/**
+ * Sennheiser's own entry point for that manual. It redirects through their
+ * link service to a CDN, which is why the URL and the file name differ; the
+ * manufacturer-hosted address is the one worth citing, because it is the one
+ * that keeps working when they move the file.
+ */
+const EW_IEM_G4_MANUAL_URL =
+  "https://www.sennheiser.com/globalassets/digizuite/40953-en-ew_iem_g4_manual_v2-2_10_2019_en.pdf";
 
 const G3_PRODUCT =
   "https://www.sennheiser.com/en-us/catalog/uncategorized/sr-300-iem-g3/sr-300-iem-g3-503650";
@@ -173,14 +181,14 @@ export const HAND_DEVICES: SeedDevice[] = [
     category: "Playback Switcher",
     passive: false,
     description:
-      "8-channel transformer-isolated auto-switcher between two multitrack playback rigs, feeding the PA through eight mic-level XLR DI outputs. No IEC inlet: two external 15 VDC supplies.",
+      "8-channel transformer-isolated auto-switcher between two multitrack playback rigs, feeding the PA through eight mic-level XLR DI outputs. No IEC inlet: one external 15 VDC supply (Radial ships two in the box).",
     formFactor: "full-rack",
     rackUnits: 1,
     depthMm: 152,
     depthIsOverall: true,
     weightLb: 9.2,
     powerTypicalW: null,
-    powerMaxW: 12,
+    powerMaxW: null,
     inrushFactor: 1,
     poePowered: false,
     status: "current",
@@ -215,19 +223,24 @@ export const HAND_DEVICES: SeedDevice[] = [
       { label: "D-Sub INPUTS B", connector: "DB25", direction: "input", signal: "analog audio", channels: 8, count: 1, face: "rear", projectionMm: null },
       { label: "D-Sub OUTPUT", connector: "DB25", direction: "output", signal: "analog audio", channels: 8, count: 1, face: "rear", projectionMm: null },
       { label: "JR2 FOOTSWITCH XLR", connector: "XLR3", direction: "input", signal: "control", channels: null, count: 1, face: "rear", projectionMm: null },
-      { label: "15 VDC SUPPLY", connector: "Other", direction: "input", signal: "power", channels: null, count: 2, face: "rear", projectionMm: null },
+      { label: "15 VDC SUPPLY", connector: "Other", direction: "input", signal: "power", channels: null, count: 1, face: "rear", projectionMm: null },
+      { label: "GATE INPUT", connector: "TRS", direction: "input", signal: "analog audio", channels: 1, count: 1, face: "rear", projectionMm: null },
+      { label: "MONITOR OUTPUT", connector: "TRS", direction: "output", signal: "analog audio", channels: 1, count: 1, face: "rear", projectionMm: null },
+      { label: "JR2-IN / LINK-OUT", connector: "TRS", direction: "bidirectional", signal: "control", channels: null, count: 1, face: "rear", projectionMm: null },
+      { label: "CONTACT ALARM", connector: "TS", direction: "output", signal: "control", channels: null, count: 1, face: "rear", projectionMm: null },
+      { label: "CONTACT INPUT", connector: "TS", direction: "input", signal: "control", channels: null, count: 1, face: "rear", projectionMm: null },
     ],
     unresolved: [
+      "CORRECTED September 2026. powerMaxW was 12 W, being the 6 W rating of an included wall supply counted twice for \"two supplies\". The chassis has ONE 15 VDC inlet, and Radial publish no consumption figure for the SW8 at all, so no figure is recorded. A planning ceiling, if one is wanted, is 6 W: the rear-panel silkscreen reads SUPPLY 15VDC 400mA.",
       "powerTypicalW",
       "depth behind rack rails (only overall chassis depth is printed)",
       "mains input voltage range of the supplied external PSUs",
     ],
     provenance: [
       { field: "panel.front", sourceUrl: RADIAL_MANUAL, quote: "1. GLOBAL PAD | 2. AUTO ON | 3. THRESHOLD: Two level sensing LEDs illuminate when signal is detected. | 4. MUTE | 5. STANDBY | 6. A-B SELECT: Front panel selector | 7. ALARM LED | 8. XLR OUT: Balanced, low-Z mic-level direct box outputs | 9. LIFT | 10. LABEL STRIP", confidence: 0.92, derivation: "Front Panel callouts 1-10. CORRECTION: the eight XLR outputs were previously recorded on the rear face; the manual lists them under Front Panel, which materially reduces this unit's required case depth." },
-      { field: "rackUnits", sourceUrl: RADIAL_SPECS, quote: "Size: 17.5\" x 6\" x 1.75\" (44.5cm x 15.25cm x 4.5cm)", confidence: 0.88, derivation: "Height 1.75 in = exactly 1 rack unit. The manufacturer does not print '1U'." },
+      { field: "rackUnits", sourceUrl: RADIAL_SPECS, quote: "Size (L x W x D): 17.5\" x 6\" x 1.75\" (44.5cm x 15.25cm x 4.5cm)", confidence: 0.88, derivation: "Height 1.75 in = exactly 1 rack unit. The manufacturer does not print '1U'." },
       { field: "depthMm", sourceUrl: RADIAL_SPECS, quote: "Size: 17.5\" x 6\" x 1.75\" (44.5cm x 15.25cm x 4.5cm)", confidence: 0.82, derivation: "6 in x 25.4 = 152.4 mm; the manufacturer's own 15.25 cm agrees. OVERALL chassis depth." },
       { field: "weightLb", sourceUrl: RADIAL_SPECS, quote: "Weight: 9.2 lb (4.2kg)", confidence: 0.96, derivation: "Shipping weight is printed separately as 9.7 lb and was not used." },
-      { field: "powerMaxW", sourceUrl: RADIAL_SPECS, quote: "Two +15VDC/400mA power supplies included", confidence: 0.85, derivation: "PSU RATING, not measured draw. 15 V x 0.4 A = 6 W per supply, two supplies = 12 W of DC capacity." },
       { field: "ports", sourceUrl: RADIAL_MANUAL, quote: "8. XLR OUT: Balanced, low-Z mic-level direct box outputs connect to the PA system | 11. TRS 1/4\" INPUTS-A & B | 12. D-Sub OUTPUT | 13. D-Sub INPUTS: Balanced line-level A and B inputs", confidence: 0.9, derivation: "Rear panel callouts from the MK2 user guide." },
     ],
   },
@@ -283,10 +296,11 @@ export const HAND_DEVICES: SeedDevice[] = [
     ],
     provenance: [
       { field: "panel.front", sourceUrl: RME_MANUAL, quote: "The front of the Digiface Dante features four Gigabit Ethernet ports, 2 BNC sockets for word or MADI I/O, a state LED, and the headphone output. | The State LED beside the BNC input shows Lock and Sync state for the word or MADI input signal.", confidence: 0.86, derivation: "Section 5.1 Connectors - LEDs, which is prose rather than numbered callouts. The State LED position is stated by the manual as beside the BNC input." },
-      { field: "rackUnits", sourceUrl: RME_PRODUCT, quote: "Dimensions (WxHxD): 170 x 26 x 84 mm", confidence: 0.55, derivation: "DERIVED, NOT PUBLISHED. Chassis height 26 mm is under 44.45 mm, so it consumes at most 1U on a shelf. A planning allowance, not a manufacturer figure." },
-      { field: "depthMm", sourceUrl: RME_PRODUCT, quote: "Dimensions (WxHxD): 170 x 26 x 84 mm", confidence: 0.8, derivation: "Overall chassis depth; this unit has no rails." },
-      { field: "weightLb", sourceUrl: RME_PRODUCT, quote: "Weight: 500 g (1.1 lbs)", confidence: 0.85, derivation: "Excludes the external PSU." },
-      { field: "powerTypicalW", sourceUrl: RME_PRODUCT, quote: "Typical power consumption: 3 Watts", confidence: 0.8, derivation: "DRAW, not a PSU rating — the PSU is listed separately as DC 12 V 24 W." },
+      { field: "rackUnits", sourceUrl: RME_MANUAL, quote: "Dimensions (WxHxD): 170 x 26 x 84 mm (6.69\" x 1.02\" x 3.3\")", confidence: 0.55, derivation: "DERIVED, NOT PUBLISHED. Chassis height 26 mm is under 44.45 mm, so it consumes at most 1U on a shelf. A planning allowance, not a manufacturer figure." },
+      { field: "depthMm", sourceUrl: RME_MANUAL, quote: "Dimensions (WxHxD): 170 x 26 x 84 mm (6.69\" x 1.02\" x 3.3\")", confidence: 0.8, derivation: "Overall chassis depth; this unit has no rails. Technical Specifications, p. 67 of the manual. The product page carries no dimensions at all, which is where this used to be cited from." },
+      { field: "weightLb", sourceUrl: RME_MANUAL, quote: "Weight: 500 g (1.1 lbs)", confidence: 0.85, derivation: "Excludes the external PSU." },
+      { field: "powerTypicalW", sourceUrl: RME_MANUAL, quote: "Typical power consumption: 3 Watts", confidence: 0.8, derivation: "DRAW, not a PSU rating — the PSU is listed separately as DC 12 V 24 W." },
+      { field: "powerMaxW", sourceUrl: RME_MANUAL, quote: "Max power consumption: 6 Watts (1.2 A)", confidence: 0.85, derivation: "A draw figure from Technical Specifications, p. 67, not the rating of the external 12 V supply." },
       { field: "ports", sourceUrl: RME_MANUAL, quote: "The front of the Digiface Dante features four Gigabit Ethernet ports, 2 BNC sockets for word or MADI I/O, a state LED, and the headphone output.", confidence: 0.95, derivation: "All audio and network I/O is on the FRONT face; only USB and DC are on the rear." },
     ],
   },
@@ -494,16 +508,16 @@ export const HAND_DEVICES: SeedDevice[] = [
       "whether 212 mm is chassis-only or overall",
     ],
     provenance: [
-      { field: "panel.rear", sourceUrl: "https://www.sennheiser.com/en-us/catalog/products/wireless-systems/sr-iem-g4/sr-iem-g4-a-509618", sourceTitle: EW_IEM_G4_MANUAL, quote: "Back: 1 Strain relief for the cable of the power supply unit | 2 DC IN socket | 3 LAN connection socket (ETHERNET RJ45) | 4 6.3 mm jack socket LOOP OUT BAL L(I), Audio output, left | 5 6.3 mm jack socket LOOP OUT BAL R(II), Audio output, right | 6 XLR-3/6.3 mm jack combo socket BAL AF IN L(I), Audio input, left | 7 XLR-3/6.3 mm jack combo socket BAL AF IN R(II), Audio input, right | 8 RF OUT BNC socket, Antenna output with remote power supply input", confidence: 0.95, derivation: "Product overview, Back list 1-8, page 60. Order is the manufacturer's: the callouts run left to right beneath the figure. Callout 1 is a moulded cable grip rather than a connector." },
-      { field: "powerMaxW", sourceUrl: "https://www.sennheiser.com/en-us/catalog/products/wireless-systems/sr-iem-g4/sr-iem-g4-a-509618", sourceTitle: EW_IEM_G4_MANUAL, quote: "Power supply 12 V DC | Power consumption max. 350 mA | Rear panel silkscreen: DC IN 12V/350mA", confidence: 0.9, derivation: "CONFIRMED against the full instruction manual, page 116. 12 V x 0.35 A = 4.2 W, a nameplate ceiling. The manual prints no typical figure, and the same rating is silkscreened on the rear panel." },
-      { field: "ports", sourceUrl: "https://docs.cloud.sennheiser.com/en-us/ew-iem-g4/ew-iem-g4/ew-iem-g4-sr-connections-back.html", quote: "Front: Headphone socket | Volume control for the headphone socket", confidence: 0.9, derivation: "ADDED: the front headphone socket is callout 1 of the manual's Front list and was missing from this device's port table. It sits on the front face, so it does not consume case depth." },
-      { field: "panel.front", sourceUrl: "https://docs.cloud.sennheiser.com/en-us/ew-iem-g4/ew-iem-g4/ew-iem-g4-sr-connections-back.html", quote: "Headphone socket | Volume control for the headphone socket | Infrared interface with a blue LED | Red LED for warnings | Display | Jog dial for navigating through the menu | SYNC button | ESC button | STANDBY button", confidence: 0.9, derivation: "Product overview, Front list 1-9. The AF audio level meter is drawn on the display, not as a discrete bargraph, so it is a readout. Left-to-right order taken from list order." },
+      { field: "panel.rear", sourceUrl: EW_IEM_G4_MANUAL_URL, sourceTitle: EW_IEM_G4_MANUAL, quote: "Back: 1 Strain relief for the cable of the power supply unit | 2 DC IN socket | 3 LAN connection socket (ETHERNET RJ45) | 4 6.3 mm jack socket LOOP OUT BAL L(I), Audio output, left | 5 6.3 mm jack socket LOOP OUT BAL R(II), Audio output, right | 6 XLR-3/6.3 mm jack combo socket BAL AF IN L(I), Audio input, left | 7 XLR-3/6.3 mm jack combo socket BAL AF IN R(II), Audio input, right | 8 RF OUT BNC socket, Antenna output with remote power supply input", confidence: 0.95, derivation: "Product overview, Back list 1-8, page 60. Order is the manufacturer's: the callouts run left to right beneath the figure. Callout 1 is a moulded cable grip rather than a connector." },
+      { field: "powerMaxW", sourceUrl: EW_IEM_G4_MANUAL_URL, sourceTitle: EW_IEM_G4_MANUAL, quote: "Power supply 12 V DC | Power consumption max. 350 mA | Rear panel silkscreen: DC IN 12V/350mA", confidence: 0.9, derivation: "CONFIRMED against the full instruction manual, page 116. 12 V x 0.35 A = 4.2 W, a nameplate ceiling. The manual prints no typical figure, and the same rating is silkscreened on the rear panel." },
+      { field: "ports", sourceUrl: "https://docs.cloud.sennheiser.com/en-us/ew-iem-g4/ew-iem-g4-sr-connections-back.html", quote: "Front: Headphone socket | Volume control for the headphone socket", confidence: 0.9, derivation: "ADDED: the front headphone socket is callout 1 of the manual's Front list and was missing from this device's port table. It sits on the front face, so it does not consume case depth." },
+      { field: "panel.front", sourceUrl: "https://docs.cloud.sennheiser.com/en-us/ew-iem-g4/ew-iem-g4-sr-connections-back.html", quote: "Headphone socket | Volume control for the headphone socket | Infrared interface with a blue LED | Red LED for warnings | Display | Jog dial for navigating through the menu | SYNC button | ESC button | STANDBY button", confidence: 0.9, derivation: "Product overview, Front list 1-9. The AF audio level meter is drawn on the display, not as a discrete bargraph, so it is a readout. Left-to-right order taken from list order." },
       {"field": "formFactor", "sourceUrl": "https://www.sennheiser.com/en-us/catalog/products/wireless-systems/sr-iem-g4/sr-iem-g4-a-509618", "quote": "Half-rack stereo transmitter in a full-metal housing with OLED display for full control", "confidence": 0.95, "derivation": "Manufacturer product page states half-rack directly."},
-      {"field": "rackUnits", "sourceUrl": "https://docs.cloud.sennheiser.com/en-us/ew-iem-g4/ew-iem-g4/ew-iem-g4-sr-mounting-rack.html", "quote": "To mount the transmitter in a rack, you will need the GA 3 rack mounting kit (optional accessory).", "confidence": 0.9, "derivation": "The same section covers mounting one unit with a blanking plate or two joined side by side, confirming one or two per 1U opening."},
-      {"field": "depthMm", "sourceUrl": "https://docs.cloud.sennheiser.com/en-us/ew-iem-g4/ew-iem-g4/ew-iem-g4-sr-technical-data.html", "quote": "approx. 202 x 212 x 43 mm", "confidence": 0.9, "derivation": "Sennheiser prints width x depth x height; 202 mm width (half-rack) and 43 mm height (1U) bracket the middle figure as depth = 212 mm."},
-      {"field": "weightLb", "sourceUrl": "https://www.sennheiser.com/en-us/catalog/products/wireless-systems/sr-iem-g4/sr-iem-g4-a-509618", "quote": "approximately 980 grams (2.16 lbs)", "confidence": 0.95, "derivation": "0.980 kg x 2.20462 = 2.1605 lb, matching the printed figure. Excludes the PSU and rack kit."},
-      {"field": "powerMaxW", "sourceUrl": "https://docs.cloud.sennheiser.com/en-us/ew-iem-g4/ew-iem-g4/ew-iem-g4-sr-technical-data.html", "quote": "Power consumption: max. 350 mA", "confidence": 0.85, "derivation": "A DRAW figure, not a PSU nameplate: 12 V x 0.350 A = 4.2 W maximum. No typical figure is printed."},
-      {"field": "ports", "sourceUrl": "https://docs.cloud.sennheiser.com/en-us/ew-iem-g4/ew-iem-g4/ew-iem-g4-sr-connections-back.html", "quote": "XLR-3/6.3 mm jack combo socket BAL AF IN L(I)", "confidence": 0.95, "derivation": "Rear panel enumerated callout by callout, items 1-8."},
+      {"field": "rackUnits", "sourceUrl": "https://docs.cloud.sennheiser.com/en-us/ew-iem-g4/ew-iem-g4-sr-mounting-rack.html", "quote": "To mount the transmitter in a rack, you will need the GA 3 rack mounting kit (optional accessory).", "confidence": 0.9, "derivation": "The same section covers mounting one unit with a blanking plate or two joined side by side, confirming one or two per 1U opening."},
+      {"field": "depthMm", "sourceUrl": "https://docs.cloud.sennheiser.com/en-us/ew-iem-g4/ew-iem-g4-sr-technical-data.html", "quote": "approx. 202 x 212 x 43 mm", "confidence": 0.9, "derivation": "Sennheiser prints width x depth x height; 202 mm width (half-rack) and 43 mm height (1U) bracket the middle figure as depth = 212 mm."},
+      {"field": "weightLb", "sourceUrl": "https://www.sennheiser.com/en-us/catalog/products/wireless-systems/sr-iem-g4/sr-iem-g4-a-509618", "quote": "Weight Approx. 980 g", "confidence": 0.95, "derivation": "0.980 kg x 2.20462 = 2.1605 lb, matching the printed figure. Excludes the PSU and rack kit."},
+      {"field": "powerMaxW", "sourceUrl": "https://docs.cloud.sennheiser.com/en-us/ew-iem-g4/ew-iem-g4-sr-technical-data.html", "quote": "Power consumption: max. 350 mA", "confidence": 0.85, "derivation": "A DRAW figure, not a PSU nameplate: 12 V x 0.350 A = 4.2 W maximum. No typical figure is printed."},
+      {"field": "ports", "sourceUrl": "https://docs.cloud.sennheiser.com/en-us/ew-iem-g4/ew-iem-g4-sr-connections-back.html", "quote": "XLR-3/6.3 mm jack combo socket BAL AF IN L(I)", "confidence": 0.95, "derivation": "Rear panel enumerated callout by callout, items 1-8."},
     ],
   },
   {
@@ -571,7 +585,7 @@ export const HAND_DEVICES: SeedDevice[] = [
     category: "Wireless Mic Receiver",
     passive: false,
     description:
-      "Half-rack GLX-D+ dual-band receiver with balanced XLR and unbalanced 1/4 in outputs, USB-C, removable dipoles, and a front bay that charges the transmitter battery — which is what pushes its draw to the ceiling.",
+      "Half-rack GLX-D+ dual-band receiver with balanced XLR and impedance-balanced 1/4 in outputs, USB-C, removable dipoles, and a front bay that charges the transmitter battery — which is what pushes its draw to the ceiling.",
     formFactor: "half-rack",
     rackUnits: 1,
     depthMm: 163,
@@ -607,7 +621,7 @@ export const HAND_DEVICES: SeedDevice[] = [
     ports: [
       {"label": "Antenna", "connector": "Other", "direction": "input", "signal": "antenna", "channels": null, "count": 2, "face": "rear", "projectionMm": null},
       {"label": "XLR audio output", "connector": "XLR3", "direction": "output", "signal": "analog audio", "channels": 1, "count": 1, "face": "rear", "projectionMm": null},
-      {"label": "Inst/Aux output", "connector": "TS", "direction": "output", "signal": "analog audio", "channels": 1, "count": 1, "face": "rear", "projectionMm": null},
+      {"label": "Inst/Aux output", "connector": "TRS", "direction": "output", "signal": "analog audio", "channels": 1, "count": 1, "face": "rear", "projectionMm": null},
       {"label": "USB-C port", "connector": "USB-C", "direction": "bidirectional", "signal": "data", "channels": null, "count": 1, "face": "rear", "projectionMm": null},
       {"label": "Power supply port", "connector": "Other", "direction": "input", "signal": "power", "channels": null, "count": 1, "face": "rear", "projectionMm": null},
       {"label": "Battery charging bay", "connector": "Other", "direction": "output", "signal": "power", "channels": null, "count": 1, "face": "front", "projectionMm": null},
@@ -681,11 +695,9 @@ export const HAND_DEVICES: SeedDevice[] = [
     ],
     unresolved: [
       "powerTypicalW — no wattage is printed; 9.9 W is 18 V x 0.55 A",
-      "rear-panel silkscreen labels — no panel drawing was obtainable, so port names come from the spec table",
-      "antenna count of 2 is inferred from the diversity architecture, not read",
     ],
     provenance: [
-      { field: "depthMm", sourceUrl: ULX_2024, sourceTitle: SHURE_ULX_2024, quote: "43 x 214 x 172 mm (1.72 x 8.56 x 6.88 in.), H x W x D", confidence: 0.95, derivation: "CONFIRMED, and now axis-labelled. The earlier record came from the archived printed guide, which prints the same three numbers without saying which is which; this guide labels them H x W x D, so the depth figure is the manufacturer's own rather than an inference." },
+      { field: "depthMm", sourceUrl: ULX_2024, sourceTitle: SHURE_ULX_2024, quote: "43 x 214 x 172 mm (1.72 x 8.56 x 6.88 in.), H x W x D", confidence: 0.95, derivation: "CONFIRMED, and now axis-labelled. The archived printed guide is an earlier revision that disagrees: it prints 183 mm D for ULX4S and ULX4P together. The current Shure-hosted guide is axis-labelled and splits the two models, so it supersedes it." },
       { field: "weightLb", sourceUrl: ULX_2024, sourceTitle: SHURE_ULX_2024, quote: "1105 g (2 lbs, 7 oz.)", confidence: 0.95, derivation: "CONFIRMED against the current Shure-hosted guide. 1105 g x 2.20462 / 1000 = 2.436 lb." },
       { field: "powerMaxW", sourceUrl: ULX_2024, sourceTitle: SHURE_ULX_2024, quote: "Power Requirements 14-18 V DC (negative ground), 550 mA", confidence: 0.8, derivation: "CONFIRMED. 18 V x 0.55 A = 9.9 W at the top of the accepted range - a supply ceiling, not a measured draw." },
       { field: "panel.front", sourceUrl: ULX_GUIDE, quote: "Receiving Antenna Indicators. One of these amber LEDs will glow | RF Level Indicators. Indicate received RF signal strength. | TX Audio Level Indicators. Green indicates normal operation. Amber indicates approaching overload condition. Red indicates excessive audio levels. | MODE Button | SET Button | Display Control Knob | Level Control | Power On/Off Switch", confidence: 0.75, derivation: "ULXP4 PROFESSIONAL RECEIVER FEATURES AND CONTROLS, callouts 1-18. Callouts 2-7 and 10-13 are fields of the LCD, not parts, and collapse into one display element; the LCD window itself carries no callout in the guide. Left-to-right order taken from callout order." },
@@ -752,7 +764,7 @@ export const HAND_DEVICES: SeedDevice[] = [
       "which PS41 regional variant ships with this model",
     ],
     provenance: [
-      { field: "depthMm", sourceUrl: ULX_2024, sourceTitle: SHURE_ULX_2024, quote: "43 x 214 x 163 mm (1.72 x 8.56 x 6.52 in.), H x W x D", confidence: 0.95, derivation: "CONFIRMED, and now axis-labelled. The earlier record came from the archived printed guide, which prints the same three numbers without saying which is which; this guide labels them H x W x D, so the depth figure is the manufacturer's own rather than an inference." },
+      { field: "depthMm", sourceUrl: ULX_2024, sourceTitle: SHURE_ULX_2024, quote: "43 x 214 x 163 mm (1.72 x 8.56 x 6.52 in.), H x W x D", confidence: 0.95, derivation: "CONFIRMED, and now axis-labelled. The archived printed guide is an earlier revision that disagrees: it prints 183 mm D for ULX4S and ULX4P together. The current Shure-hosted guide is axis-labelled and splits the two models, so it supersedes it." },
       { field: "weightLb", sourceUrl: ULX_2024, sourceTitle: SHURE_ULX_2024, quote: "1049 g (2 lbs, 5 oz.)", confidence: 0.95, derivation: "CONFIRMED against the current Shure-hosted guide. 1049 g x 2.20462 / 1000 = 2.313 lb." },
       { field: "powerMaxW", sourceUrl: ULX_2024, sourceTitle: SHURE_ULX_2024, quote: "Power Requirements 14-18 V DC (negative ground), 550 mA", confidence: 0.8, derivation: "CONFIRMED. 18 V x 0.55 A = 9.9 W at the top of the accepted range - a supply ceiling, not a measured draw." },
       { field: "panel.front", sourceUrl: ULX_GUIDE, quote: "RF Indicator. Glows green to indicate presence of received Radio Frequency (RF) signal. | TX Audio Level Indicators. | MODE Button. Press this button to step through the display menu. | SET Button. Saves the altered setting. | Button. Press this button to increase or decrease the Volume level | Power On/Off Switch. Turns the receiver on and off.", confidence: 0.78, derivation: "ULXS4 Standard Receiver Front Panel, callouts 1-12. Callouts 3-8 are fields of the one LCD (antenna indicator, GROUP, CHANNEL, battery, SCAN, TV/volume) and collapse into the display element. Left-to-right order taken from callout order." },
@@ -786,7 +798,7 @@ export const HAND_DEVICES: SeedDevice[] = [
     statusNote: "Sennheiser's page states the product is no longer available to purchase. The G4 generation is the current equivalent, but no manufacturer source states G4 supersedes G3.",
     productUrl: "https://www.sennheiser.com/en-us/catalog/uncategorized/sr-300-iem-g3/sr-300-iem-g3-503650",
     datasheetUrl: null,
-    // Product overviews, manual page 5. The figure carries numbered leader
+    // Product overviews, manual printed page 6. The figure carries numbered leader
     // lines in true left-to-right order across both faces - 1-7 on the front,
     // 8-17 on the rear - so this layout's ORDER is the manufacturer's, not an
     // inference from a list. The audio level meter is drawn on the display
@@ -844,14 +856,12 @@ export const HAND_DEVICES: SeedDevice[] = [
       { field: "depthMm", sourceUrl: G3_PRODUCT, sourceTitle: G3_MANUAL, quote: "Dimensions approx. 202 mm x 212 mm x 43 mm", confidence: 0.6, derivation: "CORRECTED from 202 to 212. The manual prints the three figures with no W/D/H labels, and this catalog had recorded 202 here while recording 212 for the SR IEM G4 - the same ew half-rack chassis, printed with the same three numbers. The larger figure is now used for both: consistent, and wrong in the direction that costs a bigger case rather than a build that will not close." },
       { field: "panel.front", sourceUrl: G3_PRODUCT, sourceTitle: G3_MANUAL, quote: "Operating elements - front panel: 1 Headphone output, 1/4 in (6.3 mm) jack socket | 2 Headphone volume control | 3 sync button, backlit | 4 Infra-red interface | 5 Display panel, backlit in orange | 6 Jog dial | 7 STANDBY button with operation indication (red backlighting), serves as the ESC (cancel) key in the operating menu", confidence: 0.95, derivation: "Product overviews, page 5. The figure numbers the parts with leader lines in left-to-right order, so unlike the rest of this catalog the layout order here is printed by the manufacturer rather than inferred from list order." },
       { field: "panel.rear", sourceUrl: G3_PRODUCT, sourceTitle: G3_MANUAL, quote: "Operating elements - rear panel: 8 Cable grip for power supply DC cable | 9 DC socket (DC IN) for connection of NT 2-3 mains unit | 10 LED (yellow) for network activity indication | 11 LAN socket (ETHERNET RJ 45) | 12 Audio output left (LOOP OUT BAL L(I)), 1/4 in (6.3 mm) jack socket | 13 Audio output right (LOOP OUT BAL R(II)), 1/4 in (6.3 mm) jack socket | 14 Type plate | 15 Audio input left (BAL AF IN L(I)), 1/4 in (6.3 mm) jack/XLR-3 combo socket | 16 Audio input right (BAL AF IN R(II)), 1/4 in (6.3 mm) jack/XLR-3 combo socket | 17 Antenna output (RF OUT) with remote power supply input, BNC socket", confidence: 0.95, derivation: "Product overviews, page 5. Left-to-right order printed by the manufacturer. Callouts 8, 10 and 14 are not connectors - a cable grip, a network LED and the type plate - and appear on no other rear elevation in this catalog." },
-      { field: "weightLb", sourceUrl: G3_PRODUCT, sourceTitle: G3_MANUAL, quote: "Weight approx. 980 g", confidence: 0.95, derivation: "CONFIRMED against the printed manual, page 31. 980 g x 2.20462 / 1000 = 2.161 lb, matching the figure already recorded." },
-      { field: "powerMaxW", sourceUrl: G3_PRODUCT, sourceTitle: G3_MANUAL, quote: "Power supply 12 V DC | Current consumption max. 350 mA", confidence: 0.9, derivation: "CONFIRMED against the printed manual, page 31. 12 V x 0.35 A = 4.2 W, a nameplate ceiling rather than a measured draw. No typical figure is printed anywhere in the manual." },
-      { field: "ports", sourceUrl: G3_PRODUCT, sourceTitle: G3_MANUAL, quote: "Antenna output BNC socket, 50 ohm with remote power supply input 12 V DC | AF input BAL AF IN L(I)/BAL AF IN R(II) 2 x XLR-3/1/4 in (6.3 mm) jack combo socket, electronically balanced | AF output LOOP OUT BAL L(I)/LOOP OUT BAL R(II) 1/4 in (6.3 mm) stereo jack socket, balanced | Headphone output 1/4 in (6.3 mm) stereo jack socket", confidence: 0.95, derivation: "CONFIRMED against the printed manual, page 31. Every connector already recorded for this device matches the specification table, including the front headphone jack." },
+      { field: "weightLb", sourceUrl: G3_PRODUCT, sourceTitle: G3_MANUAL, quote: "Weight approx. 980 g", confidence: 0.95, derivation: "CONFIRMED against the printed manual, printed page 38. 980 g x 2.20462 / 1000 = 2.161 lb, matching the figure already recorded." },
+      { field: "powerMaxW", sourceUrl: G3_PRODUCT, sourceTitle: G3_MANUAL, quote: "Power supply 12 V DC | Current consumption max. 350 mA", confidence: 0.9, derivation: "CONFIRMED against the printed manual, printed page 38. 12 V x 0.35 A = 4.2 W, a nameplate ceiling rather than a measured draw. No typical figure is printed anywhere in the manual." },
+      { field: "ports", sourceUrl: G3_PRODUCT, sourceTitle: G3_MANUAL, quote: "Antenna output BNC socket, 50 ohm with remote power supply input 12 V DC | AF input BAL AF IN L(I)/BAL AF IN R(II) 2 x XLR-3/1/4 in (6.3 mm) jack combo socket, electronically balanced | AF output LOOP OUT BAL L(I)/LOOP OUT BAL R(II) 1/4 in (6.3 mm) stereo jack socket, balanced | Headphone output 1/4 in (6.3 mm) stereo jack socket", confidence: 0.95, derivation: "CONFIRMED against the printed manual, printed page 38. Every connector already recorded for this device matches the specification table, including the front headphone jack." },
       {"field": "status", "sourceUrl": "https://www.sennheiser.com/en-us/catalog/uncategorized/sr-300-iem-g3/sr-300-iem-g3-503650", "quote": "This product is no longer available to be purchased", "confidence": 0.95, "derivation": "Manufacturer legacy page for this exact SKU (503650)."},
       {"field": "depthMm", "sourceUrl": "https://www.sennheiser.com/en-us/catalog/uncategorized/sr-300-iem-g3/sr-300-iem-g3-503650", "quote": "212 x 202 x 43 mm", "confidence": 0.85, "derivation": "Taking Sennheiser's width x depth x height order gives depth 202 mm. Held at 0.85 because the instruction manual prints the same three numbers in the opposite horizontal order."},
-      {"field": "weightLb", "sourceUrl": "https://www.sennheiser.com/en-us/catalog/uncategorized/sr-300-iem-g3/sr-300-iem-g3-503650", "quote": "980", "confidence": 0.9, "derivation": "Product page weight field in grams: 0.980 kg / 0.45359237 = 2.1605 lb. Matches the manual's 980 g."},
-      {"field": "powerMaxW", "sourceUrl": "https://www.sennheiser.com/en-us/catalog/uncategorized/sr-300-iem-g3/sr-300-iem-g3-503650", "quote": "Current consumption: max. 350 mA", "confidence": 0.9, "derivation": "A DRAW figure, not a supply rating: 0.350 A x 12 V = 4.2 W. No typical consumption is printed."},
-      {"field": "ports", "sourceUrl": "https://www.sennheiser.com/en-us/catalog/uncategorized/sr-300-iem-g3/sr-300-iem-g3-503650", "quote": "Antenna output (RF OUT) with remote power supply input, BNC socket", "confidence": 0.95, "derivation": "Rear panel enumerated from the printed manual; the BNC also carries remote power to an antenna booster."},
+      {"field": "weightLb", "sourceUrl": "https://www.sennheiser.com/en-us/catalog/uncategorized/sr-300-iem-g3/sr-300-iem-g3-503650", "quote": "Product weight (g) 980", "confidence": 0.9, "derivation": "Product page weight field in grams: 0.980 kg / 0.45359237 = 2.1605 lb. Matches the manual's 980 g."},
     ],
   },
 
@@ -876,7 +886,7 @@ export const HAND_DEVICES: SeedDevice[] = [
     poePowered: false,
     status: "current",
     statusNote: "JB band models have a permanently fixed antenna.",
-    productUrl: "https://www.shure.com/en-US/products/wireless-systems/psm300",
+    productUrl: "https://www.shure.com/en-US/products/in-ear-monitoring/psm300/p3t",
     datasheetUrl: PSM300_GUIDE,
     // One continuous list 1-13 under "P3T Transmitter Front and Rear Panels",
     // split front 1-7 / rear 8-13 by the two figures. The LCD is callout 4 and
@@ -952,7 +962,7 @@ export const HAND_DEVICES: SeedDevice[] = [
     poePowered: false,
     status: "discontinued",
     statusNote: "Analog SLX line, guide 27A15631 Rev. 2 dated 2012. Superseded by SLX-D.",
-    productUrl: "https://www.shure.com/en-US/products/wireless-systems/slx",
+    productUrl: "https://www.shure.com/en-US/products/wireless-systems/slx_wireless/slx4",
     datasheetUrl: SLX_GUIDE,
     // This guide prints NO numbered callout list for either face, so unlike
     // the rest of the catalog the order here is read off the rear-panel
@@ -1184,6 +1194,7 @@ export const HAND_DEVICES: SeedDevice[] = [
       { label: "DC output (to receivers)", connector: "Barrel 5.5/2.1", direction: "output", signal: "power", channels: null, count: 4, face: "rear", projectionMm: null },
     ],
     unresolved: [
+      "DOUBLE COUNTING. The 60 W covers the DC this unit sends to its four receivers (1 A x 4 on the rear panel). If those receivers are powered from it, do not also budget their own supplies.",
       "powerTypicalW. The sheet prints one consumption figure, 60 W, and does not say whether it is typical or worst case; it is recorded as the maximum, which is the safe way round for a circuit budget.",
       "panel.front. The spec sheet numbers the rear panel only. The front carries a power switch and is drawn from the category template.",
       "depth behind rails (manufacturer prints overall depth only)",
@@ -1192,9 +1203,9 @@ export const HAND_DEVICES: SeedDevice[] = [
       { field: "rackUnits", sourceUrl: RFVENUE_SPEC, quote: "Dimensions 480(W) X 45(H) X 250(D) mm / 19(W) X 2(H) X 10(D) in", confidence: 0.85, derivation: "TAKEN FROM THE MILLIMETRE FIGURE, NOT THE INCH ONE. 45 mm / 44.45 mm = 1.01, so the chassis is 1RU. The inch column rounds 45 mm to 2 in, and reading that as two rack units would waste a U on every DISTRO4 in a rack." },
       { field: "depthMm", sourceUrl: RFVENUE_SPEC, quote: "Dimensions 480(W) X 45(H) X 250(D) mm / 19(W) X 2(H) X 10(D) in", confidence: 0.85, derivation: "250 mm read directly. Printed OVERALL depth; depth behind the rails is not stated." },
       { field: "weightLb", sourceUrl: RFVENUE_SPEC, quote: "Weight 2.15 Kgs / 4.75lbs", confidence: 0.95, derivation: "Read directly. 2.15 kg x 2.20462 = 4.74 lb, matching the printed 4.75." },
-      { field: "powerMaxW", sourceUrl: RFVENUE_SPEC, quote: "Power consumption 60 W | Input AC voltage 100~240 V switching", confidence: 0.8, derivation: "60 W read directly, recorded as the maximum because the sheet does not qualify it." },
+      { field: "powerMaxW", sourceUrl: RFVENUE_SPEC, quote: "Power consumption 60 W | Input AC voltage 100~240 V switching", confidence: 0.8, derivation: "60 W read directly, recorded as the maximum because the sheet does not qualify it. This is the whole internal supply, which also feeds the four 12 V DC receiver outputs the rear panel marks 1 A x 4 — so it is what the rack must supply for the distro AND the receivers on it, not the distro alone." },
       { field: "panel.rear", sourceUrl: RFVENUE_SPEC, quote: "1. Power Switch | 2. AC input | 3. DC output (to receivers) | 4. DC output (to receivers) | 5. Antenna A input | 6. Cascade output A | 7. Antenna A output | 8. Antenna B output | 9. Cascade output B | 10. Antenna B input | 11. Power switch - Antenna A&B (Internal)", confidence: 0.85, derivation: "Rear panel callouts 1-11. Order left to right is the callout order; the sheet prints no positions. Callouts 3 and 4 are drawn as one group of four DC jacks." },
-      { field: "ports", sourceUrl: RFVENUE_SPEC, quote: "Includes: (1) DISTRO4 Antenna Distribution System (10) 61cm / 22 in BNC jumpers (4) 36cm / 14 in DC jumpers (1) AC power cord | Output DC voltage (to receiver jacks) +12 V | Output DC connectors 5.5mm OD, 2.1mm ID | Frequency range 470-952 MHz", confidence: 0.8, derivation: "Four outputs per antenna group plus one cascade each accounts for the ten supplied BNC jumpers (4 + 4 + 2); the four DC jumpers match the four receiver power jacks." },
+      { field: "ports", sourceUrl: RFVENUE_SPEC, quote: "Includes: (1) DISTRO4 Antenna Distribution System (10) 61cm / 2 ft BNC jumpers (4) 36cm / 14 in DC jumpers (1) AC power cord | Output DC voltage (to receiver jacks) +12 V | Output DC connectors 5.5mm OD, 2.1mm ID | Frequency range 470-952 MHz", confidence: 0.8, derivation: "Four outputs per antenna group plus one cascade each accounts for the ten supplied BNC jumpers (4 + 4 + 2); the four DC jumpers match the four receiver power jacks." },
     ],
   },
 
@@ -1422,6 +1433,8 @@ export const HAND_DEVICES: SeedDevice[] = [
       { label: "Output receptacles", connector: "NEMA 5-15R", direction: "output", signal: "power", channels: null, count: 8, face: "rear", projectionMm: null },
       { label: "USB", connector: "USB-B", direction: "bidirectional", signal: "control", channels: null, count: 1, face: "rear", projectionMm: null },
       { label: "RS-232", connector: "DB9", direction: "bidirectional", signal: "control", channels: null, count: 1, face: "rear", projectionMm: null },
+      { label: "EPO (emergency power off)", connector: "Other", direction: "input", signal: "control", channels: null, count: 1, face: "rear", projectionMm: null },
+      { label: "Network card slot (WEBCARDLX, sold separately)", connector: "Other", direction: "bidirectional", signal: "network", channels: null, count: 1, face: "rear", projectionMm: null },
     ],
     unresolved: [
       "MANUFACTURER'S MINIMUM RACK DEPTH IS 432 mm, well beyond the 342 mm chassis. Tripp Lite print both: the box is 342 mm deep and the rack has to be 17 in (43.18 cm) deep to take it. The engine derives its own required depth from chassis plus connector plus bend and does not read this figure, so on a shallow case check the published 432 mm as well as what the planner computes.",
