@@ -221,6 +221,15 @@ export const MANUFACTURER_DOMAINS = [
   // host, and Behringer's site serves its manuals from Music Tribe's.
   "presonus.com", "fmicassets.com", "empowertribe.com",
 
+  // Second-hand names for makers already here, and makers the backfill
+  // reached: uaudio.com is Universal Audio's own site, harmanpro.com is
+  // Crown's parent, qscaudio.com is QSC's older domain, and
+  // niceforyou.support is where Panamax's parent keeps its manuals.
+  "uaudio.com", "harmanpro.com", "qscaudio.com", "panamax.com", "niceforyou.support",
+  "iconnectivity.com", "galaxyaudio.com", "apiaudio.com", "avalondesign.com",
+  "baeaudio.com", "redco.com", "whirlwindusa.com", "blacklionaudio.com",
+  "line6.com",
+
   // general
   "apple.com", "ableton.com",
 ];
