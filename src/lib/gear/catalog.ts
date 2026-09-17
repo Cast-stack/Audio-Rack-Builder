@@ -179,7 +179,7 @@ export const MANUFACTURER_DOMAINS = [
   "behringer.com", "midasconsoles.com", "klarkteknik.com",
   "allen-heath.com", "yamaha.com", "yamahaproaudio.com", "digico.biz",
   "avid.com", "solidstatelogic.com", "calrec.com",
-  "motu.com", "rme-audio.de", "rme-usa.com", "focusrite.com", "focusritepro.com",
+  "motu.com", "rme-audio.de", "rme-audio.com", "rme-usa.com", "focusrite.com", "focusritepro.com",
   "universalaudio.com", "apogeedigital.com", "antelopeaudio.com", "merging.com",
   "ferrofish.de", "directout.eu", "audinate.com", "atterotech.com",
   "qsc.com", "biamp.com", "bssaudio.com", "lab.gruppen.com", "powersoft.com",
@@ -209,7 +209,17 @@ export const MANUFACTURER_DOMAINS = [
   "raxxess.com", "acinfinity.com", "santosom.com",
 
   // comms
-  "clearcom.com", "riedel.net", "greenGo-digital.com",
+  "clearcom.com", "riedel.net", "greengo-digital.com",
+
+  // added for the catalog backfill: manufacturers whose own documentation
+  // lives on a domain the list above did not cover. Music Tribe hosts the
+  // Behringer and Midas manuals; Sonnet makes the rack enclosures for Macs.
+  "akg.com", "waves.com", "digigrid.net", "sonnettech.com", "musictribe.com",
+  // Waves serves its own datasheets from its asset CDN; waves.com links there.
+  "wavescdn.com",
+  // PreSonus (a Fender company) serves its tech sheets from Fender's asset
+  // host, and Behringer's site serves its manuals from Music Tribe's.
+  "presonus.com", "fmicassets.com", "empowertribe.com",
 
   // general
   "apple.com", "ableton.com",

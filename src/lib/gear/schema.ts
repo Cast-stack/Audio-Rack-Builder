@@ -68,7 +68,12 @@ export const DeviceSchema = z.object({
   /** True when the unit is powered from the network, not a cord. */
   poePowered: z.boolean().default(false),
 
-  ports: z.array(PortSchema).min(1),
+  /**
+   * Empty is allowed, and only means something for passive gear: a drawer, a
+   * blank panel or a shelf has no connectors at all. validateDevice() still
+   * rejects an empty list on anything that is not passive.
+   */
+  ports: z.array(PortSchema),
 
   status: z.enum(["current", "discontinued", "announced"]).default("current"),
   statusNote: z.string().nullable(),

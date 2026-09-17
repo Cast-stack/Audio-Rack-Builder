@@ -45,6 +45,29 @@ const LB_PER_RU = { min: 0.4, max: 30 };
  */
 const PASSIVE_CATEGORIES = PASSIVE_CATEGORY_NAMES;
 
+/**
+ * Gear whose job is to hand power to other gear. Makers of these print what
+ * the unit PASSES — 15 A, 1800 W, eight outlets — and very often nothing for
+ * what it uses itself. A missing own-draw figure here is the honest record,
+ * not a research failure, so it is a warning rather than a reject.
+ *
+ * The trap this guards against runs the other way: the only number on the
+ * sheet is the output rating, and entering it as a draw puts a phantom
+ * 1800 W on every circuit the unit sits on. See the Furman M-8x2 in
+ * seed-data.ts. UPS is deliberately not in this list — those print their own
+ * losses, and a UPS with no figure should be looked at.
+ */
+const PASS_THROUGH_CATEGORIES = new Set([
+  "Power Conditioner",
+  "Power Distro",
+  "Sequencer",
+  // Antenna distros that power their receivers print one input rating for the
+  // whole chain — the splitter and every receiver on its DC outputs — and
+  // nothing for the splitter alone. Shure's UA844+SWB is the case in point.
+  // Using the input rating would count each receiver twice.
+  "Antenna Distro",
+]);
+
 export function validateDevice(d: Device, category = d.category): Issue[] {
   const issues: Issue[] = [];
   const err = (field: string, message: string) =>
@@ -90,7 +113,7 @@ export function validateDevice(d: Device, category = d.category): Issue[] {
   }
 
   // --- ports --------------------------------------------------------------
-  if (d.ports.length === 0) err("ports", "no ports extracted");
+  if (d.ports.length === 0 && !passive) err("ports", "no ports extracted");
   const seen = new Set<string>();
   for (const [i, p] of d.ports.entries()) {
     const key = `${p.face}|${p.label.toLowerCase()}`;
@@ -136,6 +159,9 @@ export function validateProvenance(
 
   for (const field of REQUIRED_FOR_PUBLISH) {
     const value = (d as Record<string, unknown>)[field];
+    // A passive box with no connectors has nothing to cite for its port list.
+    // An empty list on active gear is already an error in validateDevice().
+    if (field === "ports" && d.ports.length === 0 && PASSIVE_CATEGORIES.has(d.category)) continue;
     if (value == null) {
       issues.push({ field, severity: "error", message: "required for publish but unresolved" });
       continue;
@@ -156,7 +182,13 @@ export function validateProvenance(
   const needsPower = !PASSIVE_CATEGORIES.has(d.category) && !d.poePowered;
   if (needsPower) {
     const present = POWER_FIELDS.filter((f) => d[f] != null);
-    if (present.length === 0) {
+    if (present.length === 0 && PASS_THROUGH_CATEGORIES.has(d.category)) {
+      issues.push({
+        field: "powerTypicalW",
+        severity: "warn",
+        message: "no consumption figure on a unit that passes power through — confirm the maker prints none, and do not substitute its output rating",
+      });
+    } else if (present.length === 0) {
       issues.push({
         field: "powerTypicalW",
         severity: "error",

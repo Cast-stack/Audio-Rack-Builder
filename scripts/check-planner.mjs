@@ -269,8 +269,11 @@ const STUB_RESPONSE = {
   revisionId: null,
   filedForReview: false,
   device: {
-    brand: "Furman",
-    model: "PL-PLUS C",
+    // A made-up unit. The stub has to be something the real catalog will never
+    // contain, or the filter below finds the catalog's copy as well and every
+    // assertion about "the requested one" is looking at two devices.
+    brand: "Zzstub",
+    model: "RQ-9 Test Unit",
     category: "Power Conditioner",
     description: "15 A rack conditioner with voltmeter, pull-out lights and nine outlets.",
     formFactor: "full-rack",
@@ -336,8 +339,15 @@ async function servedPass() {
 
   let calls = 0;
   let sentBody = null;
+  let sentAuth = null;
+  let enabled = false;
   await page2.route("**/api/gear/request", async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ enabled }) });
+      return;
+    }
     calls++;
+    sentAuth = route.request().headers()["authorization"] ?? null;
     sentBody = JSON.parse(route.request().postData() ?? "{}");
     await route.fulfill({
       status: 200,
@@ -347,32 +357,46 @@ async function servedPass() {
   });
 
   try {
+    // Served, but the server says no: nobody is offered the action. This is
+    // the state of every deployment that has not switched it on.
     await page2.goto(`${origin}/planner`, { waitUntil: "networkidle" });
+    check(
+      !(await page2.isVisible("#addGearBtn")),
+      "the add-a-device action must stay hidden when the server has not enabled it",
+    );
 
-    // Served, so the action is there. On file:// it must not be.
+    // An operator signs this browser in; the token must leave the address bar
+    // and ride along on the probe and the request.
+    enabled = true;
+    await page2.goto(`${origin}/planner?admin=s3cret`, { waitUntil: "networkidle" });
+    check(
+      !page2.url().includes("s3cret"),
+      `the admin token must be removed from the address bar, got ${page2.url()}`,
+    );
     check(
       await page2.isVisible("#addGearBtn"),
-      "served over http, the add-a-device action should be offered",
+      "with the server saying yes, the add-a-device action should be offered",
     );
 
     await page2.click("#addGearBtn");
-    await page2.fill("#agName", "Furman PL-Plus C");
+    await page2.fill("#agName", "Zzstub RQ-9 Test Unit");
     await page2.fill("#agSources", "https://furmanpower.com/products/pl-plus-c");
     await page2.click("#agGo");
     await page2.waitForSelector(".ag-status.good", { timeout: 15_000 });
 
     check(calls === 1, `expected one request to the endpoint, saw ${calls}`);
     check(
-      sentBody?.query === "Furman PL-Plus C",
+      sentBody?.query === "Zzstub RQ-9 Test Unit",
       `the typed name should reach the endpoint, got ${JSON.stringify(sentBody?.query)}`,
     );
     check(
       Array.isArray(sentBody?.sources) && sentBody.sources.length === 1,
       "the supplied link should reach the endpoint",
     );
+    check(sentAuth === "Bearer s3cret", `the admin token should be sent, got ${sentAuth}`);
 
     // It has to be findable, and findable as unverified.
-    await page2.fill("#catSearch", "PL-PLUS");
+    await page2.fill("#catSearch", "RQ-9 Test");
     const badged = await page2.$$eval("#palette .pal-item .tag.prov", (r) => r.length);
     check(badged === 1, `the requested device should carry an unverified badge, saw ${badged}`);
 
@@ -387,7 +411,7 @@ async function servedPass() {
 
     // It survives a reload: this is the browser's catalog now, not a session.
     await page2.reload({ waitUntil: "networkidle" });
-    await page2.fill("#catSearch", "PL-PLUS");
+    await page2.fill("#catSearch", "RQ-9 Test");
     check(
       (await page2.$$eval("#palette .pal-item", (r) => r.length)) === 1,
       "a requested device should still be there after a reload",
@@ -397,7 +421,7 @@ async function servedPass() {
     page2.once("dialog", (d) => d.accept());
     await page2.click("#palette .pal-item .drop");
     await page2.waitForTimeout(400);
-    await page2.fill("#catSearch", "PL-PLUS");
+    await page2.fill("#catSearch", "RQ-9 Test");
     check(
       (await page2.$$eval("#palette .pal-item", (r) => r.length)) === 0,
       "forgetting a requested device should remove it from the catalog",

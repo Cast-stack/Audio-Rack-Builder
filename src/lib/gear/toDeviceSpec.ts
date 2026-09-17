@@ -40,20 +40,13 @@ export const PASSIVE_INRUSH = 1;
  * looked at it. The planner keeps these in the browser; nothing here has been
  * published to anybody.
  */
-export interface ProvisionalDevice extends DeviceSpec {
+export interface ProvisionalDevice extends CatalogDevice {
   provisional: true;
   /** What the user typed to ask for it. */
   requestedAs: string;
   /** ISO timestamp of the research run. */
   researchedAt: string;
-  provenance: Provenance[];
-  unresolved: string[];
   notes: string | null;
-  description: string;
-  status: Device["status"];
-  statusNote: string | null;
-  productUrl: string | null;
-  datasheetUrl: string | null;
 }
 
 /** Lowercase, hyphenated, safe as an id fragment. */
@@ -75,16 +68,32 @@ export interface ToDeviceSpecOptions {
   taken?: Iterable<string>;
 }
 
-export function toProvisionalDevice(
-  device: Device,
-  opts: ToDeviceSpecOptions,
-): ProvisionalDevice {
-  const passive = PASSIVE_CATEGORY_NAMES.has(device.category);
+/**
+ * A researched device in the shape the catalog stores: what the engine needs,
+ * plus the evidence that has to travel with it onto the printed sheet.
+ */
+export interface CatalogDevice extends DeviceSpec {
+  description: string;
+  status: Device["status"];
+  statusNote: string | null;
+  productUrl: string | null;
+  datasheetUrl: string | null;
+  provenance: Provenance[];
+  unresolved: string[];
+}
 
-  const base = `prov-${slugify(`${device.brand} ${device.model}`) || "device"}`;
-  const taken = new Set(opts.taken ?? []);
-  let id = base;
-  for (let n = 2; taken.has(id); n++) id = `${base}-${n}`;
+/**
+ * The shared half of both conversions. Everything a researcher cannot read is
+ * filled here and nowhere else, so the catalog backfill and a one-off request
+ * cannot drift into different assumptions about the same box.
+ */
+function buildDevice(
+  device: Device,
+  id: string,
+  provenance: Provenance[],
+  unresolvedIn: string[],
+): CatalogDevice {
+  const passive = PASSIVE_CATEGORY_NAMES.has(device.category);
 
   const ports: PortSpec[] = device.ports.map((p) => ({
     label: p.label,
@@ -99,9 +108,11 @@ export function toProvisionalDevice(
     projectionMm: null,
   }));
 
-  const unresolved = [...(opts.unresolved ?? [])];
+  const unresolved = [...unresolvedIn];
+  if (!passive) {
+    unresolved.push("inrushFactor is the house default, not a researched figure.");
+  }
   unresolved.push(
-    "inrushFactor is the house default, not a researched figure.",
     "panel — no layout was researched, so this is drawn from the category template.",
   );
   if (device.depthMm != null) {
@@ -128,18 +139,49 @@ export function toProvisionalDevice(
     poePowered: device.poePowered,
     ports,
     panel: null,
-
-    provisional: true,
-    requestedAs: opts.requestedAs,
-    researchedAt: opts.researchedAt ?? new Date().toISOString(),
-    provenance: opts.provenance ?? [],
-    unresolved,
-    notes: opts.notes ?? null,
     description: device.description,
     status: device.status,
     statusNote: device.statusNote,
     productUrl: device.productUrl,
     datasheetUrl: device.datasheetUrl,
+    provenance,
+    unresolved,
+  };
+}
+
+/** The catalog id for a device: brand and model, and nothing that can change. */
+export function catalogId(device: Pick<Device, "brand" | "model">): string {
+  return slugify(`${device.brand} ${device.model}`) || "device";
+}
+
+/**
+ * A verified research record, as it enters the shared catalog.
+ *
+ * Only for records that have been through scripts/check-research.ts and a
+ * person's review. That review is the promotion step: this function does not
+ * make a record trustworthy, it only makes it placeable.
+ */
+export function toCatalogDevice(
+  record: { device: Device; provenance: Provenance[]; unresolved: string[] },
+): CatalogDevice {
+  return buildDevice(record.device, catalogId(record.device), record.provenance, record.unresolved);
+}
+
+export function toProvisionalDevice(
+  device: Device,
+  opts: ToDeviceSpecOptions,
+): ProvisionalDevice {
+  const base = `prov-${catalogId(device)}`;
+  const taken = new Set(opts.taken ?? []);
+  let id = base;
+  for (let n = 2; taken.has(id); n++) id = `${base}-${n}`;
+
+  return {
+    ...buildDevice(device, id, opts.provenance ?? [], opts.unresolved ?? []),
+    provisional: true,
+    requestedAs: opts.requestedAs,
+    researchedAt: opts.researchedAt ?? new Date().toISOString(),
+    notes: opts.notes ?? null,
   };
 }
 

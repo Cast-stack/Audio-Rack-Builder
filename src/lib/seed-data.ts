@@ -14,6 +14,7 @@
  */
 
 import type { CaseSpec, DeviceSpec, RackSpec } from "@/lib/rack/types";
+import { RESEARCHED_DEVICES } from "./catalog-data";
 
 export interface SeedProvenance {
   field: string;
@@ -91,7 +92,12 @@ const G3_MANUAL =
 const ULX_GUIDE =
   "https://fccid.io/m/58c1a25dd8a54f719e8d34cc8cee1d57bb25a981c730424dbd2417e9c978d279.pdf";
 
-export const SEED_DEVICES: SeedDevice[] = [
+/**
+ * Devices researched and laid out by hand, with panel layouts read from the
+ * manufacturers' callout lists. The bulk of the catalog lives in
+ * catalog-data/researched.json; see SEED_DEVICES below for the combined list.
+ */
+export const HAND_DEVICES: SeedDevice[] = [
   {
     id: "shure-ad600",
     slug: "shure-ad600",
@@ -295,17 +301,17 @@ export const SEED_DEVICES: SeedDevice[] = [
     description: "Four stereo channels of Axient Digital PSM in a single rack space, with Dante and redundant DC input.",
     formFactor: "full-rack",
     rackUnits: 1,
-    depthMm: 240,
+    depthMm: 385,
     depthIsOverall: true,
-    weightLb: 4.4,
-    powerTypicalW: 35,
-    powerMaxW: 45,
+    weightLb: 10.4,
+    powerTypicalW: null,
+    powerMaxW: 144,
     inrushFactor: 1.5,
     poePowered: false,
     status: "current",
     statusNote: null,
     productUrl: "https://www.shure.com/en-US/products/wireless-systems/axient-digital-psm",
-    datasheetUrl: null,
+    datasheetUrl: "https://pubs.shure.com/view/guide/ADPSM/en-US.pdf",
     // Transmitter front panel callouts 1-12 of the Axient Digital PSM guide,
     // which documents ADTQ and ADTD from one pair of figures.
     panel: {
@@ -337,16 +343,19 @@ export const SEED_DEVICES: SeedDevice[] = [
       { label: "RF B", connector: "BNC", direction: "output", signal: "antenna", channels: null, count: 1, face: "rear", projectionMm: null },
       { label: "DC In", connector: "XLR4", direction: "input", signal: "power", channels: null, count: 1, face: "rear", projectionMm: null },
       { label: "AC In", connector: "IEC C14", direction: "input", signal: "power", channels: null, count: 1, face: "rear", projectionMm: null },
+      { label: "AC Out (unswitched, 5 A max)", connector: "Other", direction: "output", signal: "power", channels: null, count: 1, face: "rear", projectionMm: null },
     ],
-    unresolved: [],
+    unresolved: [
+      "CORRECTED September 2026. This record said 240 mm deep, 2.0 kg, 35 W typical and 45 W max, quoting the product page, which does not carry those figures. Shure's guide prints 385 mm and 4.7 kg; the depth was 145 mm short, the direction that strands a build.",
+      "powerTypicalW. Shure prints only the AC input rating. powerMaxW is derived from it, and the 6.2 A 'outlet loaded' figure is excluded because 5 A of it is the cascade outlet passing power to other gear.",
+    ],
     provenance: [
       { field: "ports", sourceUrl: "https://pubs.shure.com/view/guide/ADPSM/en-US.pdf", quote: "Monitor Jack - 1/8 in (3.5 mm) output jack. | Ethernet Ports - Four Ethernet ports carry the following signals: ctrl 1: Network control / ctrl 2: Network control / Dante Primary: Dante digital audio / Dante Secondary: Dante digital audio", confidence: 0.9, derivation: "ADDED: the front monitor jack (front panel callout 2) was missing entirely, and only three of the four rear Ethernet ports were recorded - ctrl 2 was absent." },
       { field: "panel.front", sourceUrl: "https://pubs.shure.com/view/guide/ADPSM/en-US.pdf", quote: "Headphone Volume Knob | Monitor Jack - 1/8 in (3.5 mm) output jack. | Infrared (IR) Sync Window | Infrared (IR) Sync LED | Ambient Light Sensor | RF Switch | Display | Function Buttons - named F1, F2, F3, F4 (from top to bottom) | ENTER Button | EXIT Button | Control Wheel | Power Switch", confidence: 0.85, derivation: "Transmitter Front Panel callouts 1-12 of the shared Axient Digital PSM guide, which covers ADTQ and ADTD from one figure. Left-to-right order taken from callout order." },
       { field: "rackUnits", sourceUrl: "https://www.shure.com/en-US/products/wireless-systems/axient-digital-psm", quote: "Four stereo channels of Axient Digital PSM into a single rack space", confidence: 0.95, derivation: null },
-      { field: "depthMm", sourceUrl: "https://www.shure.com/en-US/products/wireless-systems/axient-digital-psm", quote: "240 mm", confidence: 0.9, derivation: null },
-      { field: "weightLb", sourceUrl: "https://www.shure.com/en-US/products/wireless-systems/axient-digital-psm", quote: "2.0 kg", confidence: 0.9, derivation: "2.0 kg x 2.20462 = 4.4 lb" },
-      { field: "powerTypicalW", sourceUrl: "https://www.shure.com/en-US/products/wireless-systems/axient-digital-psm", quote: "35 W typical", confidence: 0.9, derivation: null },
-      { field: "ports", sourceUrl: "https://www.shure.com/en-US/products/wireless-systems/axient-digital-psm", quote: "rear panel connector list", confidence: 0.85, derivation: null },
+      { field: "depthMm", sourceUrl: "https://pubs.shure.com/view/guide/ADPSM/en-US.pdf", quote: "ADTQ (Quad) and ADTD (Dual) Transmitters Dimensions 44 mm × 482 mm × 385 mm (1.7\" × 19.0\" × 15.2\") H × W × D", confidence: 0.95, derivation: "385 mm read directly from the guide's specifications page (p. 81, version 2.2). Printed overall depth. 15.2 in x 25.4 = 386 mm agrees." },
+      { field: "weightLb", sourceUrl: "https://pubs.shure.com/view/guide/ADPSM/en-US.pdf", quote: "Weight ADTQ 4.7 kg (10.4 lb) ADTQDC 5.0 kg (11.1 lb)", confidence: 0.95, derivation: "10.4 lb read directly for the AC model. The DC-input ADTQDC is 11.1 lb." },
+      { field: "powerMaxW", sourceUrl: "https://pubs.shure.com/view/guide/ADPSM/en-US.pdf", quote: "AC Input 100 to 240 V AC, 50-60 Hz, 1.2 A max (6.2 A max outlet loaded) AC Output 100-240 V AC, 5A max, 50/60 Hz UNSW", confidence: 0.6, derivation: "DERIVED, NOT PRINTED. 1.2 A x 120 V = 144 W, the unit's own maximum. The 6.2 A figure is not used: it includes the 5 A the unswitched AC output hands on to other gear." },
     ],
   },
 
@@ -361,17 +370,17 @@ export const SEED_DEVICES: SeedDevice[] = [
       "Output-heavy AVB interface: 24 channels of analog output on three DB25 connectors. Built for IEM rigs.",
     formFactor: "full-rack",
     rackUnits: 1,
-    depthMm: 229,
+    depthMm: 178,
     depthIsOverall: true,
-    weightLb: 6.0,
-    powerTypicalW: 25,
-    powerMaxW: 35,
+    weightLb: 4.4,
+    powerTypicalW: 35,
+    powerMaxW: 60,
     inrushFactor: 1.5,
     poePowered: false,
     status: "discontinued",
     statusNote: "AVB-era interface gone from major retail 2026-07, superseded by the 2024+ line.",
     productUrl: "https://motu.com/en-us/products/avb/24ao/",
-    datasheetUrl: null,
+    datasheetUrl: "https://cdn-data.motu.com/manuals/avb/24Ai_24Ao_User_Guide.pdf",
     // 24Ao front panel callouts 1-6 of the 24Ai/24Ao user guide. Callouts 1-3
     // are meter and clock fields inside the backlit LCD, described on the
     // features page as "The large backlit LCD displays all signal activity at
@@ -397,13 +406,16 @@ export const SEED_DEVICES: SeedDevice[] = [
       { label: "Word Clock In", connector: "BNC", direction: "input", signal: "clock", channels: null, count: 1, face: "rear", projectionMm: null },
       { label: "Power", connector: "IEC C14", direction: "input", signal: "power", channels: null, count: 1, face: "rear", projectionMm: null },
     ],
-    unresolved: [],
+    unresolved: [
+      "CORRECTED September 2026. This record said 229 mm, 6.0 lb and 25 W typical, quoting a product page that does not carry those figures. MOTU's spec page and guide print 178 mm, 4.4 lb and 35 W.",
+    ],
     provenance: [
       { field: "panel.front", sourceUrl: "https://cdn-data.motu.com/manuals/avb/24Ai_24Ao_User_Guide.pdf", quote: "ANALOG OUTPUT METERS for the twenty-four analog outputs. | ADAT OPTICAL input and output metering. | The CLOCK section displays the current operating sample rate and clock mode (source) for the unit. | POWER SWITCH | Push SEL (select) to enter the LCD menu. Push the ARROW buttons to scroll through menu options. Push BACK to return to the previous menu level. | Push ID to display network settings for the device", confidence: 0.7, derivation: "24Ao Front Panel callouts 1-6. Callouts 1-3 are meter and clock fields inside the LCD, not separate parts; the LCD itself is never numbered on the panel page and is sourced from the features text, the large backlit LCD displays all signal activity at a glance." },
       { field: "rackUnits", sourceUrl: "https://motu.com/en-us/products/avb/24ao/", quote: "1U rackmount", confidence: 0.9, derivation: null },
-      { field: "depthMm", sourceUrl: "https://motu.com/en-us/products/avb/24ao/", quote: "229 mm", confidence: 0.85, derivation: null },
-      { field: "weightLb", sourceUrl: "https://motu.com/en-us/products/avb/24ao/", quote: "6.0 lb", confidence: 0.85, derivation: null },
-      { field: "powerTypicalW", sourceUrl: "https://motu.com/en-us/products/avb/24ao/", quote: "25W typical", confidence: 0.8, derivation: null },
+      { field: "depthMm", sourceUrl: "https://motu.com/products/avb/24ai-24ao/specs.html", quote: "Dimensions and weight (width x depth x height, enclosure only) 19 x 7 x 1.75 inches 48.3 x 17.75 x 4.5 cm", confidence: 0.9, derivation: "17.75 cm = 177.5 mm, rounded up to 178; 7 in x 25.4 = 177.8 mm agrees. Enclosure only, so connectors are extra, which the depth ledger adds." },
+      { field: "weightLb", sourceUrl: "https://motu.com/products/avb/24ai-24ao/specs.html", quote: "4.6 lbs / 2.08 kg (24ai) 4.4 lbs / 1.99 kg (24ao)", confidence: 0.95, derivation: "4.4 lb read directly for the 24ao, with rack brackets fitted. The page gives 4.3 lb with them removed." },
+      { field: "powerTypicalW", sourceUrl: "https://cdn-data.motu.com/manuals/avb/24Ai_24Ao_User_Guide.pdf", quote: "Power Input 100 V to 240 V, 50 Hz or 60 Hz Power Usage 35 watts", confidence: 0.85, derivation: "Read from the 24Ao specifications page of the user guide (p. 79). MOTU calls it power usage; recorded as typical." },
+      { field: "powerMaxW", sourceUrl: "https://motu.com/products/avb/24ai-24ao/specs.html", quote: "International 100-240V autoswitching supply 50-60 Hz • 0.5A max", confidence: 0.5, derivation: "DERIVED, NOT PRINTED. 0.5 A x 120 V = 60 W, the internal supply's ceiling." },
       { field: "ports", sourceUrl: "https://motu.com/en-us/products/avb/24ao/", quote: "24 channels of analog output on three DB25 connectors", confidence: 0.9, derivation: null },
     ],
   },
@@ -1430,6 +1442,10 @@ export const SEED_DEVICES: SeedDevice[] = [
 ];
 
 
+
+
+/** Everything the planner can place: the hand-drawn devices, then the backfill. */
+export const SEED_DEVICES: SeedDevice[] = [...HAND_DEVICES, ...RESEARCHED_DEVICES];
 
 /**
  * Generic case profiles. Usable depth is the figure that matters and the one

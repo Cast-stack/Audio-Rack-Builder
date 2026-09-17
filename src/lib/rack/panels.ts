@@ -373,12 +373,19 @@ function frontFurniture(device: PanelDevice, units: number, PW: number, half: Ha
     }
     g += display(x1 - 210, mid - h * 0.2, 170, h * 0.4);
   } else if (/Playback Switcher|FX Processor|Word Clock/.test(cat)) {
-    for (var bt = 0; bt < 4; bt++) {
+    // The buttons get whatever the display leaves, not a fixed four. At fixed
+    // offsets they ran off the right of a half-width face — the first
+    // half-rack unit in these categories, a Waves Extreme-C, drew its fourth
+    // button over the unit beside it.
+    var dispW = Math.min(280, (x1 - x0) * 0.4);
+    var dispX = x1 - dispW - 40;
+    var nBtn = Math.max(1, Math.min(4, Math.floor((dispX - 30 - (x0 + 80) + 42) / 150)));
+    for (var bt = 0; bt < nBtn; bt++) {
       g += '<rect x="' + (x0 + 80 + bt * 150) + '" y="' + (mid - h * 0.16) + '" width="108" height="' +
         h * 0.32 + '" rx="7" fill="var(--pf-btn)" stroke="var(--pf-edge)" stroke-width="3"/>';
       g += led(x0 + 134 + bt * 150, mid - h * 0.26, 10, bt === 0 ? "var(--pf-led-on)" : "var(--pf-led-off)");
     }
-    g += display(x1 - 320, mid - h * 0.18, 280, h * 0.36);
+    g += display(dispX, mid - h * 0.18, dispW, h * 0.36);
   } else if (/Power Conditioner|Sequencer|Power Distro|UPS/.test(cat)) {
     g += '<rect x="' + (x0 + 40) + '" y="' + (mid - h * 0.16) + '" width="70" height="' + h * 0.32 +
       '" rx="6" fill="var(--pf-btn)" stroke="var(--pf-edge)" stroke-width="3"/>';
