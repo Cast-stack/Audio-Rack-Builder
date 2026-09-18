@@ -121,9 +121,22 @@ export type ResearchResult = z.infer<typeof ResearchResultSchema>;
  * powerTypicalW would reject those correctly-researched records. The rule is
  * instead "at least one power figure", enforced in validateProvenance.
  */
+/**
+ * depthMm is deliberately NOT here, and that is a recent change.
+ *
+ * Plenty of real rack gear has no published depth at all — Seismic Audio print
+ * rack spaces, weight and connectors for their splitter snakes and no chassis
+ * dimensions anywhere. Requiring depth meant those devices could not be listed,
+ * which is not the same as protecting anyone.
+ *
+ * What makes this safe is that a missing depth is now loud rather than quiet:
+ * validateDevice warns on it, so triage sends the record to review, and
+ * checkRack raises depth.unknown so a rack holding one never reports itself as
+ * depth-checked. A missing figure is honest; a guessed one strands a build.
+ */
 export const REQUIRED_FOR_PUBLISH = [
   "brand", "model", "category", "formFactor", "rackUnits",
-  "depthMm", "weightLb", "ports",
+  "weightLb", "ports",
 ] as const;
 
 /** Satisfied by powerTypicalW or powerMaxW; see REQUIRED_FOR_PUBLISH. */

@@ -540,3 +540,38 @@ test("depth stays a per-U question, not a whole-rack one", () => {
   );
   assert.equal(report.results.filter((r) => r.code === "mounting.back-to-back-depth").length, 0);
 });
+
+// ------------------------------------------------------- unmeasured depth
+//
+// Real gear exists with no published depth: Seismic Audio print rack spaces,
+// weight and connectors for their splitter snakes and no chassis dimensions at
+// all. Such a device is allowed in the catalog, but a rack holding one has not
+// been depth-checked and must never read as though it has.
+
+test("a device with no published depth is called out, not passed over", () => {
+  const unknown = device({ id: "split", model: "Splitter", depthMm: null, passive: true });
+  const report = checkRack(
+    rack({ placements: [{ deviceId: "split", position: 1, circuit: null }] }),
+    mapOf(unknown),
+  );
+
+  const hit = report.results.find((r) => r.code === "depth.unknown");
+  assert.ok(hit, "silence here reads as a clean depth check");
+  assert.equal(hit!.severity, "warning");
+  assert.match(hit!.detail, /Measure it/);
+  assert.equal(
+    report.results.filter((r) => r.code === "depth.will-not-fit").length,
+    0,
+    "unknown is not the same as too deep",
+  );
+});
+
+test("a measured device still gets its real depth verdict", () => {
+  const deep = device({ id: "deep", model: "Deep", depthMm: 600 });
+  const report = checkRack(
+    rack({ placements: [{ deviceId: "deep", position: 1, circuit: "A" }] }),
+    mapOf(deep),
+  );
+  assert.ok(report.results.find((r) => r.code === "depth.will-not-fit"));
+  assert.equal(report.results.filter((r) => r.code === "depth.unknown").length, 0);
+});

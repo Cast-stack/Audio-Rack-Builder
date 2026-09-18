@@ -215,7 +215,28 @@ function checkDepth(rack: RackSpec, devices: Map<string, DeviceSpec>): CheckResu
     seen.add(device.id);
 
     const { fits, headroomMm, breakdown } = caseDepthHeadroom(device, rack.case);
-    if (breakdown.requiredMm == null) continue;
+
+    /**
+     * No published depth means no depth check for this unit — and the rack has
+     * to say so. caseDepthHeadroom() reports fits:true for an unknown depth,
+     * which is the right answer to "is it too deep" and the wrong thing to let
+     * a reader take as a clean bill of health. Silence here is how a rack that
+     * was never measured comes out reading "this one builds".
+     */
+    if (breakdown.requiredMm == null) {
+      out.push({
+        code: "depth.unknown",
+        severity: "warning",
+        title: `${device.model} has no published depth`,
+        detail:
+          `${device.brand} publishes no chassis depth for this unit, so it has not been ` +
+          `checked against the ${rack.case.usableDepthMm} mm between the rails. Measure it ` +
+          `before you commit to the case — every other depth figure on this rack excludes it.`,
+        deviceIds: [device.id],
+        positions: [p.position],
+      });
+      continue;
+    }
 
     const math =
       `${breakdown.chassisMm} mm chassis + ${breakdown.connectorMm} mm for the ` +

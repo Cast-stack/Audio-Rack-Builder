@@ -272,12 +272,16 @@ function drawFace(
   // Below about 45% the connectors stop reading as themselves; wrap to a
   // second row instead, which multi-U panels have room for.
   var rows = [groups];
-  if (scale < 0.45 && units > 1) {
+  // Wrapping needs at least two groups to split. With one group the second row
+  // came out empty, and an empty row measures GAP * -1 wide — a negative width
+  // that flipped the scale negative and marched the connectors off the panel.
+  // A 2U splitter with sixteen combo jacks on one port is what found it.
+  if (scale < 0.45 && units > 1 && groups.length > 1) {
     var mid = Math.ceil(groups.length / 2);
-    rows = [groups.slice(0, mid), groups.slice(mid)];
+    rows = [groups.slice(0, mid), groups.slice(mid)].filter(function (r: Group[]) { return r.length > 0; });
     scale = Math.min(1, rows.reduce(function (m: number, r: Group[]) {
       var t = r.reduce(function (s: number, g: Group) { return s + g.width; }, 0) + GAP * (r.length - 1);
-      return Math.min(m, inner.w / t);
+      return t > 0 ? Math.min(m, inner.w / t) : m;
     }, 1));
   }
 

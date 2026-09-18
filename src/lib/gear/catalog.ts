@@ -228,6 +228,7 @@ export const MANUFACTURER_DOMAINS = [
   "uaudio.com", "harmanpro.com", "qscaudio.com", "panamax.com", "niceforyou.support",
   "iconnectivity.com", "galaxyaudio.com", "apiaudio.com", "avalondesign.com",
   "baeaudio.com", "redco.com", "whirlwindusa.com", "blacklionaudio.com",
+  "seismicaudiospeakers.com",
   "line6.com",
 
   // general

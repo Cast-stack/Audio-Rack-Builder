@@ -79,6 +79,9 @@ export function validateDevice(d: Device, category = d.category): Issue[] {
   if (!Number.isInteger(d.rackUnits * 2)) {
     warn("rackUnits", `${d.rackUnits}U is not a half-U multiple`);
   }
+  if (d.depthMm == null) {
+    warn("depthMm", "no published depth — the rack holding this cannot be depth-checked, and the planner says so");
+  }
   if (d.depthMm != null) {
     if (d.depthMm < DEPTH_BOUNDS_MM.min) {
       err("depthMm", `${d.depthMm}mm is implausibly shallow — likely an inches value that was not converted (${d.depthMm}" = ${inToMm(d.depthMm)}mm)`);

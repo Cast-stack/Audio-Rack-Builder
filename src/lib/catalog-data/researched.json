@@ -19053,6 +19053,357 @@
   },
   {
     "device": {
+      "brand": "Seismic Audio",
+      "model": "SARMSS-16x310",
+      "category": "Mic Splitter",
+      "description": "16-channel hardwired Y-split mic splitter snake: a 2U steel stage box of XLR/TRS combo inputs feeding male XLR fantails on 3 ft and 10 ft trunks, passing 48 V phantom.",
+      "formFactor": "full-rack",
+      "rackUnits": 2,
+      "depthMm": null,
+      "weightLb": 9.2,
+      "powerTypicalW": null,
+      "powerMaxW": null,
+      "powerInput": null,
+      "voltage": null,
+      "poePowered": false,
+      "ports": [
+        {
+          "label": "Stage box inputs",
+          "connector": "XLR/TRS combo",
+          "direction": "input",
+          "signal": "analog audio",
+          "channels": 1,
+          "count": 16,
+          "face": "front"
+        },
+        {
+          "label": "Fantail outputs (3 ft trunk)",
+          "connector": "XLR3",
+          "direction": "output",
+          "signal": "analog audio",
+          "channels": 1,
+          "count": 16,
+          "face": "rear"
+        },
+        {
+          "label": "Fantail outputs (10 ft trunk)",
+          "connector": "XLR3",
+          "direction": "output",
+          "signal": "analog audio",
+          "channels": 1,
+          "count": 16,
+          "face": "rear"
+        }
+      ],
+      "status": "current",
+      "statusNote": "One of a family that differs only in trunk length (16x310, 16x515, 16x1515 and others). Published weights differ between them because the weight includes the attached cable.",
+      "priceUsd": null,
+      "priceKind": null,
+      "priceVerifiedAt": null,
+      "productUrl": "https://www.seismicaudiospeakers.com/products/sarmss-16x310-16-channel-xlr-trs-combo-splitter-snake-cable-3-and-10-xlr-trunks",
+      "datasheetUrl": null
+    },
+    "provenance": [
+      {
+        "field": "brand",
+        "sourceUrl": "https://www.seismicaudiospeakers.com/products/sarmss-16x310-16-channel-xlr-trs-combo-splitter-snake-cable-3-and-10-xlr-trunks",
+        "quote": "Seismic Audio",
+        "confidence": 0.95,
+        "derivation": "The maker's own store."
+      },
+      {
+        "field": "model",
+        "sourceUrl": "https://www.seismicaudiospeakers.com/products/sarmss-16x310-16-channel-xlr-trs-combo-splitter-snake-cable-3-and-10-xlr-trunks",
+        "quote": "Model SARMSS-16x310",
+        "confidence": 0.9,
+        "derivation": "Seismic's own numbering is SARMSS-<channels>x<trunk lengths>. There is no \"SA-RMSS-16\": that name appears only in third-party listings."
+      },
+      {
+        "field": "category",
+        "sourceUrl": "https://www.seismicaudiospeakers.com/products/sarmss-16x310-16-channel-xlr-trs-combo-splitter-snake-cable-3-and-10-xlr-trunks",
+        "quote": "Configuration Send only (no returns)",
+        "confidence": 0.95,
+        "derivation": "A send-only hardwired Y-split is a mic splitter."
+      },
+      {
+        "field": "formFactor",
+        "sourceUrl": "https://www.seismicaudiospeakers.com/products/sarmss-16x310-16-channel-xlr-trs-combo-splitter-snake-cable-3-and-10-xlr-trunks",
+        "quote": "Stage Box Heavy duty steel, 2-space rack mountable",
+        "confidence": 0.9,
+        "derivation": "19-inch rack stage box, full width."
+      },
+      {
+        "field": "rackUnits",
+        "sourceUrl": "https://www.seismicaudiospeakers.com/products/sarmss-16x310-16-channel-xlr-trs-combo-splitter-snake-cable-3-and-10-xlr-trunks",
+        "quote": "Stage Box Heavy duty steel, 2-space rack mountable",
+        "confidence": 0.9,
+        "derivation": "The spec table calls the stage box 2-space rack mountable. 2U."
+      },
+      {
+        "field": "weightLb",
+        "sourceUrl": "https://www.seismicaudiospeakers.com/products/sarmss-16x310-16-channel-xlr-trs-combo-splitter-snake-cable-3-and-10-xlr-trunks",
+        "quote": "Weight 9.2 lbs",
+        "confidence": 0.75,
+        "derivation": "From the page's own Technical Specifications table. This includes the attached trunk cables, so it is the weight of the whole snake rather than of the rack box alone, and it differs across the trunk-length variants. The legacy block lower down the same page quotes a different figure for a different variant and is not used."
+      },
+      {
+        "field": "ports",
+        "sourceUrl": "https://www.seismicaudiospeakers.com/products/sarmss-16x310-16-channel-xlr-trs-combo-splitter-snake-cable-3-and-10-xlr-trunks",
+        "quote": "Stage Box Inputs XLR/TRS 1/4\" combo jacks | Fantail Outputs Male XLR connectors | Channels 16",
+        "confidence": 0.85,
+        "derivation": "16 combo inputs on the rack box, each split to two male XLR fantails — one per trunk — which is what \"hardwired Y-split\" means."
+      },
+      {
+        "field": "description",
+        "sourceUrl": "https://www.seismicaudiospeakers.com/products/sarmss-16x310-16-channel-xlr-trs-combo-splitter-snake-cable-3-and-10-xlr-trunks",
+        "quote": "Phantom Power 48V pass-through | Shielding 100% individually shielded pairs | Conductor Gauge 22 AWG",
+        "confidence": 0.9,
+        "derivation": "Passive throughout: no power input and nothing to draw."
+      }
+    ],
+    "unresolved": [
+      "depthMm. Seismic Audio publish no chassis depth, width or height for this unit or any variant of it — not on the product page, not in a spec sheet, and they publish no manuals. The figure is left empty rather than guessed, and the planner reports the rack as not depth-checked while this unit is in it. Measure the box before committing to a case.",
+      "weightLb includes the attached trunk cables; Seismic publish no weight for the rack box on its own.",
+      "The inputs are on the rack panel and the outputs are cable fantails rather than panel connectors. They are recorded on the rear face because that is where a loom leaves a rack."
+    ],
+    "notes": null
+  },
+  {
+    "device": {
+      "brand": "Seismic Audio",
+      "model": "SARMSS-24x310",
+      "category": "Mic Splitter",
+      "description": "24-channel hardwired Y-split mic splitter snake: a 3U steel stage box of XLR/TRS combo inputs feeding male XLR fantails on 3 ft and 10 ft trunks, passing 48 V phantom.",
+      "formFactor": "full-rack",
+      "rackUnits": 3,
+      "depthMm": null,
+      "weightLb": 15.4,
+      "powerTypicalW": null,
+      "powerMaxW": null,
+      "powerInput": null,
+      "voltage": null,
+      "poePowered": false,
+      "ports": [
+        {
+          "label": "Stage box inputs",
+          "connector": "XLR/TRS combo",
+          "direction": "input",
+          "signal": "analog audio",
+          "channels": 1,
+          "count": 24,
+          "face": "front"
+        },
+        {
+          "label": "Fantail outputs (3 ft trunk)",
+          "connector": "XLR3",
+          "direction": "output",
+          "signal": "analog audio",
+          "channels": 1,
+          "count": 24,
+          "face": "rear"
+        },
+        {
+          "label": "Fantail outputs (10 ft trunk)",
+          "connector": "XLR3",
+          "direction": "output",
+          "signal": "analog audio",
+          "channels": 1,
+          "count": 24,
+          "face": "rear"
+        }
+      ],
+      "status": "current",
+      "statusNote": "One of a family that differs only in trunk length (24x310, 24x515, 24x1515 and others). Published weights differ between them because the weight includes the attached cable.",
+      "priceUsd": null,
+      "priceKind": null,
+      "priceVerifiedAt": null,
+      "productUrl": "https://www.seismicaudiospeakers.com/products/sarmss-24x310-24-channel-xlr-trs-combo-splitter-snake-cable-3-and-10-xlr-trunks",
+      "datasheetUrl": null
+    },
+    "provenance": [
+      {
+        "field": "brand",
+        "sourceUrl": "https://www.seismicaudiospeakers.com/products/sarmss-24x310-24-channel-xlr-trs-combo-splitter-snake-cable-3-and-10-xlr-trunks",
+        "quote": "Seismic Audio",
+        "confidence": 0.95,
+        "derivation": "The maker's own store."
+      },
+      {
+        "field": "model",
+        "sourceUrl": "https://www.seismicaudiospeakers.com/products/sarmss-24x310-24-channel-xlr-trs-combo-splitter-snake-cable-3-and-10-xlr-trunks",
+        "quote": "Model SARMSS-24x310",
+        "confidence": 0.9,
+        "derivation": "Seismic's own numbering is SARMSS-<channels>x<trunk lengths>. There is no \"SA-RMSS-24\": that name appears only in third-party listings."
+      },
+      {
+        "field": "category",
+        "sourceUrl": "https://www.seismicaudiospeakers.com/products/sarmss-24x310-24-channel-xlr-trs-combo-splitter-snake-cable-3-and-10-xlr-trunks",
+        "quote": "Configuration Hardwired Y-splitter (send only, no returns)",
+        "confidence": 0.95,
+        "derivation": "A send-only hardwired Y-split is a mic splitter."
+      },
+      {
+        "field": "formFactor",
+        "sourceUrl": "https://www.seismicaudiospeakers.com/products/sarmss-24x310-24-channel-xlr-trs-combo-splitter-snake-cable-3-and-10-xlr-trunks",
+        "quote": "Rack Mount Size 3 space",
+        "confidence": 0.9,
+        "derivation": "19-inch rack stage box, full width."
+      },
+      {
+        "field": "rackUnits",
+        "sourceUrl": "https://www.seismicaudiospeakers.com/products/sarmss-24x310-24-channel-xlr-trs-combo-splitter-snake-cable-3-and-10-xlr-trunks",
+        "quote": "Rack Mount Size 3 space",
+        "confidence": 0.9,
+        "derivation": "Read directly from the spec table: 3 rack spaces."
+      },
+      {
+        "field": "weightLb",
+        "sourceUrl": "https://www.seismicaudiospeakers.com/products/sarmss-24x310-24-channel-xlr-trs-combo-splitter-snake-cable-3-and-10-xlr-trunks",
+        "quote": "Weight 15.4 lbs",
+        "confidence": 0.75,
+        "derivation": "From the page's own Technical Specifications table. This includes the attached trunk cables, so it is the weight of the whole snake rather than of the rack box alone, and it differs across the trunk-length variants. The legacy block lower down the same page quotes a different figure for a different variant and is not used."
+      },
+      {
+        "field": "ports",
+        "sourceUrl": "https://www.seismicaudiospeakers.com/products/sarmss-24x310-24-channel-xlr-trs-combo-splitter-snake-cable-3-and-10-xlr-trunks",
+        "quote": "Stage Box Inputs XLR/TRS 1/4\" combo jacks | Fantail Outputs Male XLR connectors | Channels 24",
+        "confidence": 0.85,
+        "derivation": "24 combo inputs on the rack box, each split to two male XLR fantails — one per trunk — which is what \"hardwired Y-split\" means."
+      },
+      {
+        "field": "description",
+        "sourceUrl": "https://www.seismicaudiospeakers.com/products/sarmss-24x310-24-channel-xlr-trs-combo-splitter-snake-cable-3-and-10-xlr-trunks",
+        "quote": "Phantom Power 48V pass-through | Shielding 100% individually shielded pairs | Conductor Gauge 22 AWG",
+        "confidence": 0.9,
+        "derivation": "Passive throughout: no power input and nothing to draw."
+      }
+    ],
+    "unresolved": [
+      "depthMm. Seismic Audio publish no chassis depth, width or height for this unit or any variant of it — not on the product page, not in a spec sheet, and they publish no manuals. The figure is left empty rather than guessed, and the planner reports the rack as not depth-checked while this unit is in it. Measure the box before committing to a case.",
+      "weightLb includes the attached trunk cables; Seismic publish no weight for the rack box on its own.",
+      "The inputs are on the rack panel and the outputs are cable fantails rather than panel connectors. They are recorded on the rear face because that is where a loom leaves a rack."
+    ],
+    "notes": null
+  },
+  {
+    "device": {
+      "brand": "Seismic Audio",
+      "model": "SARMSS-32x310",
+      "category": "Mic Splitter",
+      "description": "32-channel hardwired Y-split mic splitter snake: a 4U steel stage box of XLR/TRS combo inputs feeding male XLR fantails on 3 ft and 10 ft trunks, passing 48 V phantom.",
+      "formFactor": "full-rack",
+      "rackUnits": 4,
+      "depthMm": null,
+      "weightLb": 17.9,
+      "powerTypicalW": null,
+      "powerMaxW": null,
+      "powerInput": null,
+      "voltage": null,
+      "poePowered": false,
+      "ports": [
+        {
+          "label": "Stage box inputs",
+          "connector": "XLR/TRS combo",
+          "direction": "input",
+          "signal": "analog audio",
+          "channels": 1,
+          "count": 32,
+          "face": "front"
+        },
+        {
+          "label": "Fantail outputs (3 ft trunk)",
+          "connector": "XLR3",
+          "direction": "output",
+          "signal": "analog audio",
+          "channels": 1,
+          "count": 32,
+          "face": "rear"
+        },
+        {
+          "label": "Fantail outputs (10 ft trunk)",
+          "connector": "XLR3",
+          "direction": "output",
+          "signal": "analog audio",
+          "channels": 1,
+          "count": 32,
+          "face": "rear"
+        }
+      ],
+      "status": "current",
+      "statusNote": "One of a family that differs only in trunk length (32x310, 32x515, 32x1515 and others). Published weights differ between them because the weight includes the attached cable.",
+      "priceUsd": null,
+      "priceKind": null,
+      "priceVerifiedAt": null,
+      "productUrl": "https://www.seismicaudiospeakers.com/products/sarmss-32x310-32-channel-xlr-trs-combo-splitter-snake-cable-3-and-10-xlr-trunks",
+      "datasheetUrl": null
+    },
+    "provenance": [
+      {
+        "field": "brand",
+        "sourceUrl": "https://www.seismicaudiospeakers.com/products/sarmss-32x310-32-channel-xlr-trs-combo-splitter-snake-cable-3-and-10-xlr-trunks",
+        "quote": "Seismic Audio",
+        "confidence": 0.95,
+        "derivation": "The maker's own store."
+      },
+      {
+        "field": "model",
+        "sourceUrl": "https://www.seismicaudiospeakers.com/products/sarmss-32x310-32-channel-xlr-trs-combo-splitter-snake-cable-3-and-10-xlr-trunks",
+        "quote": "Model SARMSS-32x310",
+        "confidence": 0.9,
+        "derivation": "Seismic's own numbering is SARMSS-<channels>x<trunk lengths>. There is no \"SA-RMSS-32\": that name appears only in third-party listings."
+      },
+      {
+        "field": "category",
+        "sourceUrl": "https://www.seismicaudiospeakers.com/products/sarmss-32x310-32-channel-xlr-trs-combo-splitter-snake-cable-3-and-10-xlr-trunks",
+        "quote": "Configuration Splitter snake (send only, no returns)",
+        "confidence": 0.95,
+        "derivation": "A send-only hardwired Y-split is a mic splitter."
+      },
+      {
+        "field": "formFactor",
+        "sourceUrl": "https://www.seismicaudiospeakers.com/products/sarmss-32x310-32-channel-xlr-trs-combo-splitter-snake-cable-3-and-10-xlr-trunks",
+        "quote": "Rack Spaces 4U",
+        "confidence": 0.9,
+        "derivation": "19-inch rack stage box, full width."
+      },
+      {
+        "field": "rackUnits",
+        "sourceUrl": "https://www.seismicaudiospeakers.com/products/sarmss-32x310-32-channel-xlr-trs-combo-splitter-snake-cable-3-and-10-xlr-trunks",
+        "quote": "Rack Spaces 4U",
+        "confidence": 0.9,
+        "derivation": "Read directly from the spec table: 4U."
+      },
+      {
+        "field": "weightLb",
+        "sourceUrl": "https://www.seismicaudiospeakers.com/products/sarmss-32x310-32-channel-xlr-trs-combo-splitter-snake-cable-3-and-10-xlr-trunks",
+        "quote": "Weight 17.9 lbs",
+        "confidence": 0.75,
+        "derivation": "From the page's own Technical Specifications table. This includes the attached trunk cables, so it is the weight of the whole snake rather than of the rack box alone, and it differs across the trunk-length variants. The legacy block lower down the same page quotes a different figure for a different variant and is not used."
+      },
+      {
+        "field": "ports",
+        "sourceUrl": "https://www.seismicaudiospeakers.com/products/sarmss-32x310-32-channel-xlr-trs-combo-splitter-snake-cable-3-and-10-xlr-trunks",
+        "quote": "Stage Box Inputs XLR/TRS 1/4\" combo jacks | Fantail Outputs Male XLR connectors | Channels 32",
+        "confidence": 0.85,
+        "derivation": "32 combo inputs on the rack box, each split to two male XLR fantails — one per trunk — which is what \"hardwired Y-split\" means."
+      },
+      {
+        "field": "description",
+        "sourceUrl": "https://www.seismicaudiospeakers.com/products/sarmss-32x310-32-channel-xlr-trs-combo-splitter-snake-cable-3-and-10-xlr-trunks",
+        "quote": "Phantom Power 48V pass-through | Shielding 100% individually shielded pairs | Conductor Gauge 22 AWG",
+        "confidence": 0.9,
+        "derivation": "Passive throughout: no power input and nothing to draw."
+      }
+    ],
+    "unresolved": [
+      "depthMm. Seismic Audio publish no chassis depth, width or height for this unit or any variant of it — not on the product page, not in a spec sheet, and they publish no manuals. The figure is left empty rather than guessed, and the planner reports the rack as not depth-checked while this unit is in it. Measure the box before committing to a case.",
+      "weightLb includes the attached trunk cables; Seismic publish no weight for the rack box on its own.",
+      "The inputs are on the rack panel and the outputs are cable fantails rather than panel connectors. They are recorded on the rear face because that is where a loom leaves a rack."
+    ],
+    "notes": null
+  },
+  {
+    "device": {
       "brand": "Sennheiser",
       "model": "AC 3200-II",
       "category": "Antenna Distro",
