@@ -67,6 +67,7 @@ export function toCaseSpec(row: RackRow["case"]): CaseSpec {
     slug: row.slug,
     name: row.name,
     rackUnits: row.rackUnits,
+    bays: row.bays,
     usableDepthMm: row.usableDepthMm,
     hasRearRails: row.hasRearRails,
     maxLoadLb: row.maxLoadLb,

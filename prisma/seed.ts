@@ -211,6 +211,7 @@ async function main() {
         slug: c.slug,
         name: c.name,
         rackUnits: c.rackUnits,
+        bays: c.bays ?? 1,
         usableDepthMm: c.usableDepthMm,
         hasRearRails: c.hasRearRails,
         maxLoadLb: c.maxLoadLb,

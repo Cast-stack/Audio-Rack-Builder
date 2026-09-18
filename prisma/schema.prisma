@@ -17,7 +17,14 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  // Supabase (and most hosted Postgres) hands out two connection strings, and
+  // Prisma needs both. DATABASE_URL is the pooled one the app runs on;
+  // DIRECT_URL is the direct connection, because migrations and db push
+  // cannot run through a transaction pooler. Pointing both at the pooled URL
+  // fails at `db push` with an advisory-lock error, which is not obvious from
+  // the message.
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ---------------------------------------------------------------- catalog
@@ -282,6 +289,12 @@ model RackCase {
   slug           String  @unique
   name           String
   rackUnits      Int
+  /// Columns of 19-inch rails side by side in one case. A two-bay shock case
+  /// is one assembly with one load rating and one centre of gravity, planned
+  /// as one thing, and its gear sits in two columns. Without this every case
+  /// read from the database comes back single-bay and everything in bay 2
+  /// reports as outside the case.
+  bays           Int     @default(1)
   usableDepthMm  Int
   /// Rear rail set present? Shallow shock cases often have front rails only,
   /// which changes what can be mounted.
