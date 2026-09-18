@@ -104,6 +104,26 @@ Asking for gear that is not in the catalog:
 - **In the planner only when served.** The action is hidden on the file://
   hand-out copy, which can never reach an endpoint.
 
+**Feedback, from the planner to you.** A link in the planner footer, open to
+everyone — no account, no captcha, no required email, because the message worth
+the most ("the depth on that unit is 30 mm short") comes from someone standing
+in a loading dock who will never sign up. `src/lib/feedback.ts` holds the rules
+and nothing else; `/api/feedback` stores it and `/admin/feedback` reads it
+behind `ARB_ADMIN_TOKEN`.
+
+- **What is kept**: the message, the rack that was on screen, and a reply
+  address only if they chose to leave one. **No IP.** It would be the only
+  personal data in the app, it would need a privacy policy to explain, and it
+  would not make a single message more useful.
+- **What stands in for a login**: a hidden honeypot field that is accepted and
+  dropped silently, six messages an hour per address, and length caps. A bot
+  told it was caught learns which field to leave alone next time.
+- **It never claims to have sent.** If there is no database, or the write
+  fails, it says so and leaves the text in the box. Someone who thinks they
+  have reported a wrong depth will not report it twice.
+- Hidden on the file:// hand-out copy, like the add-a-device panel: a Send
+  button with nowhere to send is worse than no button.
+
 Research pipeline — `src/lib/gear`, written and typechecked, **never run
 end to end**. It needs `ANTHROPIC_API_KEY`. Treat it as unproven until the
 twenty-device baseline in the README has been done.

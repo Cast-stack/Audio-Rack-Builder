@@ -16,7 +16,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
   // Supabase (and most hosted Postgres) hands out two connection strings, and
   // Prisma needs both. DATABASE_URL is the pooled one the app runs on;
   // DIRECT_URL is the direct connection, because migrations and db push
@@ -68,14 +68,14 @@ model Manufacturer {
 }
 
 model Category {
-  id       String   @id @default(cuid())
-  name     String   @unique
-  slug     String   @unique
-  domain   Domain
+  id      String   @id @default(cuid())
+  name    String   @unique
+  slug    String   @unique
+  domain  Domain
   /// Devices in a passive category must have no power draw.
-  passive  Boolean  @default(false)
-  sortKey  Int      @default(0)
-  devices  Device[]
+  passive Boolean  @default(false)
+  sortKey Int      @default(0)
+  devices Device[]
 }
 
 model Device {
@@ -90,16 +90,16 @@ model Device {
   description String
 
   // ---- geometry
-  formFactor FormFactor
+  formFactor     FormFactor
   /// Vertical rack space. Half-U accessories are allowed, hence Float.
-  rackUnits  Float
+  rackUnits      Float
   /// Chassis depth as published by the manufacturer, millimetres.
-  depthMm    Int?
+  depthMm        Int?
   /// True when depthMm is the overall figure including knobs and connectors,
   /// which is what datasheets almost always print. The fit checker adds
   /// clearance differently depending on this flag.
-  depthIsOverall Boolean @default(true)
-  weightLb   Float?
+  depthIsOverall Boolean    @default(true)
+  weightLb       Float?
 
   // ---- electrical
   /// Steady-state consumption in normal use, watts.
@@ -145,22 +145,22 @@ model Device {
 }
 
 model Port {
-  id        String  @id @default(cuid())
-  device    Device  @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-  deviceId  String
+  id           String @id @default(cuid())
+  device       Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  deviceId     String
   /// Silkscreen label exactly as printed on the chassis.
-  label     String
-  connector String
-  direction String
-  signal    String
+  label        String
+  connector    String
+  direction    String
+  signal       String
   /// Audio channels carried by one physical connector. A DB25 is 8.
-  channels  Int?
-  count     Int     @default(1)
-  face      String  @default("rear")
+  channels     Int?
+  count        Int    @default(1)
+  face         String @default("rear")
   /// How far this connector plus its mated plug sticks out behind the chassis,
   /// millimetres. Drives the real-depth check.
   projectionMm Int?
-  sortKey   Int     @default(0)
+  sortKey      Int    @default(0)
 
   @@index([deviceId])
 }
@@ -231,7 +231,7 @@ model FieldProvenance {
   /// Set when the value was computed rather than read (unit conversion, sum).
   derivation String?
   /// manufacturer | dealer | other — set from the URL host at write time.
-  sourceKind String         @default("other")
+  sourceKind String  @default("other")
 
   @@index([revisionId])
   @@index([field])
@@ -285,35 +285,35 @@ model PriceQuote {
 /// A physical case. Depth here is usable depth between the rails, which is
 /// what actually constrains a build — not the outside dimension on the sticker.
 model RackCase {
-  id             String  @id @default(cuid())
-  slug           String  @unique
-  name           String
-  rackUnits      Int
+  id            String  @id @default(cuid())
+  slug          String  @unique
+  name          String
+  rackUnits     Int
   /// Columns of 19-inch rails side by side in one case. A two-bay shock case
   /// is one assembly with one load rating and one centre of gravity, planned
   /// as one thing, and its gear sits in two columns. Without this every case
   /// read from the database comes back single-bay and everything in bay 2
   /// reports as outside the case.
-  bays           Int     @default(1)
-  usableDepthMm  Int
+  bays          Int     @default(1)
+  usableDepthMm Int
   /// Rear rail set present? Shallow shock cases often have front rails only,
   /// which changes what can be mounted.
-  hasRearRails   Boolean @default(true)
-  maxLoadLb      Float?
-  emptyWeightLb  Float?
-  racks          Rack[]
+  hasRearRails  Boolean @default(true)
+  maxLoadLb     Float?
+  emptyWeightLb Float?
+  racks         Rack[]
 }
 
 model Rack {
-  id     String @id @default(cuid())
-  name   String
-  slug   String @unique
+  id   String @id @default(cuid())
+  name String
+  slug String @unique
 
   case   RackCase @relation(fields: [caseId], references: [id])
   caseId String
 
   /// Branch circuits available to this rack. Each is {label, volts, amps}.
-  circuits   Json @default("[]")
+  circuits   Json        @default("[]")
   placements Placement[]
 
   ownerId   String?
@@ -334,7 +334,7 @@ model Placement {
   /// Which column of rails, 1 = the only bay on a single-bay case. Part of the
   /// key: without it, U3 of bay 1 and U3 of bay 2 are the same cell and a
   /// two-bay rack can only ever hold one unit per row.
-  bay      Int    @default(1)
+  bay      Int     @default(1)
   /// Which half of the U this unit sits in: "full", "left" or "right". Matches
   /// the Slot type in src/lib/rack/types.ts, where "full" and an omitted slot
   /// mean the same thing everywhere they are read.
@@ -342,11 +342,11 @@ model Placement {
   /// Stored with a default rather than left nullable so the unique index below
   /// actually bites. Postgres counts NULLs as distinct from each other, so a
   /// nullable slot would happily let the same U be filled twice.
-  slot     String @default("full")
+  slot     String  @default("full")
   /// Which rails: "front" or "rear". A rear-mounted unit shares the U with
   /// whatever faces forwards, so it belongs in the key below — without it the
   /// patch bay behind a receiver cannot be stored at all.
-  mount    String @default("front")
+  mount    String  @default("front")
   /// Which branch circuit this unit is plugged into, by circuit label.
   circuit  String?
   label    String?
@@ -354,4 +354,36 @@ model Placement {
 
   @@unique([rackId, bay, position, slot, mount])
   @@index([rackId])
+}
+
+// ---------------------------------------------------------------- feedback
+
+enum FeedbackState {
+  NEW
+  READ
+  DONE
+}
+
+/// Something a person said about the app, from the page they said it on.
+///
+/// Anonymous and unauthenticated by design: the people most worth hearing from
+/// are the ones who hit a problem at a load-in, and they will not make an
+/// account to tell you about it. Contact is optional for the same reason.
+///
+/// No IP address is kept. It would be the only personal data here, it would
+/// need a privacy policy to explain, and it would not make a single message
+/// more useful. Abuse is handled by the rate limit at the door instead.
+model Feedback {
+  id        String        @id @default(cuid())
+  createdAt DateTime      @default(now())
+  message   String
+  /// Whatever they chose to leave — email, phone, a name. Often nothing.
+  contact   String?
+  /// Where they were and what was on screen, as the app recorded it.
+  context   String?
+  state     FeedbackState @default(NEW)
+  /// Filled in when someone deals with it, so the queue can be worked through.
+  note      String?
+
+  @@index([state, createdAt])
 }

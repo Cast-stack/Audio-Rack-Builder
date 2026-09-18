@@ -323,6 +323,20 @@ svg.cablelayer .tailend{stroke:#0B0D10;stroke-width:1.5}
 .pill.e{color:var(--crit)} .pill.w{color:var(--warn)} .pill.i{color:var(--accent)} .pill.o{color:var(--ok)}
 
 footer{padding-block:18px 42px;border-top:1px solid var(--rule);font-family:var(--mono);font-size:.67rem;color:var(--ink-muted);display:flex;flex-wrap:wrap;gap:5px 20px}
+
+/* Telling us something is wrong.
+   Unlike the add-a-device panel this is for everybody, so it is a plain link
+   in the footer rather than a gated button. Hidden on the file:// copy: there
+   is no server to send it to, and a send button that cannot send is worse
+   than no button. */
+.fb-open{border:0;background:none;padding:0;font:inherit;color:var(--accent);cursor:pointer;text-decoration:underline}
+.fb{border:1px solid var(--rule-strong);background:var(--surface-2);padding:12px;margin-bottom:34px;max-width:46rem;display:flex;flex-direction:column;gap:8px}
+.fb textarea,.fb input{border:1px solid var(--rule);background:var(--surface);color:var(--ink);padding:6px;font:inherit;font-size:.82rem;width:100%}
+.fb textarea{resize:vertical}
+/* The honeypot. Off-screen rather than display:none, because a bot that reads
+   the stylesheet skips hidden fields and a screen reader is told to skip this
+   one by aria-hidden and tabindex. */
+.fb-pot{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 <script>
@@ -456,10 +470,27 @@ footer{padding-block:18px 42px;border-top:1px solid var(--rule);font-family:var(
   </div>
 </div>
 
+<div id="fb" class="fb" hidden>
+  <label class="ag-field"><span class="legend">What happened?</span>
+    <textarea id="fbMessage" rows="4" placeholder="The depth it gives for the SM7B is 30 mm short of the one I measured…"></textarea></label>
+  <label class="ag-field"><span class="legend">Email or phone, if you want an answer</span>
+    <input id="fbContact" type="text" autocomplete="off" placeholder="Optional"></label>
+  <div class="fb-pot" aria-hidden="true">
+    <label>Website<input id="fbWebsite" type="text" tabindex="-1" autocomplete="off"></label>
+  </div>
+  <p class="ag-note">A wrong number is the most useful thing you can send. Which rack you have open is sent with it so the message can be matched to a layout; nothing else about you is recorded.</p>
+  <div class="ag-actions">
+    <button id="fbSend" type="button">Send</button>
+    <button id="fbCancel" class="ghost" type="button">Cancel</button>
+  </div>
+  <div id="fbStatus" aria-live="polite"></div>
+</div>
+
 <footer>
   <span>Running the repo's own engine — same code as <b>src/lib/rack</b></span>
   <span>20/20 assertions green</span>
   <span>Layout saved in this browser only</span>
+  <span id="fbFoot" hidden>Found something wrong? <button id="fbOpen" class="fb-open" type="button" aria-expanded="false" aria-controls="fb">Tell us</button></span>
 </footer>
 
 </div>
@@ -1333,6 +1364,94 @@ __PANELS__
 
   agGo.addEventListener("click", requestDevice);
   agName.addEventListener("keydown", function (ev) { if (ev.key === "Enter") requestDevice(); });
+
+  // -------------------------------------------------------------- feedback
+  // Open to everyone, unlike the panel above. The message worth the most here
+  // is "the depth on that unit is wrong", and the person with that message is
+  // standing in a loading dock, so there is no account, no captcha and no
+  // required email between them and the send button.
+  var fb = document.getElementById("fb");
+  var fbFoot = document.getElementById("fbFoot");
+  var fbOpen = document.getElementById("fbOpen");
+  var fbMessage = document.getElementById("fbMessage");
+  var fbContact = document.getElementById("fbContact");
+  var fbWebsite = document.getElementById("fbWebsite");
+  var fbSend = document.getElementById("fbSend");
+  var fbCancel = document.getElementById("fbCancel");
+  var fbStatus = document.getElementById("fbStatus");
+
+  if (location.protocol !== "file:") fbFoot.hidden = false;
+
+  function fbSay(kind, text) {
+    fbStatus.textContent = "";
+    var box = el("div", "ag-status " + kind);
+    box.appendChild(el("p", null, text));
+    fbStatus.appendChild(box);
+    return box;
+  }
+
+  function fbToggle(open) {
+    fb.hidden = !open;
+    fbOpen.setAttribute("aria-expanded", open ? "true" : "false");
+    if (open) { fbMessage.focus(); fb.scrollIntoView({ block: "nearest" }); }
+  }
+
+  fbOpen.addEventListener("click", function () { fbToggle(fb.hidden); });
+  fbCancel.addEventListener("click", function () { fbToggle(false); fbStatus.textContent = ""; });
+
+  /**
+   * What they had on screen, in one line. Enough to reproduce the complaint —
+   * a wrong depth is a wrong depth for a particular case with particular gear
+   * in it — and nothing that identifies the person.
+   */
+  function fbContext() {
+    var c = currentCase();
+    var names = state.placements.map(function (p) {
+      var d = BY_ID.get(p.deviceId);
+      return d ? d.brand + " " + d.model : p.deviceId;
+    });
+    return ("planner · " + c.name + " · " + state.placements.length + " unit(s)"
+      + (names.length ? ": " + names.join(", ") : "")).slice(0, 500);
+  }
+
+  function sendFeedback() {
+    var message = fbMessage.value.trim();
+    if (message.length < 4) { fbSay("bad", "Tell us a bit more than that."); fbMessage.focus(); return; }
+
+    fbSend.disabled = true;
+    fbSay("busy", "Sending…");
+
+    fetch("api/feedback", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        message: message,
+        contact: fbContact.value.trim(),
+        context: fbContext(),
+        website: fbWebsite.value,
+      }),
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (body) {
+        return { ok: res.ok, body: body };
+      });
+    }).then(function (r) {
+      fbSend.disabled = false;
+      if (!r.ok) {
+        // Say plainly that it did not send, and leave the text in the box:
+        // retyping a paragraph is how a report gets abandoned.
+        fbSay("bad", (r.body && r.body.error) || "That did not send. Nothing was lost — try again.");
+        return;
+      }
+      fbMessage.value = "";
+      fbContact.value = "";
+      fbSay("good", "Sent. Thank you — this is how the numbers get fixed.");
+    }).catch(function () {
+      fbSend.disabled = false;
+      fbSay("bad", "Could not reach the server. Nothing was sent.");
+    });
+  }
+
+  fbSend.addEventListener("click", sendFeedback);
 
   // ------------------------------------------------------------------ rack
   function wireDrop(node, position, half, bay) {

@@ -113,6 +113,17 @@ check(
   "the add-a-device form must not show until it is asked for",
 );
 
+// Feedback is offered to everybody, but only where there is somewhere to send
+// it. On the handed-out file:// copy the link must stay down: a Send button
+// that cannot send is worse than no button at all.
+check(
+  (await page.isVisible("#fbFoot")) === !isFile,
+  isFile
+    ? "the feedback link must stay hidden on file://, where there is nowhere to send"
+    : "the feedback link should be offered when the planner is served",
+);
+check(!(await page.isVisible("#fb")), "the feedback form must not show until it is asked for");
+
 check(
   isFile ? home.link === true && home.plain === false : home.link === false && home.plain === true,
   isFile
@@ -376,6 +387,15 @@ async function servedPass() {
   let sentBody = null;
   let sentAuth = null;
   let enabled = false;
+  let feedbackCalls = 0;
+  let feedbackBody = null;
+
+  await page2.route("**/api/feedback", async (route) => {
+    feedbackCalls++;
+    feedbackBody = JSON.parse(route.request().postData() ?? "{}");
+    await route.fulfill({ status: 200, contentType: "application/json", body: '{"ok":true}' });
+  });
+
   await page2.route("**/api/gear/request", async (route) => {
     if (route.request().method() === "GET") {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ enabled }) });
@@ -465,6 +485,47 @@ async function servedPass() {
     check(
       !/not been checked by a person/.test(after ?? ""),
       "forgetting it should clear its finding too",
+    );
+
+    // Feedback. Unlike the panel above, this needs no token and no switch:
+    // anybody looking at the planner can say a number is wrong.
+    check(
+      await page2.isVisible("#fbFoot"),
+      "served over http, the feedback link should be offered to everyone",
+    );
+    await page2.click("#fbOpen");
+    check(await page2.isVisible("#fb"), "the feedback form should open when asked for");
+
+    await page2.fill("#fbMessage", "Two things:\n- the depth is 30 mm short\n- rear view mirrored");
+    await page2.fill("#fbContact", "tech@example.com");
+    await page2.click("#fbSend");
+    await page2.waitForSelector("#fbStatus .ag-status.good", { timeout: 10_000 });
+
+    check(feedbackCalls === 1, `expected one feedback POST, saw ${feedbackCalls}`);
+    check(
+      /rear view mirrored/.test(feedbackBody?.message ?? ""),
+      "the typed message should reach the endpoint intact",
+    );
+    check(
+      (feedbackBody?.message ?? "").includes("\n- the depth"),
+      "line breaks must survive the trip — a list of problems is the useful kind",
+    );
+    check(
+      feedbackBody?.contact === "tech@example.com",
+      `the reply address should be sent when given, got ${JSON.stringify(feedbackBody?.contact)}`,
+    );
+    // The context is what makes a complaint reproducible: which case, which gear.
+    check(
+      /^planner · /.test(feedbackBody?.context ?? ""),
+      `the rack on screen should ride along, got ${JSON.stringify(feedbackBody?.context)}`,
+    );
+    check(
+      !feedbackBody?.website,
+      "the honeypot must go out empty from a real browser, or every message is dropped",
+    );
+    check(
+      (await page2.inputValue("#fbMessage")) === "",
+      "a sent message should clear, so it is not sent twice",
     );
   } finally {
     await page2.close();
