@@ -121,7 +121,9 @@ In the order the launch plan put them.
 | Metering on gear lookup | `/api/gear/request` has a crude per-process, per-IP cap of 10/hour — a floor, not the real thing. It resets on redeploy and does not hold across instances. Real metering needs accounts. |
 | Export escape hatch | If people are paying for their data, they have to be able to take it out. JSON of the rack plus the PDF. |
 | Landing and pricing page | `src/app/page.tsx` and `how-it-works` exist and are scaffold-grade. |
-| Catalog backfill | Twenty-three devices is still a demo. The pipeline exists to make it hundreds, and six of the twelve families are empty: Monitoring, Snakes & Splits, Processing & Amps, Comms, Lighting, Video. |
+| Catalog backfill | 176 devices across 41 brands, up from 23. Four of the twelve families are still empty: Monitoring, Comms, Lighting, Video. About 115 of the 275 rack-relevant names on the industry list are covered; the rest are mostly gear that turned out not to be rack-mountable or publishes no usable specs. |
+| Weight for passive panels | Neutrik's two patch panels, Heritage Audio's HA-73 and Rupert Neve's Portico II were all dropped for one reason: no published unit weight. Depth was made optional for the same reason and made safe by a warning; weight could follow, but erring light on weight is the opposite direction from erring deep on depth. |
+| Provenance by path, not just host | The Whirlwind DA-2's manual lives on Webflow's shared CDN, linked from whirlwindusa.com. The rule matches on domain, so it cannot say "this file is linked from the maker's own page", and the device is out. |
 | Rack power as a supply | A conditioner or distro is what other gear plugs into, and the engine does not model that. Circuits are still `{label, volts, amps}` on the rack. See note 7. |
 | Legal pages | Terms, privacy. Required before taking money. |
 | Mobile pass | Untested below tablet width. A patch sheet gets read on a phone at load-in. |
